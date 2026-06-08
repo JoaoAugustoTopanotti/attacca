@@ -1,0 +1,56 @@
+// GitSong — data model (Milestone 1)
+// See CLAUDE.md for the product vision and roadmap.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A musical piece. Holds an ordered history of revisions.
+model Song {
+  id        String     @id @default(cuid())
+  title     String
+  artist    String?
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  revisions Revision[]
+}
+
+/// One uploaded (or seeded) version of a Song's score.
+/// History is immutable: reverting creates a NEW revision (git-style).
+model Revision {
+  id     String @id @default(cuid())
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId String
+
+  /// Sequential per-song number (1, 2, 3, …). The current revision is the max.
+  number Int
+
+  /// Stub author until real auth exists.
+  authorName String  @default("anon")
+  /// Optional note describing the upload ("started the guitar track").
+  message    String?
+
+  /// Where the score content comes from: "file" (uploaded) or "alphatex" (seed/demo).
+  source String
+
+  // --- File-backed revisions (source = "file") ---
+  originalName String? // original filename as uploaded
+  storedPath   String? // path relative to the storage/ dir
+  sizeBytes    Int     @default(0)
+
+  // --- Inline revisions (source = "alphatex") ---
+  alphaTex String? // AlphaTex notation text (used by the seed demo)
+
+  /// "gp" | "musicxml" | "alphatex"
+  format String
+
+  createdAt DateTime @default(now())
+
+  @@unique([songId, number])
+}

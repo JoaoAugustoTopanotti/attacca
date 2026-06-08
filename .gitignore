@@ -1,0 +1,29 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next
+/out
+next-env.d.ts
+
+# production
+/build
+
+# uploaded files (local storage for dev)
+/storage/*
+!/storage/.gitkeep
+
+# alphaTab assets copied into public by the webpack plugin (generated)
+/public/font
+/public/soundfont
+
+# prisma / sqlite (local dev database)
+/prisma/dev.db
+/prisma/dev.db-journal
+
+# env
+.env
+
+# misc
+.DS_Store
+*.log

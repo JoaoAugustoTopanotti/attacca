@@ -1,0 +1,107 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { detectUploadFormat } from "@/lib/format";
+import { saveRevisionFile } from "@/lib/storage";
+
+type Params = { params: Promise<{ songId: string }> };
+
+// GET /api/songs/:songId/revisions — revision history, newest first.
+export async function GET(_request: Request, { params }: Params) {
+  const { songId } = await params;
+  const song = await prisma.song.findUnique({ where: { id: songId } });
+  if (!song) {
+    return NextResponse.json({ error: "Música não encontrada." }, { status: 404 });
+  }
+  const revisions = await prisma.revision.findMany({
+    where: { songId },
+    orderBy: { number: "desc" },
+  });
+  return NextResponse.json(revisions);
+}
+
+// POST /api/songs/:songId/revisions — upload a file as a new revision.
+// multipart/form-data: file (required), authorName?, message?
+export async function POST(request: Request, { params }: Params) {
+  const { songId } = await params;
+
+  const song = await prisma.song.findUnique({ where: { id: songId } });
+  if (!song) {
+    return NextResponse.json({ error: "Música não encontrada." }, { status: 404 });
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Esperado multipart/form-data." },
+      { status: 400 },
+    );
+  }
+
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
+  }
+
+  const check = detectUploadFormat(file.name);
+  if (!check.ok) {
+    return NextResponse.json({ error: check.reason }, { status: 415 });
+  }
+
+  const authorRaw = form.get("authorName");
+  const messageRaw = form.get("message");
+  const authorName =
+    typeof authorRaw === "string" && authorRaw.trim() !== ""
+      ? authorRaw.trim()
+      : "anon";
+  const message =
+    typeof messageRaw === "string" && messageRaw.trim() !== ""
+      ? messageRaw.trim()
+      : null;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Next per-song revision number.
+  const last = await prisma.revision.findFirst({
+    where: { songId },
+    orderBy: { number: "desc" },
+    select: { number: true },
+  });
+  const number = (last?.number ?? 0) + 1;
+
+  // Create the row first so we have an id to name the stored file, then persist
+  // the bytes and backfill the path.
+  const revision = await prisma.revision.create({
+    data: {
+      songId,
+      number,
+      authorName,
+      message,
+      source: "file",
+      originalName: file.name,
+      format: check.format,
+      sizeBytes: bytes.byteLength,
+    },
+  });
+
+  const storedPath = await saveRevisionFile(
+    songId,
+    revision.id,
+    check.extension,
+    bytes,
+  );
+
+  const saved = await prisma.revision.update({
+    where: { id: revision.id },
+    data: { storedPath },
+  });
+
+  // Touch the song so it sorts to the top of the list.
+  await prisma.song.update({
+    where: { id: songId },
+    data: { updatedAt: new Date() },
+  });
+
+  return NextResponse.json(saved, { status: 201 });
+}
