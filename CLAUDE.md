@@ -135,8 +135,13 @@ O raciocínio que levou à decisão (mantido como contexto):
   `createdAt`. Único por `[songId, number]`.
 - **Histórico imutável (estilo git)**: nunca mutar/apagar uma revisão; reverter cria uma
   **nova** revisão a partir do conteúdo de uma antiga.
-- ⚠️ **Limite conhecido**: hoje "revisão = arquivo inteiro" (blob). É uma pilha de saves,
-  **não** é versionável por trilha/compasso. O M2 exige o formato canônico (seção 5).
+- **Canônico (M2, em andamento)**: no upload, além do blob de proveniência, derivamos e
+  guardamos o **alphaTex canônico** no campo `Revision.alphaTex` (via `src/lib/canonical.ts`,
+  com `serverExternalPackages: ["@coderline/alphatab"]` no `next.config`). É a forma
+  versionável/mesclável por `(trilha, compasso)`. O **schema de células** (trilha/célula
+  como entidade) ainda **não** existe — vem depois (ver seção 5 e o spike de prova).
+- ⚠️ **Limite atual**: a renderização ainda usa o blob; o alphaTex guardado é a base do
+  M2. "Revisão = arquivo inteiro" continua, mas agora com o canônico ao lado.
 
 ## 9. Estrutura
 ```

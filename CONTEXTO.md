@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-07** — Sessão 1 (M2 início, de-risk): **prova do fatiamento por célula**
+  (`spikes/cellslice.mjs`) — slice `(trilha, compasso)` → swap → re-emit alphaTex válido,
+  via modelo do alphaTab (`bar.voices` + `score.finish()`) e exportador oficial. PART 1
+  (exemplo controlado) e PART 2 (Stairway real, 13×167) **passaram**: célula trocada
+  recebe o conteúdo novo, demais células intactas, re-importa válido. Depois, incremento
+  de **storage**: upload passa a guardar o **alphaTex canônico** (`src/lib/canonical.ts` +
+  `serverExternalPackages`) junto do blob; Stairway existente backfillado; teste HTTP real
+  ok (323.773 chars). **Schema de células ainda NÃO modelado** (próximo passo).
+
+### Log antigo
 - **2026-06-07** — Sessão 1: planejamento aprovado; M1 construído ponta a ponta
   (Next 16 + alphaTab + Prisma 6 + SQLite); seed AlphaTex tocável; smoke test
   server-side OK. João testou no navegador (criar música, importar Stairway, tocou).
