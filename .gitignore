@@ -28,3 +28,7 @@ next-env.d.ts
 # misc
 .DS_Store
 *.log
+
+# spike artifacts (disposable; may contain copyrighted derivative transcriptions)
+/spikes/*.json
+/spikes/*.alphatex
