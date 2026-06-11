@@ -200,6 +200,14 @@ label {
 .track-toggle input {
   width: auto;
 }
+.track-instrument {
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+}
 .player-viewport {
   position: relative;
   height: 460px;
@@ -264,6 +272,16 @@ label {
 }
 .revision-item.active {
   border-color: var(--accent);
+}
+.revision-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.revision-actions button {
+  padding: 5px 10px;
+  font-size: 0.78rem;
 }
 .revision-meta {
   font-size: 0.8rem;

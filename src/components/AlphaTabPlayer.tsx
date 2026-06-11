@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { instrumentLabel } from "@/lib/instruments";
 
 // Types only — the actual module is imported dynamically inside the effect so
 // it never runs during SSR (alphaTab touches `window`/`document`).
@@ -37,7 +38,9 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
   const [apiReady, setApiReady] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [tracks, setTracks] = useState<{ index: number; name: string }[]>([]);
+  const [tracks, setTracks] = useState<
+    { index: number; name: string; instrument: string }[]
+  >([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [playerReady, setPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,10 +73,16 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
 
       api.scoreLoaded.on((score) => {
         scoreRef.current = score;
-        const list = score.tracks.map((t: Track) => ({
-          index: t.index,
-          name: t.name?.trim() || `Trilha ${t.index + 1}`,
-        }));
+        const list = score.tracks.map((t: Track) => {
+          const pb = t.playbackInfo;
+          // MIDI channel 9 (0-based) is the GM percussion channel.
+          const isPercussion = pb?.primaryChannel === 9;
+          return {
+            index: t.index,
+            name: t.name?.trim() || `Trilha ${t.index + 1}`,
+            instrument: instrumentLabel(pb?.program ?? 0, isPercussion),
+          };
+        });
         setTracks(list);
         setSelected(new Set(list.map((t) => t.index)));
         setStatus("ready");
@@ -256,7 +265,8 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
                 checked={selected.has(t.index)}
                 onChange={() => toggleTrack(t.index)}
               />
-              {t.name}
+              <span>{t.name}</span>
+              <span className="track-instrument">{t.instrument}</span>
             </label>
           ))}
         </div>

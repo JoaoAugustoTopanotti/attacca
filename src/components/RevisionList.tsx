@@ -14,13 +14,28 @@ export default function RevisionList({
   revisions,
   selectedId,
   onSelect,
+  onRevert,
 }: {
   revisions: RevisionDTO[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onRevert: (id: string) => void;
 }) {
   if (revisions.length === 0) {
     return <p className="muted">Nenhuma revisão ainda.</p>;
+  }
+
+  // The current revision is the highest number; reverting to it is a no-op.
+  const currentNumber = Math.max(...revisions.map((r) => r.number));
+
+  function handleRevert(r: RevisionDTO) {
+    if (
+      window.confirm(
+        `Reverter para a revisão #${r.number}? Isso cria uma NOVA revisão a partir dela (o histórico é preservado).`,
+      )
+    ) {
+      onRevert(r.id);
+    }
   }
 
   return (
@@ -40,14 +55,25 @@ export default function RevisionList({
             </div>
             {r.message && <div className="revision-meta">“{r.message}”</div>}
           </div>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => onSelect(r.id)}
-            disabled={r.id === selectedId}
-          >
-            {r.id === selectedId ? "Vendo" : "Ver"}
-          </button>
+          <div className="revision-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => onSelect(r.id)}
+              disabled={r.id === selectedId}
+            >
+              {r.id === selectedId ? "Vendo" : "Ver"}
+            </button>
+            {r.number !== currentNumber && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => handleRevert(r)}
+              >
+                Reverter
+              </button>
+            )}
+          </div>
         </li>
       ))}
     </ul>

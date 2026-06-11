@@ -42,6 +42,21 @@ export default function SongWorkspace({
     }
   }
 
+  async function revertTo(sourceId: string) {
+    const res = await fetch(`/api/revisions/${sourceId}/revert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      // Select the freshly created revision (it becomes the current one).
+      await refreshRevisions(data.id);
+    } else {
+      alert(data?.error ?? "Falha ao reverter.");
+    }
+  }
+
   return (
     <div className="layout-2col">
       <section>
@@ -77,6 +92,7 @@ export default function SongWorkspace({
           revisions={revisions}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          onRevert={revertTo}
         />
       </aside>
     </div>
