@@ -52,9 +52,17 @@ autoria preservada + incompletude visível como convite à contribuição.**
   falta baixo e bateria").
 
 ## 5. DECISÃO DE ARQUITETURA CENTRAL — formato canônico interno
-> A decisão que destrava (ou mata) o futuro. **Precisa ser tomada antes do M2.** No M1
-> guardamos o blob binário, mas isso **não é versionável de verdade** — é só uma pilha de
-> saves.
+> ✅ **DECIDIDO (2026-06-07): o formato canônico é o `alphaTex`** (texto do alphaTab).
+> Ver [`docs/adr/0001-formato-canonico.md`](docs/adr/0001-formato-canonico.md) — decisão
+> com evidência de round-trip num `.gp` real (Stairway, 13 trilhas/167 compassos/19.786
+> notas). alphaTab importa e exporta alphaTex (round-trip sem código próprio); é **texto**
+> (diffável/versionável), ~70× menor que o JSON do alphaTab, e preserva 100% das notas e
+> efeitos (só normaliza rests redundantes). JSON (`JsonConverter`) fica como fallback de
+> alta fidelidade; **MusicXML descartado** (alphaTab não exporta). No M1 ainda guardamos
+> o blob binário — isso **não é versionável**, é só uma pilha de saves; o store canônico
+> em alphaTex é trabalho do M2.
+
+O raciocínio que levou à decisão (mantido como contexto):
 
 - **Não dá para fazer merge de blob binário do Guitar Pro.** É preciso uma
   **representação interna estruturada e endereçável** (MusicXML ou modelo próprio em

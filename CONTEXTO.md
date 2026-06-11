@@ -71,14 +71,15 @@ Em 2026-06-07 o João trouxe o contexto completo do produto. Pontos-chave:
 - **Futuro** — camada pública (domínio público/CC), reputação, busca, auth/takedown/
   pagamento, editor de tab.
 
-### Decisão de arquitetura RESOLVIDA (era "a vs b") — formato canônico interno
-O novo contexto resolve a antiga dúvida a favor de **(b) estruturado**: para versionar e
-fazer merge **não dá** para usar blob binário. Precisa de uma **representação interna
-endereçável** com a **unidade atômica = célula `(trilha, compasso)`**. Merge: trilhas
-diferentes nunca colidem (união trivial); correção em trilha alheia = pull request;
-conflito de mesma célula = mostrar lado a lado e humano escolhe (sem "esperteza
-musical"). Diff **estrutural**, não textual. **Tomar essa decisão técnica antes de
-começar o M2.**
+### Decisão de arquitetura — formato canônico interno ✅ DECIDIDO (2026-06-07)
+Spike B concluído. **Formato canônico = `alphaTex`** (texto do alphaTab). Evidência de
+round-trip num `.gp` real (Stairway): alphaTab importa/exporta alphaTex sem código
+próprio, é **texto** (diffável), ~70× menor que o JSON do alphaTab e preserva 100% das
+notas/efeitos (só normaliza rests redundantes). JSON (`JsonConverter`) = fallback de alta
+fidelidade; **MusicXML descartado** (alphaTab não exporta). Registro completo em
+**`docs/adr/0001-formato-canonico.md`**. Unidade atômica do merge segue sendo a célula
+`(trilha, compasso)`; merge por união de trilhas + PR por célula + conflito raro resolvido
+por humano (M3). **Não implementado** — só decidido.
 
 ## Pendências de curto prazo
 - [x] Barra de transporte/posição no player. ✅ (2026-06-07)
@@ -128,3 +129,10 @@ começar o M2.**
   formato canônico interno (grade trilha × compasso)** como pré-requisito do M2. Antiga
   dúvida "(a) arquivo inteiro vs (b) trilhas de 1ª classe" agora **resolvida a favor de
   (b) estruturado**.
+- **2026-06-07** — Sessão 1 (Spike B — formato canônico): experimento de round-trip num
+  `.gp` real (Stairway, 13 trilhas/167 compassos/19.786 notas) com `spikes/roundtrip.mjs`
+  rodando alphaTab em Node. Comparados MusicXML (sem exportador — descartado), JSON
+  (`JsonConverter`, 100% lossless mas 22,5 MB e não-diffável) e **alphaTex** (324 KB,
+  texto, 100% das notas/efeitos, só normaliza rests). **Decisão: alphaTex.** ADR escrita
+  em `docs/adr/0001-formato-canonico.md`; CLAUDE.md atualizado. Nada implementado (spike
+  descartável; artefatos gerados são gitignored).
