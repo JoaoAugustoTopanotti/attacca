@@ -40,15 +40,18 @@ Validado pelo João no navegador: criar música OK, importar "Stairway to Heaven
 8. **Rede corporativa/TLS**: instalar com `NODE_OPTIONS=--use-system-ca` quando der
    `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
 
-## Feedback do João nos testes (a tratar depois)
-- **Visual feio** → estilização fica para uma etapa de polish. (ciente)
-- **Partitura "confusa" / não dá pra saber qual instrumento toca** → melhorar
-  apresentação das trilhas (nomes/instrumentos, talvez uma trilha por vez).
-- **"O player não existe" / não sei que parte está tocando** → falta uma **barra de
-  transporte** (progresso/seek + tempo atual/total + posição). É o gap funcional mais
-  sentido. → vira o próximo passo proposto.
-- **Erro de hidratação** (data formatada divergindo server/cliente) → **corrigido**
-  em 2026-06-07 (formatação determinística em `RevisionList.tsx`).
+## Feedback do João nos testes
+- **Visual feio** → em andamento (player redesenhado; falta polir o resto da página). 
+- **Partitura "confusa" / não dá pra saber qual instrumento** → **resolvido**: dropdown
+  de instrumento (uma trilha por vez) + etiqueta de família GM.
+- **"O player não existe" / não sei que parte está tocando** → **resolvido**: barra de
+  transporte (progresso/seek + tempo atual/total) + cursor visível na tablatura.
+- **Todas as trilhas selecionadas ao abrir / partitura pequena / clave de sol** →
+  **resolvido**: abre só a 1ª trilha, `scale` maior, `staveProfile: "Tab"` (tablatura),
+  tema escuro. Referência visual: Songsterr.
+- **Erro de hidratação** (data) → corrigido; o restante era a extensão Bitdefender.
+- **Caveat**: com `staveProfile: "Tab"`, trilhas sem corda (ex.: piano) podem aparecer
+  vazias (não têm tablatura). Aceitável no foco atual (instrumentos de corda).
 
 ## Roadmap (do CLAUDE.md)
 - **M1** — upload → render/play → histórico. ✅ (faltam polimentos do player)
@@ -66,8 +69,9 @@ entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
 - [x] Barra de transporte/posição no player. ✅ (2026-06-07)
 - [x] Rótulo de instrumento por trilha (família GM). ✅ (2026-06-07)
 - [x] Botão "Reverter" (cria nova revisão a partir de uma antiga). ✅ (2026-06-07)
-- [ ] Polish visual geral (tela "feia", partitura densa — zoom/layout do alphaTab).
-- [ ] (Verificar no navegador) cursor visível, seek, e o fluxo de reverter.
+- [x] Player estilo Songsterr: dropdown de 1 trilha, tablatura, tema escuro, maior. ✅ (2026-06-07)
+- [ ] Polish do restante da página (header, cards de música, formulários).
+- [ ] (Verificar no navegador) cursor visível, seek, reverter e o novo player escuro/tab.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
@@ -98,3 +102,8 @@ entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
     `fix: prevent hydration mismatches from dates and browser extensions`,
     `feat: add revision revert and per-track instrument labels`,
     `docs: update project memory for revert and instrument labels`.
+- **2026-06-07** — Sessão 1 (player redesign): a pedido do João, player aproximado do
+  Songsterr — **dropdown de instrumento (1 trilha por vez)** no lugar dos checkboxes,
+  abre só a 1ª trilha, **`staveProfile: "Tab"`** (tablatura, sem clave de sol),
+  **tema escuro** (cores claras via `display.resources`), `scale` maior, viewport mais
+  alto e layout mais largo. `tsc` limpo, páginas 200.
