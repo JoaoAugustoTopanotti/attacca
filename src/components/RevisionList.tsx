@@ -2,11 +2,12 @@
 
 import type { RevisionDTO } from "@/components/SongWorkspace";
 
+// Deterministic dd/MM/yyyy HH:mm so server-rendered and client-hydrated markup
+// match (toLocaleString differs between Node's ICU and the browser's).
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export default function RevisionList({
