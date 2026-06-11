@@ -51,7 +51,7 @@ a:hover {
 }
 
 .container {
-  max-width: 960px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 24px;
 }
@@ -182,41 +182,25 @@ label {
   opacity: 0.5;
 }
 
-.player-tracks {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.track-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--text);
-  font-size: 0.85rem;
-}
-.track-toggle input {
+.track-select {
   width: auto;
-}
-.track-instrument {
-  font-size: 0.72rem;
-  color: var(--muted);
+  max-width: 360px;
   background: var(--panel-2);
+  color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 .player-viewport {
   position: relative;
-  height: 460px;
+  height: 620px;
   overflow-y: auto;
-  background: #ffffff;
-  color: #000;
+  background: #12141a;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px;
+  padding: 14px;
 }
 .player-loading {
   position: absolute;
@@ -224,7 +208,7 @@ label {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: var(--muted);
 }
 
 /* alphaTab playback cursor + note highlight. alphaTab injects these elements

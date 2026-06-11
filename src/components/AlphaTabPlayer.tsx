@@ -41,7 +41,7 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
   const [tracks, setTracks] = useState<
     { index: number; name: string; instrument: string }[]
   >([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number>(0);
   const [playerReady, setPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -60,6 +60,20 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         core: {
           // Assets are copied into /public by the alphaTab webpack plugin.
           fontDirectory: "/font/",
+        },
+        display: {
+          // Tablature only (no standard notation) — friendlier for string players.
+          staveProfile: "Tab",
+          scale: 1.1,
+          // Dark theme: light glyphs on the dark viewport.
+          resources: {
+            mainGlyphColor: "#e8eaed",
+            secondaryGlyphColor: "#aab2c0",
+            scoreInfoColor: "#ffffff",
+            staffLineColor: "#39414f",
+            barSeparatorColor: "#39414f",
+            barNumberColor: "#8c93a3",
+          },
         },
         player: {
           enablePlayer: true,
@@ -84,7 +98,13 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
           };
         });
         setTracks(list);
-        setSelected(new Set(list.map((t) => t.index)));
+        // Show a single track at a time (Songsterr-style); default to the first.
+        const firstIndex = list[0]?.index ?? 0;
+        setSelectedTrackIndex(firstIndex);
+        const firstTrack = score.tracks.find((t) => t.index === firstIndex);
+        if (firstTrack) {
+          apiRef.current?.renderTracks([firstTrack]);
+        }
         setStatus("ready");
         setErrorMessage(null);
       });
@@ -172,22 +192,13 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
     };
   }, [apiReady, revision.id, revision.source, revision.format]);
 
-  function toggleTrack(index: number) {
+  function selectTrack(index: number) {
     const api = apiRef.current;
     const score = scoreRef.current;
     if (!api || !score) return;
-
-    const next = new Set(selected);
-    if (next.has(index)) {
-      if (next.size === 1) return; // keep at least one track visible
-      next.delete(index);
-    } else {
-      next.add(index);
-    }
-    setSelected(next);
-
-    const tracksToRender = score.tracks.filter((t: Track) => next.has(t.index));
-    api.renderTracks(tracksToRender);
+    setSelectedTrackIndex(index);
+    const track = score.tracks.find((t: Track) => t.index === index);
+    if (track) api.renderTracks([track]);
   }
 
   function handlePlayPause() {
@@ -228,6 +239,22 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         >
           Parar
         </button>
+
+        {tracks.length > 0 && status === "ready" && (
+          <select
+            className="track-select"
+            value={selectedTrackIndex}
+            onChange={(e) => selectTrack(Number(e.target.value))}
+            aria-label="Instrumento / trilha"
+          >
+            {tracks.map((t) => (
+              <option key={t.index} value={t.index}>
+                {t.name} — {t.instrument}
+              </option>
+            ))}
+          </select>
+        )}
+
         {!playerReady && status === "ready" && (
           <span className="muted">carregando áudio…</span>
         )}
@@ -254,23 +281,6 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         />
         <span className="player-time">{formatTime(endTimeMs)}</span>
       </div>
-
-      {tracks.length > 0 && status === "ready" && (
-        <div className="player-tracks">
-          <span className="muted">Trilhas:</span>
-          {tracks.map((t) => (
-            <label key={t.index} className="track-toggle">
-              <input
-                type="checkbox"
-                checked={selected.has(t.index)}
-                onChange={() => toggleTrack(t.index)}
-              />
-              <span>{t.name}</span>
-              <span className="track-instrument">{t.instrument}</span>
-            </label>
-          ))}
-        </div>
-      )}
 
       {status === "error" && (
         <div className="player-error" role="alert">
