@@ -16,6 +16,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  // On the server we use alphaTab as a plain Node module (import .gp/MusicXML and
+  // export canonical alphaTex). Keep it external so Next doesn't bundle its
+  // worker/worklet code into the server build — it's required natively at runtime.
+  serverExternalPackages: ["@coderline/alphatab"],
   webpack(config, { isServer }) {
     // Workers/worklets/assets are browser-only — apply on the client build.
     if (!isServer) {

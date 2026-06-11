@@ -87,6 +87,7 @@ export async function POST(request: Request, { params }: Params) {
       originalName: source.originalName,
       format: source.format,
       sizeBytes: source.sizeBytes,
+      alphaTex: source.alphaTex, // carry the canonical form along
     },
   });
 

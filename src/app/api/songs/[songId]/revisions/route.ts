@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { detectUploadFormat } from "@/lib/format";
 import { saveRevisionFile } from "@/lib/storage";
+import { scoreBytesToAlphaTex } from "@/lib/canonical";
 
 type Params = { params: Promise<{ songId: string }> };
 
@@ -70,6 +71,10 @@ export async function POST(request: Request, { params }: Params) {
   });
   const number = (last?.number ?? 0) + 1;
 
+  // Derive the canonical alphaTex (versionable form) alongside the provenance
+  // blob. Best-effort: null if alphaTab can't parse this file.
+  const alphaTex = await scoreBytesToAlphaTex(bytes);
+
   // Create the row first so we have an id to name the stored file, then persist
   // the bytes and backfill the path.
   const revision = await prisma.revision.create({
@@ -82,6 +87,7 @@ export async function POST(request: Request, { params }: Params) {
       originalName: file.name,
       format: check.format,
       sizeBytes: bytes.byteLength,
+      alphaTex,
     },
   });
 
