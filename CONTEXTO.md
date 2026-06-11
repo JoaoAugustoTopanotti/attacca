@@ -53,17 +53,32 @@ Validado pelo João no navegador: criar música OK, importar "Stairway to Heaven
 - **Caveat**: com `staveProfile: "Tab"`, trilhas sem corda (ex.: piano) podem aparecer
   vazias (não têm tablatura). Aceitável no foco atual (instrumentos de corda).
 
-## Roadmap (do CLAUDE.md)
-- **M1** — upload → render/play → histórico. ✅ (faltam polimentos do player)
-- **M2** — fork/branch/merge + "completar em conjunto" por trilha/instrumento.
-- **M3** — propor correções / diff de versões.
-- **M4** — auth real, takedown, licenciamento, pagamento.
-- **M5** — editor de tab no navegador.
+## Visão (resumo — detalhe completo no CLAUDE.md)
+Em 2026-06-07 o João trouxe o contexto completo do produto. Pontos-chave:
+- **Dor:** músicos aprendizes querem tocar juntos, mas não há onde montar **em conjunto**
+  uma transcrição completa e fiel, cada um no seu instrumento.
+- **Diferencial:** transcrição **divisível por trilha + assíncrona + autoria preservada +
+  incompletude visível** (revezamento, não sobrescrita). Nem wiki, nem edição síncrona,
+  nem autoria solo.
+- **Princípio guia:** pequeno, nichado, provado ponta a ponta (o Parture morreu de
+  ambição). Densidade por nicho é o risco nº 1.
 
-### Decisão de design em aberto (resolver no M2)
-"Revisão = um arquivo inteiro" (bom pro M1). No M2, escolher entre **(a)** manter
-arquivo multi-trilha completo por revisão (simples, sem merge) ou **(b)** trilhas como
-entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
+## Roadmap (do CLAUDE.md)
+- **M1** — upload → render/play → histórico. ✅
+- **M2** — colaboração por trilha numa comunidade (reivindicar trilha, propor correção
+  estilo PR, mural de incompletude). **Exige primeiro o formato canônico** (abaixo).
+- **M3** — resolução de conflito de mesma-célula (flag + escolha humana).
+- **Futuro** — camada pública (domínio público/CC), reputação, busca, auth/takedown/
+  pagamento, editor de tab.
+
+### Decisão de arquitetura RESOLVIDA (era "a vs b") — formato canônico interno
+O novo contexto resolve a antiga dúvida a favor de **(b) estruturado**: para versionar e
+fazer merge **não dá** para usar blob binário. Precisa de uma **representação interna
+endereçável** com a **unidade atômica = célula `(trilha, compasso)`**. Merge: trilhas
+diferentes nunca colidem (união trivial); correção em trilha alheia = pull request;
+conflito de mesma célula = mostrar lado a lado e humano escolhe (sem "esperteza
+musical"). Diff **estrutural**, não textual. **Tomar essa decisão técnica antes de
+começar o M2.**
 
 ## Pendências de curto prazo
 - [x] Barra de transporte/posição no player. ✅ (2026-06-07)
@@ -107,3 +122,9 @@ entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
   abre só a 1ª trilha, **`staveProfile: "Tab"`** (tablatura, sem clave de sol),
   **tema escuro** (cores claras via `display.resources`), `scale` maior, viewport mais
   alto e layout mais largo. `tsc` limpo, páginas 200.
+- **2026-06-07** — Sessão 1 (visão): João trouxe o contexto completo do produto.
+  **`CLAUDE.md` reescrito** integrando dor, diferencial, modelo de duas pontas, risco de
+  densidade, posicionamento/copyright e — o mais importante — a **decisão arquitetural do
+  formato canônico interno (grade trilha × compasso)** como pré-requisito do M2. Antiga
+  dúvida "(a) arquivo inteiro vs (b) trilhas de 1ª classe" agora **resolvida a favor de
+  (b) estruturado**.
