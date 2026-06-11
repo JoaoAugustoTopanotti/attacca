@@ -159,6 +159,29 @@ label {
   gap: 8px;
   margin-bottom: 10px;
 }
+.player-transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.player-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: center;
+}
+.player-seek {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.player-seek:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .player-tracks {
   display: flex;
   flex-wrap: wrap;
@@ -194,6 +217,23 @@ label {
   align-items: center;
   justify-content: center;
   color: #555;
+}
+
+/* alphaTab playback cursor + note highlight. alphaTab injects these elements
+   but leaves the styling to us — without this the cursor is invisible. */
+.at-cursor-bar {
+  background: rgba(255, 222, 60, 0.35); /* highlights the current bar */
+}
+.at-cursor-beat {
+  background: rgba(64, 110, 255, 0.9); /* thin line on the current beat */
+  width: 2px;
+}
+.at-selection div {
+  background: rgba(64, 110, 255, 0.12);
+}
+.at-highlight * {
+  fill: #2b6cff;
+  stroke: #2b6cff;
 }
 .player-error {
   background: #2a1416;

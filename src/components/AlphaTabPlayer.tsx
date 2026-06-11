@@ -17,11 +17,22 @@ export type PlayerRevision = {
 
 type Status = "loading" | "ready" | "error";
 
+// Milliseconds -> "m:ss".
+function formatTime(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
   const scoreRef = useRef<Score | null>(null);
+  // While the user drags the seek bar we ignore incoming position events so the
+  // thumb doesn't fight the playhead.
+  const scrubbingRef = useRef(false);
 
   const [apiReady, setApiReady] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
@@ -30,6 +41,8 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [playerReady, setPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [endTimeMs, setEndTimeMs] = useState(0);
 
   // --- Initialize the alphaTab API once. ---
   useEffect(() => {
@@ -73,6 +86,13 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         setIsPlaying(e.state === alphaTab.synth.PlayerState.Playing);
       });
 
+      api.playerPositionChanged.on((e) => {
+        setEndTimeMs(e.endTime);
+        if (!scrubbingRef.current) {
+          setCurrentTimeMs(e.currentTime);
+        }
+      });
+
       api.error.on((error) => {
         const message =
           error instanceof Error ? error.message : "Erro desconhecido.";
@@ -102,6 +122,8 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
     setErrorMessage(null);
     setPlayerReady(false);
     setIsPlaying(false);
+    setCurrentTimeMs(0);
+    setEndTimeMs(0);
 
     (async () => {
       try {
@@ -167,6 +189,19 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
     apiRef.current?.stop();
   }
 
+  // Seek bar: value is a 0..1 fraction of the total duration.
+  const progress = endTimeMs > 0 ? currentTimeMs / endTimeMs : 0;
+
+  function handleSeekChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const fraction = Number(e.target.value);
+    const targetMs = fraction * endTimeMs;
+    setCurrentTimeMs(targetMs); // live label while dragging
+    const api = apiRef.current;
+    if (api && endTimeMs > 0) {
+      api.timePosition = targetMs;
+    }
+  }
+
   return (
     <div className="player">
       <div className="player-toolbar">
@@ -187,6 +222,28 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         {!playerReady && status === "ready" && (
           <span className="muted">carregando áudio…</span>
         )}
+      </div>
+
+      <div className="player-transport">
+        <span className="player-time">{formatTime(currentTimeMs)}</span>
+        <input
+          type="range"
+          className="player-seek"
+          min={0}
+          max={1}
+          step={0.001}
+          value={progress}
+          onPointerDown={() => {
+            scrubbingRef.current = true;
+          }}
+          onPointerUp={() => {
+            scrubbingRef.current = false;
+          }}
+          onChange={handleSeekChange}
+          disabled={!playerReady || status !== "ready" || endTimeMs <= 0}
+          aria-label="Posição da reprodução"
+        />
+        <span className="player-time">{formatTime(endTimeMs)}</span>
       </div>
 
       {tracks.length > 0 && status === "ready" && (
