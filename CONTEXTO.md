@@ -64,10 +64,11 @@ entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
 
 ## Pendências de curto prazo
 - [x] Barra de transporte/posição no player. ✅ (2026-06-07)
-- [ ] Melhorar exibição de trilhas/instrumentos (nome do instrumento, talvez tocar/ver uma por vez).
-- [ ] Botão "Reverter" (cria nova revisão a partir de uma antiga).
-- [ ] Polish visual geral.
-- [ ] (Verificar no navegador) seek arrastando funciona e cursor/auto-scroll visível.
+- [x] Rótulo de instrumento por trilha (família GM). ✅ (2026-06-07)
+- [x] Botão "Reverter" (cria nova revisão a partir de uma antiga). ✅ (2026-06-07)
+- [ ] Polish visual geral (tela "feia", partitura densa — zoom/layout do alphaTab).
+- [ ] (Verificar no navegador) cursor visível, seek, e o fluxo de reverter.
+- [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
 - **2026-06-07** — Sessão 1: planejamento aprovado; M1 construído ponta a ponta
@@ -86,3 +87,14 @@ entidades de primeira classe (modelo git "de verdade", mais trabalhoso).
     (atributos `bis_skin_checked`/`bis_register`/`__processed_*`), não pelo código.
     Posto `suppressHydrationWarning` em `<html>`/`<body>`; confirmação definitiva é
     abrir em janela anônima (sem extensão).
+- **2026-06-07** — Sessão 1 (Passo A): fechado o essencial do M1.
+  - **Reverter** (`/api/revisions/[id]/revert` + botão na `RevisionList`): cria uma
+    NOVA revisão a partir de uma antiga (copia AlphaTex ou os bytes do arquivo),
+    histórico imutável; botão escondido na revisão atual; pede confirmação.
+  - **Rótulo de instrumento por trilha** (`lib/instruments.ts`): família GM
+    (Guitarra, Baixo, Bateria/Percussão…) ao lado do nome da trilha.
+  - `tsc --noEmit` limpo; rota de revert responde 405 em GET (compila).
+  - Commits desta sessão: `feat: add player transport bar and playback cursor`,
+    `fix: prevent hydration mismatches from dates and browser extensions`,
+    `feat: add revision revert and per-track instrument labels`,
+    `docs: update project memory for revert and instrument labels`.

@@ -77,10 +77,11 @@ src/
       songs/route.ts                          # GET lista, POST cria
       songs/[songId]/revisions/route.ts       # GET lista, POST upload
       revisions/[id]/file/route.ts            # GET bytes (ou AlphaTex)
+      revisions/[id]/revert/route.ts          # POST reverter (nova revisão a partir de uma antiga)
   components/
     AlphaTabPlayer.tsx   NewSongForm.tsx   SongWorkspace.tsx
     UploadForm.tsx       RevisionList.tsx
-  lib/  prisma.ts  format.ts  storage.ts  slug.ts
+  lib/  prisma.ts  format.ts  storage.ts  slug.ts  instruments.ts
 prisma/  schema.prisma  seed.ts
 storage/  # uploads (gitignored)
 ```
@@ -114,7 +115,13 @@ Hoje **"revisão = um arquivo inteiro"**, o que está certo para o M1. Ao implem
 Registrado para não engessar o M2.
 
 ### Itens deixados como futuro (stubs/limitações conhecidas do M1)
-- Autor é texto livre (sem login). 
-- Botão "Reverter" ainda não implementado (a semântica, quando existir, é a (b) do tópico
-  de reverter: cria nova revisão a partir da antiga, histórico imutável).
+- Autor é texto livre (sem login).
 - `.mxl` rejeitado (falta unzip server-side).
+
+### Já implementado
+- **Reverter**: `POST /api/revisions/[id]/revert` cria uma **nova** revisão a partir do
+  conteúdo de uma antiga (copia AlphaTex ou os bytes do arquivo para um novo `storedPath`),
+  com mensagem "Revertido para #N". Histórico imutável. Botão na `RevisionList` (escondido
+  na revisão atual).
+- **Rótulo de instrumento por trilha** (`lib/instruments.ts`): família GM (Guitarra, Baixo,
+  Bateria/Percussão, etc.) derivada do `playbackInfo.program`/canal de percussão.
