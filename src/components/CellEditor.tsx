@@ -41,12 +41,15 @@ export default function CellEditor({
   const [data, setData] = useState<CellResponse | null>(null);
   const [fragment, setFragment] = useState("");
   const [author, setAuthor] = useState("");
+  const [reviewId, setReviewId] = useState<string | null>(null); // history entry under review
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  // Cache-busts the assembled player so it re-renders after each saved edit.
   const [playerVersion, setPlayerVersion] = useState(0);
+
+  const acceptedId = data?.cell.acceptedContributionId ?? null;
+  const reviewContrib = data?.cell.contributions.find((c) => c.id === reviewId) ?? null;
 
   const loadCell = useCallback(async () => {
     setLoading(true);
@@ -59,6 +62,7 @@ export default function CellEditor({
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha ao carregar a célula.");
       setData(json);
+      setReviewId(null);
       const accepted = json.cell.contributions.find(
         (c: Contribution) => c.id === json.cell.acceptedContributionId,
       );
@@ -75,28 +79,70 @@ export default function CellEditor({
     loadCell();
   }, [loadCell]);
 
-  async function save() {
-    if (!data) return;
-    setSaving(true);
+  async function postJson(url: string, body: unknown) {
+    setBusy(true);
     setError(null);
     setInfo(null);
     try {
-      const res = await fetch(`/api/cells/${data.cell.id}/contributions`, {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alphaTex: fragment, authorName: author }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Falha ao salvar.");
-      setInfo("Nova contribuição salva (a anterior virou histórico).");
-      setPlayerVersion((v) => v + 1);
-      await loadCell(); // refresh history
+      if (!res.ok) throw new Error(json?.error ?? "Falha.");
+      return json;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao salvar.");
+      setError(e instanceof Error ? e.message : "Erro.");
+      return null;
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
+
+  async function saveContribution(accept: boolean) {
+    if (!data) return;
+    const ok = await postJson(`/api/cells/${data.cell.id}/contributions`, {
+      alphaTex: fragment,
+      authorName: author,
+      accept,
+    });
+    if (ok) {
+      setInfo(
+        accept
+          ? "Contribuição salva e aceita (anterior virou histórico)."
+          : "Proposta registrada (não aceita ainda).",
+      );
+      setPlayerVersion((v) => v + 1);
+      await loadCell();
+    }
+  }
+
+  async function accept(contributionId: string) {
+    if (!data) return;
+    const ok = await postJson(`/api/cells/${data.cell.id}/accept`, { contributionId });
+    if (ok) {
+      setInfo("Proposta aceita — o ponteiro re-apontou para ela.");
+      setPlayerVersion((v) => v + 1);
+      await loadCell();
+    }
+  }
+
+  async function reject(contributionId: string) {
+    if (!data) return;
+    const ok = await postJson(`/api/cells/${data.cell.id}/reject`, { contributionId });
+    if (ok) {
+      setInfo("Proposta recusada (continua no histórico, marcada como rejeitada).");
+      await loadCell();
+    }
+  }
+
+  // The player shows the accepted document, or a PREVIEW with the reviewed
+  // contribution swapped in (without accepting it).
+  const previewing = reviewContrib && reviewContrib.id !== acceptedId;
+  const playerUrl = previewing
+    ? `/api/songs/${songId}/assembled?cell=${data!.cell.id}&contribution=${reviewContrib!.id}&v=${playerVersion}`
+    : `/api/songs/${songId}/assembled?v=${playerVersion}`;
 
   return (
     <div className="layout-2col">
@@ -127,10 +173,7 @@ export default function CellEditor({
                 value={measureOrder + 1}
                 onChange={(e) =>
                   setMeasureOrder(
-                    Math.min(
-                      measureCount - 1,
-                      Math.max(0, Number(e.target.value) - 1),
-                    ),
+                    Math.min(measureCount - 1, Math.max(0, Number(e.target.value) - 1)),
                   )
                 }
               />
@@ -139,12 +182,12 @@ export default function CellEditor({
 
           <div className="field">
             <label htmlFor="fragment">
-              Fragmento alphaTex da célula (todas as vozes; vozes separadas por
-              uma linha <code>\voice</code>)
+              Fragmento alphaTex (todas as vozes; separadas por uma linha{" "}
+              <code>\voice</code>)
             </label>
             <textarea
               id="fragment"
-              rows={8}
+              rows={7}
               value={fragment}
               onChange={(e) => setFragment(e.target.value)}
               disabled={loading || !data}
@@ -162,22 +205,26 @@ export default function CellEditor({
               placeholder="anon"
             />
           </div>
-          <button type="button" onClick={save} disabled={saving || loading || !data}>
-            {saving ? "Salvando…" : "Salvar (nova contribuição)"}
-          </button>
+          <div className="player-toolbar">
+            <button type="button" onClick={() => saveContribution(true)} disabled={busy || loading || !data}>
+              Salvar e aceitar
+            </button>
+            <button type="button" className="secondary" onClick={() => saveContribution(false)} disabled={busy || loading || !data}>
+              Propor (não aceitar)
+            </button>
+          </div>
           {error && <div className="form-error">{error}</div>}
           {info && <div className="form-ok">{info}</div>}
         </div>
 
-        <h2>Resultado (remontado das células)</h2>
-        <AlphaTabPlayer
-          key={playerVersion}
-          alphaTexUrl={`/api/songs/${songId}/assembled?v=${playerVersion}`}
-        />
+        <h2>
+          {previewing ? "Pré-visualização (proposta não aceita)" : "Remontado das células"}
+        </h2>
+        <AlphaTabPlayer key={playerUrl} alphaTexUrl={playerUrl} />
       </section>
 
       <aside>
-        <h2>Histórico da célula</h2>
+        <h2>Histórico / propostas</h2>
         {!data || data.cell.contributions.length === 0 ? (
           <p className="muted">—</p>
         ) : (
@@ -185,25 +232,67 @@ export default function CellEditor({
             {data.cell.contributions.map((c) => (
               <li
                 key={c.id}
-                className={`revision-item${c.id === data.cell.acceptedContributionId ? " active" : ""}`}
+                className={`revision-item${c.id === reviewId ? " active" : ""}`}
               >
                 <div>
                   <div>
                     <strong>{c.authorName}</strong>
                     <span className="badge">{c.status}</span>
-                    {c.id === data.cell.acceptedContributionId && (
-                      <span className="badge">aceita</span>
-                    )}
+                    {c.id === acceptedId && <span className="badge">aceita</span>}
                   </div>
                   <div className="revision-meta">{fmt(c.createdAt)}</div>
                 </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setReviewId(c.id === reviewId ? null : c.id)}
+                >
+                  {c.id === reviewId ? "Fechar" : "Revisar"}
+                </button>
               </li>
             ))}
           </ul>
         )}
-        <p className="muted">
-          Cada edição é uma linha nova (append-only). O ponteiro de “aceita” só
-          muda de alvo; nada é sobrescrito.
+
+        {reviewContrib && (
+          <div className="panel" style={{ marginTop: 10 }}>
+            <div className="muted">
+              Revisando contribuição de <strong>{reviewContrib.authorName}</strong>{" "}
+              ({reviewContrib.status})
+              {reviewContrib.id === acceptedId ? " — é a aceita atual" : ""}
+            </div>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: "0.78rem",
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: 8,
+                marginTop: 8,
+                maxHeight: 180,
+                overflow: "auto",
+              }}
+            >
+              {reviewContrib.alphaTex}
+            </pre>
+            {reviewContrib.id !== acceptedId && (
+              <div className="player-toolbar">
+                <button type="button" onClick={() => accept(reviewContrib.id)} disabled={busy}>
+                  Aceitar esta
+                </button>
+                <button type="button" className="secondary" onClick={() => reject(reviewContrib.id)} disabled={busy}>
+                  Recusar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="muted" style={{ marginTop: 10 }}>
+          Append-only: cada edição/proposta é uma linha nova; aceitar só move o
+          ponteiro. (Por enquanto qualquer um pode aceitar — abertura temporária
+          até existir reivindicação de trilha.)
         </p>
       </aside>
     </div>

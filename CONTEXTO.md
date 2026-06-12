@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-12** — Sessão 1 (M2 PR por célula): propor/aceitar/recusar com **comparação de
+  versões embutida** como tela de revisão (a costura que o João pediu). Propor = append
+  `proposed` sem re-apontar; revisar = clicar no histórico → ver fragmento + pré-ver no
+  player (override `GET /assembled?cell=&contribution=`) → aceitar (valida + re-aponta) ou
+  recusar (status `rejected`, fica no histórico). Testado no Stairway: propor não move
+  ponteiro, preview 200, aceitar re-aponta, recusar não apaga, append-only mantido.
+  **Abertura temporária consciente**: qualquer um aceita até existir reivindicação de
+  trilha (item 2). **Warning de hidratação**: investigado (grep) — sem fonte no código
+  (datas determinísticas; random/Date só em rotas server); é a extensão Bitdefender, some
+  em janela anônima; o badge caiu 2→1 com o fix de data. Próximo: (2) reivindicar trilha.
 - **2026-06-12** — Sessão 1 (M2 edição por célula): João validou a comparação visual
   (esquerda == direita). Construída a edição com o invariante **append-only** plantado
   desde o início (`src/lib/cells.ts`): editar = nova `CellContribution` + re-apontar

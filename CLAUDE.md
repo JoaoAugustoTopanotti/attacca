@@ -160,6 +160,17 @@ O raciocínio que levou à decisão (mantido como contexto):
   é rejeitada sem gravar). `GET /api/songs/[id]/cell?track=&measure=`. UI em
   `/songs/[id]/edit` (editor de fragmento alphaTex bruto + histórico + player do remontado,
   que atualiza a cada save). `status` ∈ accepted/proposed já preparado para PR (M3).
+- **Propor / aceitar / recusar (M2, PR por célula)** — `src/lib/cells.ts`. Propor =
+  `addCellContribution(accept:false)` (append `proposed`, **não** re-aponta). Aceitar =
+  `acceptContribution` (valida o documento + re-aponta; a antiga aceita fica no histórico).
+  Recusar = `rejectContribution` (status `rejected`, nada apagado). Rotas
+  `/api/cells/[id]/accept` e `/reject`. **Tela de revisão** embutida no `/edit`: clicar numa
+  entrada do histórico → ver o fragmento + **pré-visualizar no player** (override via
+  `GET /assembled?cell=&contribution=`) → aceitar/recusar.
+- 🔓 **Abertura temporária consciente**: enquanto não existe **reivindicação de trilha**
+  (`Track.ownerName`, próximo passo), **qualquer um pode aceitar**. Isso prova o
+  *mecanismo* (propostas se acumulam, aceitar re-aponta), mas **não** é o modelo de
+  permissão. O portão de autoridade ("o dono da trilha aceita") é o item (2) do M2.
 - ⚠️ **Limite atual**: editor é de fragmento alphaTex **bruto** (editor visual de tab = M5);
   auto-materializar no upload é o "último parafuso", depois do loop maduro.
 

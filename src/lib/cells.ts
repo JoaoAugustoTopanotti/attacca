@@ -89,3 +89,55 @@ export async function addCellContribution(
 
   return created;
 }
+
+/**
+ * Accept an EXISTING contribution (e.g. a proposal): validate the full document
+ * with it, then repoint the cell. The previously-accepted row stays in history.
+ * NOTE (temporary, conscious): until track claiming exists, anyone can accept.
+ */
+export async function acceptContribution(cellId: string, contributionId: string) {
+  const cell = await prisma.cell.findUnique({ where: { id: cellId } });
+  if (!cell) throw new Error("Célula não encontrada.");
+  const contrib = await prisma.cellContribution.findUnique({
+    where: { id: contributionId },
+  });
+  if (!contrib || contrib.cellId !== cellId) {
+    throw new Error("Contribuição não pertence a esta célula.");
+  }
+
+  const { valid, error } = await assembleSongAlphaTex(
+    cell.songId,
+    new Map([[cellId, contrib.alphaTex]]),
+  );
+  if (!valid) {
+    throw new Error(
+      `Aceitar deixaria o documento inválido${error ? `: ${error}` : "."}`,
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.cellContribution.update({
+      where: { id: contributionId },
+      data: { status: "accepted" },
+    }),
+    prisma.cell.update({
+      where: { id: cellId },
+      data: { acceptedContributionId: contributionId },
+    }),
+  ]);
+  return contrib;
+}
+
+/** Reject a (non-accepted) contribution: mark it rejected. Append-only-friendly:
+ *  nothing is deleted; the row stays with status "rejected". */
+export async function rejectContribution(cellId: string, contributionId: string) {
+  const cell = await prisma.cell.findUnique({ where: { id: cellId } });
+  if (!cell) throw new Error("Célula não encontrada.");
+  if (cell.acceptedContributionId === contributionId) {
+    throw new Error("Não é possível recusar a contribuição atualmente aceita.");
+  }
+  return prisma.cellContribution.update({
+    where: { id: contributionId },
+    data: { status: "rejected" },
+  });
+}
