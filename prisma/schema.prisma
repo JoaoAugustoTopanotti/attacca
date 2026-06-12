@@ -20,9 +20,11 @@ model Song {
   updatedAt DateTime   @updatedAt
   revisions Revision[]
   // M2 live collaborative grid:
-  tracks    Track[]
-  measures  Measure[]
-  cells     Cell[]
+  /// Opaque global alphaTex header (\title/\artist/stylesheet) for assembly.
+  headerFragment String?
+  tracks         Track[]
+  measures       Measure[]
+  cells          Cell[]
 }
 
 /// One uploaded (or seeded) version of a Song's score.

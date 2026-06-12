@@ -26,7 +26,14 @@ function formatTime(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision }) {
+export default function AlphaTabPlayer({
+  revision,
+  alphaTexUrl,
+}: {
+  // Load EITHER a stored revision OR a direct AlphaTex URL (e.g. assembled cells).
+  revision?: PlayerRevision;
+  alphaTexUrl?: string;
+}) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
@@ -156,14 +163,16 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
 
     (async () => {
       try {
-        const res = await fetch(`/api/revisions/${revision.id}/file`);
+        const url = alphaTexUrl ?? `/api/revisions/${revision!.id}/file`;
+        const res = await fetch(url);
         if (!res.ok) {
-          throw new Error(`Falha ao buscar a revisão (HTTP ${res.status}).`);
+          throw new Error(`Falha ao carregar a partitura (HTTP ${res.status}).`);
         }
 
         if (cancelled) return;
 
-        if (revision.source === "alphatex") {
+        // AlphaTex (direct URL or an alphatex-source revision) loads as text.
+        if (alphaTexUrl || revision!.source === "alphatex") {
           const text = await res.text();
           api.tex(text);
         } else {
@@ -172,7 +181,7 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
           if (!loaded) {
             throw new Error(
               "alphaTab não conseguiu interpretar este arquivo. " +
-                (revision.format === "musicxml"
+                (revision!.format === "musicxml"
                   ? "O suporte a MusicXML é experimental; tente exportar como Guitar Pro."
                   : "O arquivo pode estar corrompido ou em um formato não suportado."),
             );
@@ -182,7 +191,7 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
         if (cancelled) return;
         setStatus("error");
         setErrorMessage(
-          err instanceof Error ? err.message : "Erro ao carregar a revisão.",
+          err instanceof Error ? err.message : "Erro ao carregar a partitura.",
         );
       }
     })();
@@ -190,7 +199,7 @@ export default function AlphaTabPlayer({ revision }: { revision: PlayerRevision 
     return () => {
       cancelled = true;
     };
-  }, [apiReady, revision.id, revision.source, revision.format]);
+  }, [apiReady, alphaTexUrl, revision?.id, revision?.source, revision?.format]);
 
   function selectTrack(index: number) {
     const api = apiRef.current;

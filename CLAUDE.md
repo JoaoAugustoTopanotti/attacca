@@ -144,8 +144,16 @@ O raciocínio que levou à decisão (mantido como contexto):
   proposed/rejected` = **a verdade**). `Revision.kind` ("import"|"snapshot"): revisão vira
   snapshot/proveniência. Cascades em todas as FKs + índices. **Tabelas vazias** até a
   **materialização** (próximo increment: transformar um import no grid de células).
-- ⚠️ **Limite atual**: render ainda usa o blob/alphaTex de snapshot; o grid de células é a
-  base viva do revezamento, mas ainda não populado nem renderizado a partir dele.
+- **Materialização (M2)** — `src/lib/materialize.ts` + `src/lib/alphatex-grid.ts` (lib
+  compartilhada com o spike, **o mesmo código provado**, voice-aware). `POST
+  /api/songs/[id]/materialize` decompõe o alphaTex canônico no grid (transação,
+  idempotente). `GET /api/songs/[id]/assembled` remonta o documento **a partir das
+  células** (artefato derivado). Página `/songs/[id]/compare` mostra snapshot × células
+  lado a lado. **Provado no Stairway**: 2171 células; remontado === canônico (notas +
+  estrutura + vozes). **Manual/direcionado** (uma música por vez); **não** ligado a todo
+  upload ainda.
+- ⚠️ **Limite atual**: o player principal ainda toca o snapshot; a edição por célula (UI)
+  e o auto-materializar no upload vêm depois, agora sobre chão firme.
 
 ## 9. Estrutura
 ```

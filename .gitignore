@@ -32,3 +32,6 @@ next-env.d.ts
 # spike artifacts (disposable; may contain copyrighted derivative transcriptions)
 /spikes/*.json
 /spikes/*.alphatex
+
+# spike scratch outputs
+/spikes/*.txt

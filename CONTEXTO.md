@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-12** — Sessão 1 (M2 materialização): com os 4 cuidados do João. (1) Lógica
+  decompor/remontar extraída para **`src/lib/alphatex-grid.ts`** — spike e serviço chamam
+  o MESMO código; achado importante: trilhas multi-voz (`\voice`) precisavam ser
+  decompostas por voice-run e **transpostas** na remontagem (a célula guarda todas as
+  vozes do compasso). (2) `materializeSongGrid` idempotente em transação. (3) **Critério
+  de aceite**: `assembleSongAlphaTex` remonta das células e `spikes/verify-materialize.ts`
+  confirma === canônico (notas + estrutura + vozes idênticas) no Stairway (2171 células).
+  (4) Stairway-only, manual (`POST /materialize`), não ligado a uploads. Página
+  `/songs/[id]/compare` para a verificação visual (snapshot × células). Migration extra
+  `add_song_header` (cabeçalho global opaco). **Falta o João conferir visualmente.**
 - **2026-06-12** — Sessão 1 (M2 migration): rodada a migration aditiva `m2_cell_grid` com
   os 3 cuidados pedidos: (1) `Measure` da ADR (`structPrefix` opaco + só `ts`/`tempo`
   tipados, sem section/repeatStart/repeatCount herdados); (2) `onDelete: Cascade` em todas

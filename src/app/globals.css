@@ -284,6 +284,17 @@ label {
   color: var(--muted);
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+@media (min-width: 1100px) {
+  .compare-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .layout-2col {
   display: grid;
   grid-template-columns: 1fr;
