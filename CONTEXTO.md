@@ -91,6 +91,15 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-12** — Sessão 1 (M2 migration): rodada a migration aditiva `m2_cell_grid` com
+  os 3 cuidados pedidos: (1) `Measure` da ADR (`structPrefix` opaco + só `ts`/`tempo`
+  tipados, sem section/repeatStart/repeatCount herdados); (2) `onDelete: Cascade` em todas
+  as FKs (Song→Track/Measure/Cell, Cell→CellContribution; `acceptedContribution`=NoAction
+  pra evitar ciclo); (3) índices em Cell.songId/trackId/measureId e CellContribution.cellId.
+  + `Revision.kind`. SQL puramente aditivo (o "DROP Revision" é o redefine seguro do SQLite,
+  com INSERT…SELECT). Dados intactos (3 músicas, 2 revisões, kind=import). Tabelas novas
+  vazias. `tsc` limpo. **Materialização = próximo increment** (e teste visual de ouro:
+  remontar o Stairway das células e conferir que renderiza idêntico).
 - **2026-06-12** — Sessão 1 (M2 schema, de-risk estrutural): a pedido do João, o critério
   do spike foi reforçado para **fidelidade estrutural** (não só notas). `spikes/assemble.mjs`
   + `spikes/struct.mjs`: (A) formato alphaTex é estruturalmente lossless; (B) decompor→

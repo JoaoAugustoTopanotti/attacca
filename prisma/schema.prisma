@@ -1,5 +1,5 @@
-// GitSong — data model (Milestone 1)
-// See CLAUDE.md for the product vision and roadmap.
+// GitSong — data model (Milestone 1 + M2 cell grid)
+// See CLAUDE.md and docs/adr/0002-modelo-de-celulas.md.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,6 +19,10 @@ model Song {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   revisions Revision[]
+  // M2 live collaborative grid:
+  tracks    Track[]
+  measures  Measure[]
+  cells     Cell[]
 }
 
 /// One uploaded (or seeded) version of a Song's score.
@@ -50,7 +54,99 @@ model Revision {
   /// "gp" | "musicxml" | "alphatex"
   format String
 
+  /// "import" (materialized upload) | "snapshot" (frozen from the cell grid).
+  /// Revisions are immutable snapshots/provenance; live work happens on cells.
+  kind String @default("import")
+
   createdAt DateTime @default(now())
 
   @@unique([songId, number])
+}
+
+// ---------------------------------------------------------------------------
+// M2 — live collaborative grid (trilha × compasso). See ADR 0002.
+// Truth lives in CellContribution; the full alphaTex is a derived artifact.
+// ---------------------------------------------------------------------------
+
+/// Stable per-song track (the "row" of the grid). Identity is the id, not order.
+model Track {
+  id     String @id @default(cuid())
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId String
+
+  order          Int // position among tracks
+  name           String
+  headerFragment String? // opaque alphaTex \track/\staff/\tuning header (assembly)
+  tuning         String? // tokens e.g. "E4 B3 G3 D3 A2 E2" (UI/reading)
+  instrument     Int? // GM program (UI)
+  isPercussion   Boolean @default(false)
+  ownerName      String? // who claimed the track (stub author)
+
+  cells Cell[]
+
+  @@unique([songId, order])
+  @@index([songId])
+}
+
+/// Stable per-song measure (the "column"). Holds the SHARED structural scaffold.
+model Measure {
+  id     String @id @default(cuid())
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId String
+
+  order         Int // position among measures
+  tsNumerator   Int     @default(4) // typed: UI reads to draw the grid
+  tsDenominator Int     @default(4)
+  tempo         Int? // typed: UI
+  /// Opaque alphaTex masterbar metadata (section, \ro/\rc/\ae, \jump, \beaming…).
+  /// Avoids enumerating every structural case as a typed column.
+  structPrefix  String?
+
+  cells Cell[]
+
+  @@unique([songId, order])
+  @@index([songId])
+}
+
+/// The slot at (track, measure). One per intersection.
+model Cell {
+  id     String @id @default(cuid())
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId String
+
+  track     Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  trackId   String
+  measure   Measure @relation(fields: [measureId], references: [id], onDelete: Cascade)
+  measureId String
+
+  /// Pointer to the live "accepted" content. NoAction avoids a cascade cycle
+  /// with CellContribution.cell (Cascade); repoint before deleting the accepted one.
+  acceptedContributionId String?           @unique
+  acceptedContribution   CellContribution? @relation("acceptedContribution", fields: [acceptedContributionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  contributions CellContribution[] @relation("cellContributions")
+
+  @@unique([trackId, measureId])
+  @@index([songId])
+  @@index([trackId])
+  @@index([measureId])
+}
+
+/// Versioned content of a cell + authorship + status. THE source of truth.
+model CellContribution {
+  id     String @id @default(cuid())
+  cell   Cell   @relation("cellContributions", fields: [cellId], references: [id], onDelete: Cascade)
+  cellId String
+
+  authorName String  @default("anon")
+  /// The cell's fragment: per-track bar metadata (clef/ks) + notes, as alphaTex.
+  alphaTex   String
+  status     String  @default("accepted") // "accepted" | "proposed" | "rejected"
+  message    String?
+  createdAt  DateTime @default(now())
+
+  /// Back-relation for the cell that has THIS contribution accepted.
+  acceptedInCell Cell? @relation("acceptedContribution")
+
+  @@index([cellId])
 }

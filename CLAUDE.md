@@ -137,11 +137,15 @@ O raciocínio que levou à decisão (mantido como contexto):
   **nova** revisão a partir do conteúdo de uma antiga.
 - **Canônico (M2, em andamento)**: no upload, além do blob de proveniência, derivamos e
   guardamos o **alphaTex canônico** no campo `Revision.alphaTex` (via `src/lib/canonical.ts`,
-  com `serverExternalPackages: ["@coderline/alphatab"]` no `next.config`). É a forma
-  versionável/mesclável por `(trilha, compasso)`. O **schema de células** (trilha/célula
-  como entidade) ainda **não** existe — vem depois (ver seção 5 e o spike de prova).
-- ⚠️ **Limite atual**: a renderização ainda usa o blob; o alphaTex guardado é a base do
-  M2. "Revisão = arquivo inteiro" continua, mas agora com o canônico ao lado.
+  com `serverExternalPackages: ["@coderline/alphatab"]` no `next.config`).
+- **Grid de células (M2)** — schema migrado (`m2_cell_grid`, ADR 0002): `Track`/`Measure`
+  (andaime estável; `Measure.structPrefix` = estrutura opaca + `ts`/`tempo` tipados),
+  `Cell` (slot trilha×compasso), `CellContribution` (conteúdo+autor+status `accepted/
+  proposed/rejected` = **a verdade**). `Revision.kind` ("import"|"snapshot"): revisão vira
+  snapshot/proveniência. Cascades em todas as FKs + índices. **Tabelas vazias** até a
+  **materialização** (próximo increment: transformar um import no grid de células).
+- ⚠️ **Limite atual**: render ainda usa o blob/alphaTex de snapshot; o grid de células é a
+  base viva do revezamento, mas ainda não populado nem renderizado a partir dele.
 
 ## 9. Estrutura
 ```
