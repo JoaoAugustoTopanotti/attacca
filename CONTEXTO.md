@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-12** — Sessão 1 (M2 schema, de-risk estrutural): a pedido do João, o critério
+  do spike foi reforçado para **fidelidade estrutural** (não só notas). `spikes/assemble.mjs`
+  + `spikes/struct.mjs`: (A) formato alphaTex é estruturalmente lossless; (B) decompor→
+  remontar com célula=fragmento completo é lossless; (C) **o schema recomendado** (structPrefix
+  opaco compartilhado na Measure + notas por célula) também é lossless — tudo no caso
+  controlado rico em estrutura E no Stairway real. Achados: fatiar por marcador de masterbar
+  é frágil → fatiar por `|`; barra-dupla `isDoubleBar` é flag derivado (perda ilusória).
+  Escrita a **ADR-0002** (modelo Track/Measure/Cell/CellContribution; Revision=snapshot;
+  proposto/aceito; limitação consciente: célula = compasso inteiro da trilha, sem dividir
+  vozes). **Migration ainda NÃO executada** (próximo passo, aguardando OK).
 - **2026-06-07** — Sessão 1 (M2 início, de-risk): **prova do fatiamento por célula**
   (`spikes/cellslice.mjs`) — slice `(trilha, compasso)` → swap → re-emit alphaTex válido,
   via modelo do alphaTab (`bar.voices` + `score.finish()`) e exportador oficial. PART 1
