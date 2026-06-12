@@ -87,6 +87,8 @@ button.secondary {
 
 input[type="text"],
 input[type="file"],
+input[type="number"],
+select,
 textarea {
   background: var(--panel-2);
   border: 1px solid var(--border);

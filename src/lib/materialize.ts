@@ -146,6 +146,9 @@ export async function materializeSongGrid(
  */
 export async function assembleSongAlphaTex(
   songId: string,
+  // Optional per-cell body overrides (keyed by cellId) — lets callers validate a
+  // candidate edit before committing it.
+  overrides?: Map<string, string>,
 ): Promise<{ alphaTex: string; valid: boolean; error?: string }> {
   const [song, measures, tracks, cells] = await Promise.all([
     prisma.song.findUnique({ where: { id: songId } }),
@@ -168,7 +171,7 @@ export async function assembleSongAlphaTex(
     cells: cells.map((c) => ({
       trackIndex: trackOrder.get(c.trackId)!,
       measureIndex: measureOrder.get(c.measureId)!,
-      body: c.acceptedContribution?.alphaTex ?? "",
+      body: overrides?.get(c.id) ?? c.acceptedContribution?.alphaTex ?? "",
     })),
   };
 

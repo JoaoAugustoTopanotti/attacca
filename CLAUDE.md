@@ -152,8 +152,16 @@ O raciocínio que levou à decisão (mantido como contexto):
   lado a lado. **Provado no Stairway**: 2171 células; remontado === canônico (notas +
   estrutura + vozes). **Manual/direcionado** (uma música por vez); **não** ligado a todo
   upload ainda.
-- ⚠️ **Limite atual**: o player principal ainda toca o snapshot; a edição por célula (UI)
-  e o auto-materializar no upload vêm depois, agora sobre chão firme.
+- **Edição por célula (M2)** — `src/lib/cells.ts`. **INVARIANTE: append-only.** Editar uma
+  célula = **criar uma nova `CellContribution` + re-apontar `acceptedContributionId`**;
+  nunca `update` no fragmento antigo (a antiga vira histórico → autoria por pedaço +
+  "continuar de onde o outro parou" saem de graça). `POST /api/cells/[id]/contributions`
+  (valida a remontagem inteira antes de aceitar — documento sempre válido; edição inválida
+  é rejeitada sem gravar). `GET /api/songs/[id]/cell?track=&measure=`. UI em
+  `/songs/[id]/edit` (editor de fragmento alphaTex bruto + histórico + player do remontado,
+  que atualiza a cada save). `status` ∈ accepted/proposed já preparado para PR (M3).
+- ⚠️ **Limite atual**: editor é de fragmento alphaTex **bruto** (editor visual de tab = M5);
+  auto-materializar no upload é o "último parafuso", depois do loop maduro.
 
 ## 9. Estrutura
 ```

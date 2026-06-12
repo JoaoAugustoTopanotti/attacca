@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-12** — Sessão 1 (M2 edição por célula): João validou a comparação visual
+  (esquerda == direita). Construída a edição com o invariante **append-only** plantado
+  desde o início (`src/lib/cells.ts`): editar = nova `CellContribution` + re-apontar
+  `acceptedContributionId`, nunca sobrescrever. `POST /api/cells/[id]/contributions`
+  valida a remontagem inteira antes de aceitar (documento sempre válido). UI `/songs/[id]/
+  edit` (fragmento bruto + histórico + player do remontado que atualiza a cada save).
+  Testado no Stairway: edição válida → append + repoint + assembled 200; edição inválida →
+  400 sem gravar; antiga sempre preservada. **Auto-materializar no upload fica para o fim**
+  (decisão do João: só tem valor depois da edição; mantém risco controlado). Próximo: PR
+  por célula (propor/aceitar) usa o `status` já existente.
 - **2026-06-12** — Sessão 1 (M2 materialização): com os 4 cuidados do João. (1) Lógica
   decompor/remontar extraída para **`src/lib/alphatex-grid.ts`** — spike e serviço chamam
   o MESMO código; achado importante: trilhas multi-voz (`\voice`) precisavam ser

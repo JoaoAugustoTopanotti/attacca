@@ -38,7 +38,8 @@ export default async function SongPage({
       <h1>{song.title}</h1>
       <p className="muted">
         {song.artist ?? "Artista desconhecido"} ·{" "}
-        <Link href={`/songs/${song.id}/compare`}>comparar snapshot × células</Link>
+        <Link href={`/songs/${song.id}/compare`}>comparar snapshot × células</Link>{" "}
+        · <Link href={`/songs/${song.id}/edit`}>editar por célula</Link>
       </p>
 
       <SongWorkspace
