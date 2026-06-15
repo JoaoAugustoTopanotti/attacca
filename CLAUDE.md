@@ -175,6 +175,17 @@ O raciocínio que levou à decisão (mantido como contexto):
   confiável ("colaboração em grupo é menos exposta"). **Não** construído como enforcement.
   Quando auth real chegar, troca-se "match de string" por "match de userId". UI no `/edit`
   (reivindicar/liberar + botões de aceitar desabilitados quando o nome não bate).
+- **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
+  incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
+  ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.
+  `declareTrack` cria uma trilha-**slot** que **nasce vazia e sem dono** (uma célula vazia
+  por compasso) — o slot vazio não-reivindicado **é o convite** (claiming + slots + mural =
+  mesmo triângulo). **Métrica honesta** (`songCompleteness`): célula conta como pronta sse
+  tem **contribuição aceita** (pausa transcrita conta — silêncio é música); slot vazio lê
+  0%, import cheio lê 100%. Lista de presets **leve** (`INSTRUMENT_PRESETS`, não ontologia).
+  Rotas `/api/songs/[id]/tracks` (declarar + presets) e `/completeness`. UI: **home = mural**
+  (% + "falta X" por música) + painel por música (barras por trilha + declarar + materializar).
+  Slot vazio **assembla válido** (só pausas) — verificado.
 - ⚠️ **Limite atual**: editor é de fragmento alphaTex **bruto** (editor visual de tab = M5);
   auto-materializar no upload é o "último parafuso", depois do loop maduro.
 

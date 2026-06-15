@@ -286,6 +286,58 @@ label {
   color: var(--muted);
 }
 
+/* --- completeness wall --- */
+.bar {
+  position: relative;
+  height: 8px;
+  background: var(--panel-2);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  border-radius: 5px;
+}
+.bar.full > span {
+  background: #6bdc8a;
+}
+.bar.empty > span {
+  background: var(--danger);
+}
+.track-row {
+  display: grid;
+  grid-template-columns: 1fr 60px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.track-row .track-name {
+  font-size: 0.85rem;
+}
+.track-row .pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.missing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.missing-tag {
+  font-size: 0.72rem;
+  background: #2a1416;
+  border: 1px solid var(--danger);
+  color: #ffd9d9;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 .compare-grid {
   display: grid;
   grid-template-columns: 1fr;

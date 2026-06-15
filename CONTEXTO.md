@@ -91,6 +91,17 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-15** — Sessão 1 (M2 mural de incompletude): a pausa de 30s do João virou
+  modelagem. **Dois tipos de incompletude**: lacuna na trilha (grid dá) vs **trilha
+  ausente** ("falta baixo" — precisa de **instrumentação declarada**). `declareTrack` cria
+  trilha-slot que **nasce vazia e sem dono** (o convite); **métrica honesta** = célula com
+  contribuição aceita (pausa conta; não "nota vs pausa"). Presets leves (sem ontologia).
+  UI: home vira **mural** (% + "falta X"), painel por música (barras + declarar +
+  materializar). Provado no seed (guitarra+baixo → declarar bateria → 67%, "falta
+  Bateria"); **slot vazio assembla válido** (só pausas). Aprendido: o formato alphaTex com
+  `.` é sensível — para dados de teste, usar alphaTex que comprovadamente parseia (seed) ou
+  o exportador, não escrever à mão. **(2)+(3) = fim do mecanismo**; próximo marco é o 1º
+  revezamento real (identidade + deploy, lead time). Mural está mais perto do diferencial.
 - **2026-06-15** — Sessão 1 (M2 reivindicar trilha): **portão social, não trava** (como o
   João pediu). `setTrackOwner` (claim/release), trilhas **começam sem dono**; sem dono →
   qualquer um aceita, com dono → só o nome que bate aceita (`assertCanAccept`), **propor

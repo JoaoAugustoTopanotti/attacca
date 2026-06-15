@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SongWorkspace, { type RevisionDTO } from "@/components/SongWorkspace";
+import CompletenessPanel from "@/components/CompletenessPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,9 @@ export default async function SongPage({
         songId={song.id}
         initialRevisions={revisions}
       />
+
+      <h2>Instrumentação & completude</h2>
+      <CompletenessPanel songId={song.id} />
     </div>
   );
 }
