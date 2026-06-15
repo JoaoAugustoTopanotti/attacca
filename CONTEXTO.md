@@ -91,6 +91,17 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-15** — Sessão 1 (M2 reivindicar trilha): **portão social, não trava** (como o
+  João pediu). `setTrackOwner` (claim/release), trilhas **começam sem dono**; sem dono →
+  qualquer um aceita, com dono → só o nome que bate aceita (`assertCanAccept`), **propor
+  segue aberto**. UI no `/edit` (reivindicar/liberar + botões de aceitar gateados). Testado:
+  claim → maria não aceita (400) mas propõe (201); joao aceita (200); release → aberto.
+  Honra/convenção (troca string→userId quando houver auth). Corrigido: materialização passa
+  a deixar trilhas **sem dono** (era pré-claim do uploader). **Moldura estratégica
+  registrada no CLAUDE (seção Roadmap)**: (2)+(3) são os últimos incrementos de mecanismo;
+  o próximo marco é o **1º revezamento real com 2 pessoas** (não-código), que força
+  identidade + deploy (lead time — radar agora). O **mural (3)** pode importar mais que a
+  reivindicação para puxar a 2ª pessoa. Evitar a "catedral de mecanismo sem usuário".
 - **2026-06-12** — Sessão 1 (M2 PR por célula): propor/aceitar/recusar com **comparação de
   versões embutida** como tela de revisão (a costura que o João pediu). Propor = append
   `proposed` sem re-apontar; revisar = clicar no histórico → ver fragmento + pré-ver no

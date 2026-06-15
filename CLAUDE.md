@@ -167,10 +167,14 @@ O raciocínio que levou à decisão (mantido como contexto):
   `/api/cells/[id]/accept` e `/reject`. **Tela de revisão** embutida no `/edit`: clicar numa
   entrada do histórico → ver o fragmento + **pré-visualizar no player** (override via
   `GET /assembled?cell=&contribution=`) → aceitar/recusar.
-- 🔓 **Abertura temporária consciente**: enquanto não existe **reivindicação de trilha**
-  (`Track.ownerName`, próximo passo), **qualquer um pode aceitar**. Isso prova o
-  *mecanismo* (propostas se acumulam, aceitar re-aponta), mas **não** é o modelo de
-  permissão. O portão de autoridade ("o dono da trilha aceita") é o item (2) do M2.
+- **Reivindicar trilha (M2, portão social)** — `setTrackOwner` (`POST
+  /api/tracks/[id]/owner` { ownerName | null }). Trilhas **começam sem dono** (incompletude
+  = convite aberto). Sem dono → qualquer um aceita; **com dono → só o nome que bate aceita**
+  (`assertCanAccept`); **propor segue aberto a todos**. É **honra/convenção, não trava**:
+  autor é texto livre, qualquer um digita o nome do dono — coerente com a tese de nicho
+  confiável ("colaboração em grupo é menos exposta"). **Não** construído como enforcement.
+  Quando auth real chegar, troca-se "match de string" por "match de userId". UI no `/edit`
+  (reivindicar/liberar + botões de aceitar desabilitados quando o nome não bate).
 - ⚠️ **Limite atual**: editor é de fragmento alphaTex **bruto** (editor visual de tab = M5);
   auto-materializar no upload é o "último parafuso", depois do loop maduro.
 
@@ -235,6 +239,23 @@ npm run dev                                    # http://localhost:3000  (webpack
 - **Futuro**: camada pública (começando por domínio público/CC), reputação por
   comunidade, busca; auth real, takedown, licenciamento, pagamento; editor de tab no
   navegador.
+
+### ⚠️ Transição crítica: mecanismo → primeiro revezamento real (não esquecer)
+Tudo que existe hoje (formato canônico, grid, materialização, edição/PR por célula,
+reivindicação) é **mecanismo**, provado **solo no Stairway**. A tese central — o
+**revezamento** e a **densidade** — **continua não testada com gente** (precisa de uma 2ª
+pessoa). Foi certo adiar auth/deploy enquanto o núcleo técnico assustador estava sem prova;
+agora:
+- **Reivindicar trilha (2) e mural de incompletude (3) são os ÚLTIMOS incrementos de
+  mecanismo** antes do contato humano.
+- O **mural de incompletude (3)** está **mais perto do diferencial e da resposta ao risco
+  de densidade** que a reivindicação — é o que puxa a 2ª pessoa ("falta baixo, isso eu
+  faço"). **Não é sobremesa do (2); para o teste com gente, pode importar mais.**
+- O **próximo marco depois de (2)+(3) NÃO é código**: é o **primeiro revezamento real**
+  (duas pessoas completam uma música juntas). Isso força as duas coisas adiadas —
+  **identidade "real o suficiente"** e **deploy compartilhável** — que têm **lead time**.
+  Colocar no radar **agora** para o M2 não virar "catedral de mecanismo sem usuário" (o
+  modo de falha do Parture, no topo deste arquivo).
 
 ### Itens/limitações conhecidos do M1
 - Autor é texto livre (sem login).

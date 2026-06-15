@@ -8,7 +8,7 @@ type Params = { params: Promise<{ cellId: string }> };
 // Temporary: anyone can accept until track claiming lands.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
-  let body: { contributionId?: unknown };
+  let body: { contributionId?: unknown; actingName?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -20,8 +20,9 @@ export async function POST(request: Request, { params }: Params) {
       { status: 400 },
     );
   }
+  const actingName = typeof body.actingName === "string" ? body.actingName : "";
   try {
-    const accepted = await acceptContribution(cellId, body.contributionId);
+    const accepted = await acceptContribution(cellId, body.contributionId, actingName);
     return NextResponse.json(accepted);
   } catch (e) {
     return NextResponse.json(

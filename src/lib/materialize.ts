@@ -84,7 +84,9 @@ export async function materializeSongGrid(
       tuning: null as string | null,
       instrument: pb?.program ?? null,
       isPercussion: pb?.primaryChannel === 9,
-      ownerName: rev.authorName,
+      // Tracks start UNCLAIMED: incompleteness is an open invitation; each person
+      // claims the track they take. (Not auto-owned by the uploader.)
+      ownerName: null,
     };
   });
 

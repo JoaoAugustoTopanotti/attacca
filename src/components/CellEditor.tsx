@@ -12,7 +12,7 @@ type Contribution = {
   alphaTex: string;
 };
 type CellResponse = {
-  track: { id: string; order: number; name: string };
+  track: { id: string; order: number; name: string; ownerName: string | null };
   measure: { id: string; order: number };
   cell: {
     id: string;
@@ -50,6 +50,10 @@ export default function CellEditor({
 
   const acceptedId = data?.cell.acceptedContributionId ?? null;
   const reviewContrib = data?.cell.contributions.find((c) => c.id === reviewId) ?? null;
+
+  // Social gate: a claimed track is accepted only by its owner (string match).
+  const owner = data?.track.ownerName?.trim() || null;
+  const canAccept = !owner || owner === author.trim();
 
   const loadCell = useCallback(async () => {
     setLoading(true);
@@ -120,10 +124,22 @@ export default function CellEditor({
 
   async function accept(contributionId: string) {
     if (!data) return;
-    const ok = await postJson(`/api/cells/${data.cell.id}/accept`, { contributionId });
+    const ok = await postJson(`/api/cells/${data.cell.id}/accept`, {
+      contributionId,
+      actingName: author,
+    });
     if (ok) {
       setInfo("Proposta aceita — o ponteiro re-apontou para ela.");
       setPlayerVersion((v) => v + 1);
+      await loadCell();
+    }
+  }
+
+  async function setOwner(ownerName: string | null) {
+    if (!data) return;
+    const ok = await postJson(`/api/tracks/${data.track.id}/owner`, { ownerName });
+    if (ok) {
+      setInfo(ownerName ? `Trilha reivindicada por ${ownerName}.` : "Trilha liberada.");
       await loadCell();
     }
   }
@@ -180,6 +196,32 @@ export default function CellEditor({
             </div>
           </div>
 
+          <div className="field" style={{ marginBottom: 12 }}>
+            <span className="muted">
+              Dono da trilha:{" "}
+              {owner ? <strong>{owner}</strong> : "sem dono (qualquer um aceita)"}
+            </span>{" "}
+            {owner ? (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setOwner(null)}
+                disabled={busy || !data}
+              >
+                Liberar
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setOwner(author.trim() || "anon")}
+                disabled={busy || !data}
+              >
+                Reivindicar como “{author.trim() || "anon"}”
+              </button>
+            )}
+          </div>
+
           <div className="field">
             <label htmlFor="fragment">
               Fragmento alphaTex (todas as vozes; separadas por uma linha{" "}
@@ -206,13 +248,24 @@ export default function CellEditor({
             />
           </div>
           <div className="player-toolbar">
-            <button type="button" onClick={() => saveContribution(true)} disabled={busy || loading || !data}>
+            <button
+              type="button"
+              onClick={() => saveContribution(true)}
+              disabled={busy || loading || !data || !canAccept}
+              title={!canAccept ? `Só ${owner} aceita esta trilha` : undefined}
+            >
               Salvar e aceitar
             </button>
             <button type="button" className="secondary" onClick={() => saveContribution(false)} disabled={busy || loading || !data}>
               Propor (não aceitar)
             </button>
           </div>
+          {!canAccept && (
+            <div className="muted">
+              Trilha de <strong>{owner}</strong> — você pode <strong>Propor</strong>;
+              só {owner} aceita. (Digite “{owner}” no seu nome se for você.)
+            </div>
+          )}
           {error && <div className="form-error">{error}</div>}
           {info && <div className="form-ok">{info}</div>}
         </div>
@@ -277,14 +330,24 @@ export default function CellEditor({
               {reviewContrib.alphaTex}
             </pre>
             {reviewContrib.id !== acceptedId && (
-              <div className="player-toolbar">
-                <button type="button" onClick={() => accept(reviewContrib.id)} disabled={busy}>
-                  Aceitar esta
-                </button>
-                <button type="button" className="secondary" onClick={() => reject(reviewContrib.id)} disabled={busy}>
-                  Recusar
-                </button>
-              </div>
+              <>
+                <div className="player-toolbar">
+                  <button
+                    type="button"
+                    onClick={() => accept(reviewContrib.id)}
+                    disabled={busy || !canAccept}
+                    title={!canAccept ? `Só ${owner} aceita esta trilha` : undefined}
+                  >
+                    Aceitar esta
+                  </button>
+                  <button type="button" className="secondary" onClick={() => reject(reviewContrib.id)} disabled={busy}>
+                    Recusar
+                  </button>
+                </div>
+                {!canAccept && (
+                  <div className="muted">Só {owner} pode aceitar (portão social).</div>
+                )}
+              </>
             )}
           </div>
         )}

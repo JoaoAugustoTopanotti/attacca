@@ -6,6 +6,30 @@
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex } from "@/lib/materialize";
 
+// SOCIAL gate, not a lock (no auth yet; author is free text). If a track is
+// claimed, only the matching name accepts — honor/convention, coherent with the
+// trusted-niche thesis. When real auth lands, swap this string match for userId.
+function assertCanAccept(
+  track: { ownerName: string | null; name: string },
+  actingName: string,
+) {
+  const owner = track.ownerName?.trim();
+  if (owner && owner !== actingName.trim()) {
+    throw new Error(
+      `Trilha reivindicada por "${owner}". Só ${owner} aceita — você ainda pode Propor.`,
+    );
+  }
+}
+
+/** Claim (ownerName = name) or release (ownerName = null) a track. Honor system. */
+export async function setTrackOwner(trackId: string, ownerName: string | null) {
+  const value = ownerName?.trim() ? ownerName.trim() : null;
+  return prisma.track.update({
+    where: { id: trackId },
+    data: { ownerName: value },
+  });
+}
+
 /** Look up a cell by its grid coordinates, with its contribution history. */
 export async function getCellByCoords(
   songId: string,
@@ -55,6 +79,10 @@ export async function addCellContribution(
   const accept = input.accept !== false; // default: accept
 
   if (accept) {
+    // Social gate: a claimed track is accepted only by its owner.
+    const track = await prisma.track.findUnique({ where: { id: cell.trackId } });
+    if (track) assertCanAccept(track, authorName);
+
     // Validate the candidate (full reassembly with this cell overridden) BEFORE
     // committing — reject edits that would break the document.
     const { valid, error } = await assembleSongAlphaTex(
@@ -95,7 +123,11 @@ export async function addCellContribution(
  * with it, then repoint the cell. The previously-accepted row stays in history.
  * NOTE (temporary, conscious): until track claiming exists, anyone can accept.
  */
-export async function acceptContribution(cellId: string, contributionId: string) {
+export async function acceptContribution(
+  cellId: string,
+  contributionId: string,
+  actingName = "",
+) {
   const cell = await prisma.cell.findUnique({ where: { id: cellId } });
   if (!cell) throw new Error("Célula não encontrada.");
   const contrib = await prisma.cellContribution.findUnique({
@@ -104,6 +136,10 @@ export async function acceptContribution(cellId: string, contributionId: string)
   if (!contrib || contrib.cellId !== cellId) {
     throw new Error("Contribuição não pertence a esta célula.");
   }
+
+  // Social gate: a claimed track is accepted only by its owner.
+  const track = await prisma.track.findUnique({ where: { id: cell.trackId } });
+  if (track) assertCanAccept(track, actingName);
 
   const { valid, error } = await assembleSongAlphaTex(
     cell.songId,
