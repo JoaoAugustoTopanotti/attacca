@@ -1,6 +1,8 @@
 # ADR 0003 — Primeiro revezamento real (identidade mínima + deploy + UX)
 
-- **Status:** Proposto (design para aprovação) — **nada de infra antes do OK**
+- **Status:** Aceito (design). **Pré-build pendente** (entrada do João): qual amigo + qual
+  música (PD/CC) + instrumento que falta → decide a travessia do degrau alphaTex (a/b/c) e o
+  `staveProfile`. **Nada de infra antes disso.**
 - **Data:** 2026-06-16
 - **Contexto anterior:** [ADR 0001](0001-formato-canonico.md), [ADR 0002](0002-modelo-de-celulas.md)
 
@@ -15,12 +17,48 @@ núcleo técnico assustador estava sem prova: **identidade "real o suficiente"**
 compartilhável** — ambas com **lead time**. Princípio guia continua valendo: pequeno,
 nichado, provado de ponta a ponta. **Não** virar catedral de mecanismo sem usuário (Parture).
 
-## Critério de sucesso do marco
+## Critério de sucesso do marco (honesto sobre o que prova)
 Você + 1 pessoa, em **máquinas diferentes**, numa instância **deployada**: A sobe uma
 transcrição parcial (ex.: só guitarra), declara "falta baixo", manda o link; B abre,
 **se identifica**, vê no mural "falta baixo", **reivindica o baixo**, preenche/aceita as
-células; A reabre e ouve guitarra+baixo. **O bastão passou.** Se isso acontecer uma vez
-com gente de verdade, a tese deixou de ser hipótese.
+células; A reabre e ouve guitarra+baixo. **O bastão passou.**
+
+Isso prova o **mecanismo** ponta a ponta com **gente e máquinas reais** — e **só isso**.
+**Não** prova revezamento **orgânico** nem **densidade** (ver Riscos), e o 1º teste será
+**coached** (ver "Parte 0"), então também **não** prova **autoria self-serve**. Três
+incógnitas distintas, em camadas: mecanismo (este teste) → contribuição self-serve →
+revezamento orgânico/densidade. Ler um polegar-pra-cima coached como "autoria resolvida"
+seria o mesmo erro de ler "mecanismo provado" como "densidade provada".
+
+## Pré-requisito de PRIMEIRA CLASSE: qual amigo + qual música
+**Não é pressuposto; é entrada de design.** O build se molda a eles:
+- **Quem + o que toca** define o **instrumento que falta**, que precisa **casar com o que o
+  player renderiza** (ver Parte 0 / catch do `staveProfile`). Default seguro: instrumento
+  **de corda** (baixo, 2ª guitarra).
+- **Qual música** precisa ser **domínio público / CC / banda que quer ser transcrita** —
+  dentro do grupo, não publicação aberta (reforça o copyright já anotado). A escolha da
+  música do teste **é** decisão de design.
+Decidir isto **antes** do build, porque muda o instrumento-alvo e talvez o `staveProfile`.
+
+## Parte 0 — O degrau real: autoria em alphaTex (onde o teste provavelmente quebra)
+A camada menos provável de derrubar o teste é infra (Postgres/cookie/deploy). A que derruba
+é: **um músico de verdade consegue, sozinho, escrever uma trilha em alphaTex?** Hoje o
+editor é **alphaTex bruto**. O baixista do seu amigo não necessariamente escreve notação em
+texto. **Não** vamos construir o editor visual (é M5, certo deixar fora) — mas precisamos
+**atravessar isso conscientemente**. Três saídas honestas, dentro da cerca:
+- **(a)** escolher um amigo disposto a aprender ~15 min de alphaTex;
+- **(b)** **template no editor**: ao abrir uma célula vazia, o textarea já vem com o
+  **esqueleto** (estrutura do compasso + uma pausa) para ele **só editar valores**. **Cuidado:**
+  isso é **template de UI**, **não** uma contribuição aceita pré-semeada — senão a célula
+  contaria como pronta e o **mural mentiria** (a métrica é "tem contribuição aceita"). O slot
+  segue 0% até ele salvar de verdade;
+- **(c)** fazer o 1º relay **emparelhado** — você ao lado / screen-share, traduzindo "toca
+  isso" → alphaTex.
+
+**Recomendação para o 1º teste: (c) coached**, possivelmente com **(b)** ajudando. É o mais
+honesto: prova que **o mecanismo completa a passagem de bastão** com gente real. **Coached
+≠ self-serve** — que um músico contribua **sozinho** é uma incógnita **distinta e
+posterior**, e exige justamente o que estamos adiando (editor melhor). Ir sabendo.
 
 ---
 
@@ -48,11 +86,19 @@ para distinguir duas pessoas e tornar o portão social **semi-real**.
 Hoje: **SQLite** (`prisma/dev.db`) + **blobs em disco** (`storage/`) + Next 16 em
 **webpack** + alphaTab no servidor via `serverExternalPackages`. Três decisões:
 
-### 2a. Banco: SQLite → **Postgres gerenciado**
-- Troca de `provider` no Prisma + connection string. Nosso schema (ids cuid, Int, Bool,
-  DateTime, String?) porta limpo. As migrations atuais são SQLite-específicas → **re-iniciar
-  o histórico de migrations para Postgres** (não há dado de produção a preservar).
-- Recomendo **Neon** ou **Render Postgres** (gerenciado, free tier, simples).
+### 2a. Banco: SQLite → **Postgres gerenciado** (com uma correção de honestidade)
+- **Correção de um exagero anterior:** "2 pessoas/1 música não precisam de Postgres" é
+  verdade — mas nos hosts recomendados (Render/Railway) **o disco é efêmero por padrão**,
+  então **SQLite-com-volume tem mais atrito que clicar "add Postgres"**. O Postgres aqui
+  **não** é "resolver escala que você não tem"; é **casar com o grão da plataforma**.
+- **Alternativa de zero-migração** (também dentro da cerca): um host onde **SQLite-com-volume
+  é primeira-classe** — **Fly.io com volume** ou **Turso** (SQLite gerenciado/edge). Aí não
+  troca o provider.
+- **Não agonizar:** escolher pela que você **termina esta semana**, não pela "mais correta".
+  Postgres+Render/Railway e SQLite+Fly/Turso são ambas defensáveis.
+- Se Postgres: troca de `provider` no Prisma + connection string; schema (ids cuid, Int,
+  Bool, DateTime, String?) porta limpo; **re-iniciar migrations** para Postgres (sem dado de
+  produção a preservar).
 
 ### 2b. Blobs de upload: **guardar os bytes no próprio DB** (adia object storage)
 - **Insight que simplifica o deploy:** a **verdade viva** é o grid de células + o alphaTex
@@ -73,9 +119,11 @@ Hoje: **SQLite** (`prisma/dev.db`) + **blobs em disco** (`storage/`) + Next 16 e
 - **Vercel:** ótimo para Next "padrão", mas nosso webpack-mode + alphaTab-no-servidor pede
   cuidado (bundle/serverless). Não recomendo para o 1º teste — menos atrito no Node host.
 
-**Resumo do stack recomendado:** Render/Railway (Node, `next start` do build webpack) +
-Postgres gerenciado (Neon/Render) + blob como `Bytes` no DB. **Sem object storage, sem
-serverless.**
+**Resumo do stack recomendado:** Node persistente (`next start` do build webpack) + blob
+como `Bytes` no DB, **sem object storage, sem serverless**. Duas combinações defensáveis,
+escolher pela que termina esta semana:
+- **Render/Railway + Postgres gerenciado** (troca provider; casa com disco efêmero), ou
+- **Fly.io (volume) / Turso + SQLite** (zero-migração de banco).
 
 ## Parte 3 — UX do relay (2 pessoas, 1 música)
 A história ponta a ponta que queremos **possibilitar e observar**:
@@ -92,14 +140,32 @@ Lacunas pequenas a fechar (UX, não mecanismo):
   (não o campo de nome livre); claim/aceitar usam `userId`.
 - **Sem** notificação/tempo-real: A reabre para ver (assíncrono, de propósito).
 
-## Migrações / checklist de lead time (a executar só após aprovação)
+### ⚠️ Catch concreto: instrumento que falta × o que o player renderiza
+Limitação já registrada no CLAUDE.md: com `display.staveProfile: "Tab"`, **trilhas sem
+corda (bateria, teclado) podem renderizar vazias**. Se o instrumento natural do amigo for
+**bateria/teclado**, o player atual **sabota o teste por um motivo que não tem nada a ver
+com revezamento** — mediríamos um acidente. Duas saídas:
+- **Casar o instrumento** que falta com o que o player sabe mostrar → escolher **de corda**
+  (baixo, 2ª guitarra). **Zero código.** (Default recomendado.)
+- **Ou relaxar o `staveProfile`** para trilhas sem corda antes do teste (ex.: `Default`/
+  auto por trilha — tab onde tem corda, notação onde não tem). Pequena mudança no player,
+  custo: volta a clave de sol em algumas trilhas.
+**Decidir junto com "qual amigo + qual música".** Se o amigo é baixista/guitarrista →
+corda → zero código. Se é baterista/tecladista → relaxar `staveProfile` antes.
+
+## Checklist de lead time (a executar só após aprovação)
+0. **Pré-build (entrada de design):** definir **amigo + música (PD/CC) + instrumento que
+   falta** → escolher travessia do degrau alphaTex (**rec. (c) coached**, + **(b)** template
+   se ajudar) e `staveProfile` (corda = zero código; sem corda = relaxar antes).
 1. **Identidade:** `User` model; `Track.ownerId`, `CellContribution.authorId`; trocar o
    gate `assertCanAccept` para userId; prompt + cookie assinado; header.
-2. **Postgres:** trocar provider, re-init migrations, `DATABASE_URL`.
+2. **Banco:** Postgres (trocar provider, re-init migrations) **ou** SQLite+Fly/Turso
+   (zero-migração) — escolher pela que termina esta semana.
 3. **Blob no DB:** coluna `Bytes`; rota de arquivo serve do DB; remover dependência de disco.
-4. **Deploy:** Render/Railway web service (`next build --webpack` + `next start`), Postgres,
-   secrets (cookie secret, DB url). Smoke test remoto.
-5. **UX:** botão compartilhar; identidade no editor/claim.
+4. **Deploy:** Node host (`next build --webpack` + `next start`), banco, secrets (cookie
+   secret, DB url). Smoke test remoto.
+5. **UX:** botão compartilhar; identidade no editor/claim; **(b)** template de célula vazia
+   (se escolhido).
 
 ## Fora de escopo (explícito)
 Auth robusta, e-mail, OAuth, object storage, notificações, tempo-real, controle de acesso

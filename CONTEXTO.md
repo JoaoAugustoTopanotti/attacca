@@ -112,6 +112,18 @@ por humano (M3). **Não implementado** — só decidido.
   `.` é sensível — para dados de teste, usar alphaTex que comprovadamente parseia (seed) ou
   o exportador, não escrever à mão. **(2)+(3) = fim do mecanismo**; próximo marco é o 1º
   revezamento real (identidade + deploy, lead time). Mural está mais perto do diferencial.
+- **2026-06-16** — Sessão 1 (ADR-0003 revisada pós-feedback): João aprovou, com correções
+  que **mudam o que o teste mede**: (1) **o degrau real é o alphaTex bruto**, não a infra —
+  um músico de verdade escrever alphaTex à mão é o que quebra; saídas (a) amigo aprende, (b)
+  template de editor (NÃO contribuição pré-semeada, senão o mural mente), (c) **coached/
+  emparelhado (recomendado)**; **coached ≠ self-serve** (incógnita posterior). (2) **catch
+  do `staveProfile`**: trilha sem corda (bateria/teclado) renderiza vazia no modo Tab →
+  casar instrumento que falta com o player (corda = zero código) ou relaxar antes. (3)
+  **honestidade do banco**: Postgres casa com disco efêmero de Render/Railway (não é
+  "escala"); alt zero-migração = Fly/Turso+SQLite; escolher pela que termina a semana. (4)
+  critério de sucesso suavizado (prova mecanismo com gente real, não densidade/self-serve).
+  **Pré-build (entrada do João): qual amigo + qual música PD/CC + instrumento que falta** —
+  decide instrumento-alvo e `staveProfile`. Sem infra antes disso.
 - **2026-06-15** — Sessão 1 (M2 reivindicar trilha): **portão social, não trava** (como o
   João pediu). `setTrackOwner` (claim/release), trilhas **começam sem dono**; sem dono →
   qualquer um aceita, com dono → só o nome que bate aceita (`assertCanAccept`), **propor
