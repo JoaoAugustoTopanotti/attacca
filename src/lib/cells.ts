@@ -6,27 +6,32 @@
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex } from "@/lib/materialize";
 
-// SOCIAL gate, not a lock (no auth yet; author is free text). If a track is
-// claimed, only the matching name accepts — honor/convention, coherent with the
-// trusted-niche thesis. When real auth lands, swap this string match for userId.
+/** The acting identity (ADR 0003). The gate is by id, not by name. */
+export type Actor = { id: string; displayName: string };
+
+// SOCIAL gate, not a lock. If a track is claimed (ownerId set), only that user
+// accepts — honor/convention, coherent with the trusted-niche thesis. Propose
+// stays open. This is now a userId match (was a string match).
 function assertCanAccept(
-  track: { ownerName: string | null; name: string },
-  actingName: string,
+  track: { ownerId: string | null; ownerName: string | null },
+  actor: Actor,
 ) {
-  const owner = track.ownerName?.trim();
-  if (owner && owner !== actingName.trim()) {
+  if (track.ownerId && track.ownerId !== actor.id) {
+    const owner = track.ownerName ?? "outra pessoa";
     throw new Error(
       `Trilha reivindicada por "${owner}". Só ${owner} aceita — você ainda pode Propor.`,
     );
   }
 }
 
-/** Claim (ownerName = name) or release (ownerName = null) a track. Honor system. */
-export async function setTrackOwner(trackId: string, ownerName: string | null) {
-  const value = ownerName?.trim() ? ownerName.trim() : null;
+/** Claim (owner = actor) or release (owner = null) a track. Honor system. */
+export async function setTrackOwner(trackId: string, actor: Actor | null) {
   return prisma.track.update({
     where: { id: trackId },
-    data: { ownerName: value },
+    data: {
+      ownerId: actor?.id ?? null,
+      ownerName: actor?.displayName ?? null,
+    },
   });
 }
 
@@ -55,7 +60,6 @@ export async function getCellByCoords(
 
 export type AddContributionInput = {
   alphaTex: string;
-  authorName?: string;
   message?: string;
   /** true = accept now (validate + repoint). false = propose (append only). */
   accept?: boolean;
@@ -63,28 +67,24 @@ export type AddContributionInput = {
 
 /**
  * Append a new contribution to a cell. Never mutates an existing one.
- * On accept: validate that the WHOLE document still re-imports with this edit
- * (document stays valid), then repoint acceptedContributionId to the new row.
+ * On accept: enforce the social gate, validate the WHOLE document, then repoint.
  */
 export async function addCellContribution(
   cellId: string,
   input: AddContributionInput,
+  actor: Actor,
 ) {
   const cell = await prisma.cell.findUnique({ where: { id: cellId } });
   if (!cell) throw new Error("Célula não encontrada.");
 
   const alphaTex = input.alphaTex ?? "";
-  const authorName = input.authorName?.trim() || "anon";
   const message = input.message?.trim() || null;
   const accept = input.accept !== false; // default: accept
 
   if (accept) {
-    // Social gate: a claimed track is accepted only by its owner.
     const track = await prisma.track.findUnique({ where: { id: cell.trackId } });
-    if (track) assertCanAccept(track, authorName);
+    if (track) assertCanAccept(track, actor);
 
-    // Validate the candidate (full reassembly with this cell overridden) BEFORE
-    // committing — reject edits that would break the document.
     const { valid, error } = await assembleSongAlphaTex(
       cell.songId,
       new Map([[cellId, alphaTex]]),
@@ -100,14 +100,14 @@ export async function addCellContribution(
   const created = await prisma.cellContribution.create({
     data: {
       cellId,
-      authorName,
+      authorId: actor.id,
+      authorName: actor.displayName,
       alphaTex,
       message,
       status: accept ? "accepted" : "proposed",
     },
   });
 
-  // Repoint only the pointer; the old contribution stays in history.
   if (accept) {
     await prisma.cell.update({
       where: { id: cellId },
@@ -119,14 +119,13 @@ export async function addCellContribution(
 }
 
 /**
- * Accept an EXISTING contribution (e.g. a proposal): validate the full document
- * with it, then repoint the cell. The previously-accepted row stays in history.
- * NOTE (temporary, conscious): until track claiming exists, anyone can accept.
+ * Accept an EXISTING contribution (e.g. a proposal): gate + validate, then
+ * repoint. The previously-accepted row stays in history.
  */
 export async function acceptContribution(
   cellId: string,
   contributionId: string,
-  actingName = "",
+  actor: Actor,
 ) {
   const cell = await prisma.cell.findUnique({ where: { id: cellId } });
   if (!cell) throw new Error("Célula não encontrada.");
@@ -137,9 +136,8 @@ export async function acceptContribution(
     throw new Error("Contribuição não pertence a esta célula.");
   }
 
-  // Social gate: a claimed track is accepted only by its owner.
   const track = await prisma.track.findUnique({ where: { id: cell.trackId } });
-  if (track) assertCanAccept(track, actingName);
+  if (track) assertCanAccept(track, actor);
 
   const { valid, error } = await assembleSongAlphaTex(
     cell.songId,
@@ -164,14 +162,21 @@ export async function acceptContribution(
   return contrib;
 }
 
-/** Reject a (non-accepted) contribution: mark it rejected. Append-only-friendly:
- *  nothing is deleted; the row stays with status "rejected". */
-export async function rejectContribution(cellId: string, contributionId: string) {
+/** Reject a (non-accepted) contribution. Gated like accept (track authority).
+ *  Append-only-friendly: nothing deleted; the row stays with status "rejected". */
+export async function rejectContribution(
+  cellId: string,
+  contributionId: string,
+  actor: Actor,
+) {
   const cell = await prisma.cell.findUnique({ where: { id: cellId } });
   if (!cell) throw new Error("Célula não encontrada.");
   if (cell.acceptedContributionId === contributionId) {
     throw new Error("Não é possível recusar a contribuição atualmente aceita.");
   }
+  const track = await prisma.track.findUnique({ where: { id: cell.trackId } });
+  if (track) assertCanAccept(track, actor);
+
   return prisma.cellContribution.update({
     where: { id: contributionId },
     data: { status: "rejected" },

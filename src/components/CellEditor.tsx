@@ -12,7 +12,13 @@ type Contribution = {
   alphaTex: string;
 };
 type CellResponse = {
-  track: { id: string; order: number; name: string; ownerName: string | null };
+  track: {
+    id: string;
+    order: number;
+    name: string;
+    ownerName: string | null;
+    ownerId: string | null;
+  };
   measure: { id: string; order: number };
   cell: {
     id: string;
@@ -40,7 +46,7 @@ export default function CellEditor({
   const [measureOrder, setMeasureOrder] = useState(0);
   const [data, setData] = useState<CellResponse | null>(null);
   const [fragment, setFragment] = useState("");
-  const [author, setAuthor] = useState("");
+  const [me, setMe] = useState<{ id: string; displayName: string } | null>(null);
   const [reviewId, setReviewId] = useState<string | null>(null); // history entry under review
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,12 +54,20 @@ export default function CellEditor({
   const [info, setInfo] = useState<string | null>(null);
   const [playerVersion, setPlayerVersion] = useState(0);
 
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then(setMe)
+      .catch(() => {});
+  }, []);
+
   const acceptedId = data?.cell.acceptedContributionId ?? null;
   const reviewContrib = data?.cell.contributions.find((c) => c.id === reviewId) ?? null;
 
-  // Social gate: a claimed track is accepted only by its owner (string match).
+  // Social gate by identity: a claimed track is accepted only by its owner (userId).
   const owner = data?.track.ownerName?.trim() || null;
-  const canAccept = !owner || owner === author.trim();
+  const ownerId = data?.track.ownerId ?? null;
+  const canAccept = !!me && (!ownerId || ownerId === me.id);
 
   const loadCell = useCallback(async () => {
     setLoading(true);
@@ -108,7 +122,6 @@ export default function CellEditor({
     if (!data) return;
     const ok = await postJson(`/api/cells/${data.cell.id}/contributions`, {
       alphaTex: fragment,
-      authorName: author,
       accept,
     });
     if (ok) {
@@ -124,10 +137,7 @@ export default function CellEditor({
 
   async function accept(contributionId: string) {
     if (!data) return;
-    const ok = await postJson(`/api/cells/${data.cell.id}/accept`, {
-      contributionId,
-      actingName: author,
-    });
+    const ok = await postJson(`/api/cells/${data.cell.id}/accept`, { contributionId });
     if (ok) {
       setInfo("Proposta aceita — o ponteiro re-apontou para ela.");
       setPlayerVersion((v) => v + 1);
@@ -135,11 +145,11 @@ export default function CellEditor({
     }
   }
 
-  async function setOwner(ownerName: string | null) {
+  async function setOwner(release: boolean) {
     if (!data) return;
-    const ok = await postJson(`/api/tracks/${data.track.id}/owner`, { ownerName });
+    const ok = await postJson(`/api/tracks/${data.track.id}/owner`, { release });
     if (ok) {
-      setInfo(ownerName ? `Trilha reivindicada por ${ownerName}.` : "Trilha liberada.");
+      setInfo(release ? "Trilha liberada." : `Trilha reivindicada por ${me?.displayName}.`);
       await loadCell();
     }
   }
@@ -201,26 +211,32 @@ export default function CellEditor({
               Dono da trilha:{" "}
               {owner ? <strong>{owner}</strong> : "sem dono (qualquer um aceita)"}
             </span>{" "}
-            {owner ? (
+            {!me ? null : ownerId === me.id ? (
               <button
                 type="button"
                 className="secondary"
-                onClick={() => setOwner(null)}
+                onClick={() => setOwner(true)}
                 disabled={busy || !data}
               >
                 Liberar
               </button>
-            ) : (
+            ) : !owner ? (
               <button
                 type="button"
                 className="secondary"
-                onClick={() => setOwner(author.trim() || "anon")}
+                onClick={() => setOwner(false)}
                 disabled={busy || !data}
               >
-                Reivindicar como “{author.trim() || "anon"}”
+                Reivindicar como “{me.displayName}”
               </button>
-            )}
+            ) : null}
           </div>
+
+          {!me && (
+            <div className="form-error">
+              Identifique-se no topo da página para editar, reivindicar e aceitar.
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor="fragment">
@@ -237,16 +253,6 @@ export default function CellEditor({
               style={{ fontFamily: "ui-monospace, monospace", fontSize: "0.85rem" }}
             />
           </div>
-          <div className="field">
-            <label htmlFor="author">Seu nome</label>
-            <input
-              id="author"
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="anon"
-            />
-          </div>
           <div className="player-toolbar">
             <button
               type="button"
@@ -256,7 +262,7 @@ export default function CellEditor({
             >
               Salvar e aceitar
             </button>
-            <button type="button" className="secondary" onClick={() => saveContribution(false)} disabled={busy || loading || !data}>
+            <button type="button" className="secondary" onClick={() => saveContribution(false)} disabled={busy || loading || !data || !me}>
               Propor (não aceitar)
             </button>
           </div>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { detectUploadFormat } from "@/lib/format";
 import { saveRevisionFile } from "@/lib/storage";
 import { scoreBytesToAlphaTex } from "@/lib/canonical";
+import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
@@ -52,10 +53,13 @@ export async function POST(request: Request, { params }: Params) {
 
   const authorRaw = form.get("authorName");
   const messageRaw = form.get("message");
+  // Prefer the signed-in identity (ADR 0003); fall back to the form field / anon.
+  const me = await getCurrentUser();
   const authorName =
-    typeof authorRaw === "string" && authorRaw.trim() !== ""
+    me?.displayName ??
+    (typeof authorRaw === "string" && authorRaw.trim() !== ""
       ? authorRaw.trim()
-      : "anon";
+      : "anon");
   const message =
     typeof messageRaw === "string" && messageRaw.trim() !== ""
       ? messageRaw.trim()

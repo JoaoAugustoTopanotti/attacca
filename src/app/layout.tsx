@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import IdentityWidget from "@/components/IdentityWidget";
 
 export const metadata: Metadata = {
   title: "GitSong",
@@ -22,6 +23,9 @@ export default function RootLayout({
             GitSong
           </Link>
           <span className="muted">transcrições musicais colaborativas</span>
+          <span style={{ marginLeft: "auto" }}>
+            <IdentityWidget />
+          </span>
         </header>
         <main className="container">{children}</main>
       </body>

@@ -82,12 +82,18 @@ model Track {
   tuning         String? // tokens e.g. "E4 B3 G3 D3 A2 E2" (UI/reading)
   instrument     Int? // GM program (UI)
   isPercussion   Boolean @default(false)
-  ownerName      String? // who claimed the track (stub author)
+
+  // Ownership: ownerId is the real gate (ADR 0003); ownerName is a denormalized
+  // display cache. Unclaimed = ownerId null = the open invitation.
+  ownerName String?
+  ownerId   String?
+  owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   cells Cell[]
 
   @@unique([songId, order])
   @@index([songId])
+  @@index([ownerId])
 }
 
 /// Stable per-song measure (the "column"). Holds the SHARED structural scaffold.
@@ -140,7 +146,12 @@ model CellContribution {
   cell   Cell   @relation("cellContributions", fields: [cellId], references: [id], onDelete: Cascade)
   cellId String
 
+  // Authorship: authorId is the real identity (ADR 0003); authorName is a
+  // denormalized display cache (also covers legacy/anon rows).
   authorName String  @default("anon")
+  authorId   String?
+  author     User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
   /// The cell's fragment: per-track bar metadata (clef/ks) + notes, as alphaTex.
   alphaTex   String
   status     String  @default("accepted") // "accepted" | "proposed" | "rejected"
@@ -151,4 +162,19 @@ model CellContribution {
   acceptedInCell Cell? @relation("acceptedContribution")
 
   @@index([cellId])
+  @@index([authorId])
+}
+
+// ---------------------------------------------------------------------------
+// Identity — "real enough" (ADR 0003). Lightweight, cookie-backed; no auth.
+// ---------------------------------------------------------------------------
+
+/// A person, distinguished by a signed cookie. Swap for real auth later.
+model User {
+  id          String   @id @default(cuid())
+  displayName String
+  createdAt   DateTime @default(now())
+
+  ownedTracks   Track[]
+  contributions CellContribution[]
 }

@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { rejectContribution } from "@/lib/cells";
+import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ cellId: string }> };
 
-// POST /api/cells/:cellId/reject  body: { contributionId }
+// POST /api/cells/:cellId/reject  body: { contributionId }. Gated to track owner.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Identifique-se primeiro." }, { status: 401 });
+  }
   let body: { contributionId?: unknown };
   try {
     body = await request.json();
@@ -19,7 +24,7 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
   try {
-    const rejected = await rejectContribution(cellId, body.contributionId);
+    const rejected = await rejectContribution(cellId, body.contributionId, user);
     return NextResponse.json(rejected);
   } catch (e) {
     return NextResponse.json(

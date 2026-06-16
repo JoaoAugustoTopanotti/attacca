@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { acceptContribution } from "@/lib/cells";
+import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ cellId: string }> };
 
 // POST /api/cells/:cellId/accept  body: { contributionId }
-// Repoints the cell to an existing contribution (e.g. accepting a proposal).
-// Temporary: anyone can accept until track claiming lands.
+// Repoints the cell to an existing contribution. Gated to the track owner.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
-  let body: { contributionId?: unknown; actingName?: unknown };
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Identifique-se primeiro." }, { status: 401 });
+  }
+  let body: { contributionId?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -20,9 +24,8 @@ export async function POST(request: Request, { params }: Params) {
       { status: 400 },
     );
   }
-  const actingName = typeof body.actingName === "string" ? body.actingName : "";
   try {
-    const accepted = await acceptContribution(cellId, body.contributionId, actingName);
+    const accepted = await acceptContribution(cellId, body.contributionId, user);
     return NextResponse.json(accepted);
   } catch (e) {
     return NextResponse.json(

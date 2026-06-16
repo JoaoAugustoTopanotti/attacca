@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-16** — Sessão 1 (identidade por cookie — 1º passo do marco): instrumento do
+  amigo = **corda** (zero código no player), começar por **identidade**. Construído: `User`
+  + cookie assinado (HMAC, `GS_COOKIE_SECRET`), `getCurrentUser`, `/api/me`, widget no
+  header. Gate trocado de **string → `userId`** (`Track.ownerId`; `assertCanAccept` por id);
+  claim/release/aceitar/recusar resolvem identidade server-side (401 se anônimo); propor
+  aberto a qualquer identificado; `CellContribution.authorId`. CellEditor usa a identidade
+  (sem campo de nome). Migration `identity` (aditiva). **Testado com 2 cookies**: Joao
+  reivindica → Maria não aceita (400) mas propõe (201); Joao (dono) aceita (200); anônimo
+  401. Gotcha: dev server tinha **Prisma client velho em memória** → 500 em `/api/me`;
+  **reiniciei o server**. Próximo do checklist: banco (Postgres/Turso) + blob no DB + deploy.
 - **2026-06-16** — Sessão 1 (marco: 1º revezamento real — DESIGN): mecanismo do M2 dado
   como concluído. João pediu para **desenhar o marco antes de tocar infra**. Escrita a
   **ADR-0003** (`docs/adr/0003-primeiro-revezamento-real.md`): (1) **identidade leve por

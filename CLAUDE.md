@@ -167,14 +167,18 @@ O raciocínio que levou à decisão (mantido como contexto):
   `/api/cells/[id]/accept` e `/reject`. **Tela de revisão** embutida no `/edit`: clicar numa
   entrada do histórico → ver o fragmento + **pré-visualizar no player** (override via
   `GET /assembled?cell=&contribution=`) → aceitar/recusar.
-- **Reivindicar trilha (M2, portão social)** — `setTrackOwner` (`POST
-  /api/tracks/[id]/owner` { ownerName | null }). Trilhas **começam sem dono** (incompletude
-  = convite aberto). Sem dono → qualquer um aceita; **com dono → só o nome que bate aceita**
-  (`assertCanAccept`); **propor segue aberto a todos**. É **honra/convenção, não trava**:
-  autor é texto livre, qualquer um digita o nome do dono — coerente com a tese de nicho
-  confiável ("colaboração em grupo é menos exposta"). **Não** construído como enforcement.
-  Quando auth real chegar, troca-se "match de string" por "match de userId". UI no `/edit`
-  (reivindicar/liberar + botões de aceitar desabilitados quando o nome não bate).
+- **Identidade leve (ADR 0003)** — `src/lib/identity.ts` + `/api/me`. Pessoa = **cookie
+  assinado** (HMAC, `GS_COOKIE_SECRET`) → `User` (`displayName`). `getCurrentUser()` lê o
+  cookie. Widget no header (prompt "quem é você?" / "você é X"). **Não é auth** (sem senha/
+  e-mail); identidade por-navegador. Upgrade = magic link.
+- **Reivindicar trilha (M2, portão social) — agora por `userId`** — `setTrackOwner` (`POST
+  /api/tracks/[id]/owner` { release? }) reivindica/libera **como a identidade atual**.
+  `Track.ownerId` é o gate (`ownerName` é cache de display). Trilhas **começam sem dono**.
+  Sem dono → qualquer um (identificado) aceita; **com dono → só `ownerId` aceita**
+  (`assertCanAccept` por id); **propor segue aberto** a qualquer identificado; escrever
+  exige identidade (senão 401). É **honra, não trava** (cookie ≠ auth) — coerente com nicho
+  confiável. `CellContribution.authorId` registra autoria. UI no `/edit` usa a identidade
+  (sem campo de nome livre).
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.
