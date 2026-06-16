@@ -91,6 +91,15 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-16** — Sessão 1 (botão compartilhar + caminho crítico = humano): feito o
+  **botão "Compartilhar"** (copia `${origin}/songs/[id]` — passo 1 do relay, A→B), última
+  peça **local** do relay. Balde local do marco **fechado**. ⚠️ **O caminho crítico agora é
+  HUMANO, não código** (tem lead time, sem dono): (1) **amigo + instrumento de corda**
+  (baixo/2ª guitarra, por causa do `staveProfile:"Tab"`); (2) **música PD/CC**; (3) **degrau
+  do alphaTex a/b/c** (se (b) pré-semear esqueleto, é tarefa local que o Claude encaixa
+  após música+instrumento). **Pendência do João:** ouvir o **:3100** (confirmar que o áudio
+  toca em prod — último de-risk), criar contas (Render/Railway + Postgres) e fechar amigo+
+  música+decisão a/b/c. **Passo ao vivo restante:** troca Postgres + re-init + deploy.
 - **2026-06-16** — Sessão 1 (deploy-prep local, sem contas): João escolheu **X** (fatiar) e
   ampliou o balde "dá pra fazer local" para 3 (não só blob). Feitos e verificados: (1)
   **blob como `Bytes` no DB** (`Revision.blob`; upload grava no DB sem disco; rota serve do

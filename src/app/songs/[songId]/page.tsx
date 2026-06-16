@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SongWorkspace, { type RevisionDTO } from "@/components/SongWorkspace";
 import CompletenessPanel from "@/components/CompletenessPanel";
+import ShareButton from "@/components/ShareButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,10 @@ export default async function SongPage({
       <p className="muted">
         <Link href="/">← Músicas</Link>
       </p>
-      <h1>{song.title}</h1>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <h1 style={{ margin: 0 }}>{song.title}</h1>
+        <ShareButton songId={song.id} />
+      </div>
       <p className="muted">
         {song.artist ?? "Artista desconhecido"} ·{" "}
         <Link href={`/songs/${song.id}/compare`}>comparar snapshot × células</Link>{" "}
