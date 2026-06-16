@@ -97,8 +97,17 @@ Hoje: **SQLite** (`prisma/dev.db`) + **blobs em disco** (`storage/`) + Next 16 e
 - **Não agonizar:** escolher pela que você **termina esta semana**, não pela "mais correta".
   Postgres+Render/Railway e SQLite+Fly/Turso são ambas defensáveis.
 - Se Postgres: troca de `provider` no Prisma + connection string; schema (ids cuid, Int,
-  Bool, DateTime, String?) porta limpo; **re-iniciar migrations** para Postgres (sem dado de
-  produção a preservar).
+  Bool, DateTime, String?, **Bytes** para o blob) porta limpo; **re-iniciar migrations** para
+  Postgres (sem dado de produção a preservar).
+- **A troca de Postgres é AO VIVO**, contra o banco gerenciado real, quando os segredos
+  existirem — **não às cegas**. Fazer "código Postgres" antes ou exige subir Postgres local
+  (não é "menos passos") ou gera código não-testado; e no instante em que o provider vira
+  postgres, **o loop local em SQLite quebra** (perde-se a iteração rápida). Manter SQLite
+  até o dia do deploy.
+- **Nota para o deploy (decidir lá):** se o **dev também passa a rodar Postgres** (Docker
+  local). Para um schema que porta limpo como o nosso, **SQLite-dev / Postgres-prod é
+  aceitável no 1º relay** — mas **unificar cedo** evita conviver com duas realidades de
+  migration e o clássico "passou em SQLite, quebrou em Postgres".
 
 ### 2b. Blobs de upload: **guardar os bytes no próprio DB** (adia object storage)
 - **Insight que simplifica o deploy:** a **verdade viva** é o grid de células + o alphaTex

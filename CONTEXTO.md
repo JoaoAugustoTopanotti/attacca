@@ -91,6 +91,17 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-16** — Sessão 1 (deploy-prep local, sem contas): João escolheu **X** (fatiar) e
+  ampliou o balde "dá pra fazer local" para 3 (não só blob). Feitos e verificados: (1)
+  **blob como `Bytes` no DB** (`Revision.blob`; upload grava no DB sem disco; rota serve do
+  DB, fallback disco p/ legado; revert copia blob; migration `revision_blob_in_db`) —
+  testado: 105.581 bytes no DB, `storedPath` null, **zero disco**. (2) **smoke test do build
+  de produção** (`next build --webpack` + `next start` na :3100) — **stack de áudio do
+  alphaTab serve em prod** (`/font` 313KB, `/soundfont` 1.35MB, páginas 200); falta o João
+  confirmar o **áudio com o ouvido** em :3100. (3) **config por env** (`GS_COOKIE_SECRET`,
+  `DATABASE_URL`; `.env.example`). **Postgres + deploy ficam para um passo ÚNICO e AO VIVO**
+  (não às cegas — quebraria o loop SQLite local). Nota registrada na ADR: decidir dev em
+  Postgres (Docker) no deploy; SQLite-dev/Postgres-prod ok p/ 1º relay mas unificar cedo.
 - **2026-06-16** — Sessão 1 (identidade por cookie — 1º passo do marco): instrumento do
   amigo = **corda** (zero código no player), começar por **identidade**. Construído: `User`
   + cookie assinado (HMAC, `GS_COOKIE_SECRET`), `getCurrentUser`, `/api/me`, widget no

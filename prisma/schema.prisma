@@ -47,7 +47,9 @@ model Revision {
 
   // --- File-backed revisions (source = "file") ---
   originalName String? // original filename as uploaded
-  storedPath   String? // path relative to the storage/ dir
+  /// Provenance blob stored IN the DB (no disk) — deploy-friendly (ADR 0003).
+  blob         Bytes?
+  storedPath   String? // LEGACY: path under storage/ for pre-DB-blob rows
   sizeBytes    Int     @default(0)
 
   // --- Inline revisions (source = "alphatex") ---

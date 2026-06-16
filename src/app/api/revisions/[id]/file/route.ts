@@ -22,26 +22,35 @@ export async function GET(_request: Request, { params }: Params) {
     });
   }
 
-  if (!revision.storedPath) {
-    return NextResponse.json(
-      { error: "Arquivo da revisão não encontrado." },
-      { status: 404 },
-    );
-  }
-
-  try {
-    const buffer = await readRevisionFile(revision.storedPath);
-    return new NextResponse(new Uint8Array(buffer), {
+  const octet = (src: Uint8Array) =>
+    new NextResponse(new Uint8Array(src), {
       status: 200,
       headers: {
         "Content-Type": "application/octet-stream",
         "Content-Disposition": `inline; filename="${revision.originalName ?? "score"}"`,
       },
     });
-  } catch {
-    return NextResponse.json(
-      { error: "Falha ao ler o arquivo da revisão." },
-      { status: 500 },
-    );
+
+  // Preferred: blob stored in the DB (deploy-friendly).
+  if (revision.blob) {
+    return octet(revision.blob);
   }
+
+  // Legacy fallback: bytes on disk (pre-DB-blob rows, local only).
+  if (revision.storedPath) {
+    try {
+      const buffer = await readRevisionFile(revision.storedPath);
+      return octet(buffer);
+    } catch {
+      return NextResponse.json(
+        { error: "Falha ao ler o arquivo da revisão." },
+        { status: 500 },
+      );
+    }
+  }
+
+  return NextResponse.json(
+    { error: "Arquivo da revisão não encontrado." },
+    { status: 404 },
+  );
 }

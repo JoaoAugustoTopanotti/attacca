@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getExtension } from "@/lib/format";
-import { readRevisionFile, saveRevisionFile } from "@/lib/storage";
+import { readRevisionFile } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -57,25 +56,21 @@ export async function POST(request: Request, { params }: Params) {
 
   // File-backed revisions: copy the bytes into a fresh stored file so each
   // revision stays self-contained.
-  if (!source.storedPath) {
+  // Source bytes: prefer the DB blob, fall back to legacy disk.
+  let bytes: Buffer | null = source.blob ? Buffer.from(source.blob) : null;
+  if (!bytes && source.storedPath) {
+    try {
+      bytes = await readRevisionFile(source.storedPath);
+    } catch {
+      bytes = null;
+    }
+  }
+  if (!bytes) {
     return NextResponse.json(
       { error: "A revisão de origem não tem arquivo para reverter." },
       { status: 400 },
     );
   }
-
-  let bytes: Buffer;
-  try {
-    bytes = await readRevisionFile(source.storedPath);
-  } catch {
-    return NextResponse.json(
-      { error: "Falha ao ler o arquivo da revisão de origem." },
-      { status: 500 },
-    );
-  }
-
-  const extension =
-    getExtension(source.storedPath) || getExtension(source.originalName ?? "") || "gp";
 
   const created = await prisma.revision.create({
     data: {
@@ -87,20 +82,9 @@ export async function POST(request: Request, { params }: Params) {
       originalName: source.originalName,
       format: source.format,
       sizeBytes: source.sizeBytes,
+      blob: new Uint8Array(bytes), // copy the provenance blob (in DB)
       alphaTex: source.alphaTex, // carry the canonical form along
     },
-  });
-
-  const storedPath = await saveRevisionFile(
-    source.songId,
-    created.id,
-    extension,
-    new Uint8Array(bytes),
-  );
-
-  const saved = await prisma.revision.update({
-    where: { id: created.id },
-    data: { storedPath },
   });
 
   await prisma.song.update({
@@ -108,5 +92,8 @@ export async function POST(request: Request, { params }: Params) {
     data: { updatedAt: new Date() },
   });
 
-  return NextResponse.json(saved, { status: 201 });
+  return NextResponse.json(
+    { id: created.id, number: created.number },
+    { status: 201 },
+  );
 }

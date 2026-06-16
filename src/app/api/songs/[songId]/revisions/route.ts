@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { detectUploadFormat } from "@/lib/format";
-import { saveRevisionFile } from "@/lib/storage";
 import { scoreBytesToAlphaTex } from "@/lib/canonical";
 import { getCurrentUser } from "@/lib/identity";
 
@@ -17,6 +16,18 @@ export async function GET(_request: Request, { params }: Params) {
   const revisions = await prisma.revision.findMany({
     where: { songId },
     orderBy: { number: "desc" },
+    // Exclude blob/alphaTex (large) from the list response.
+    select: {
+      id: true,
+      number: true,
+      authorName: true,
+      message: true,
+      source: true,
+      format: true,
+      originalName: true,
+      kind: true,
+      createdAt: true,
+    },
   });
   return NextResponse.json(revisions);
 }
@@ -79,8 +90,7 @@ export async function POST(request: Request, { params }: Params) {
   // blob. Best-effort: null if alphaTab can't parse this file.
   const alphaTex = await scoreBytesToAlphaTex(bytes);
 
-  // Create the row first so we have an id to name the stored file, then persist
-  // the bytes and backfill the path.
+  // Provenance blob lives IN the DB (no disk dependency — deploy-friendly).
   const revision = await prisma.revision.create({
     data: {
       songId,
@@ -91,20 +101,20 @@ export async function POST(request: Request, { params }: Params) {
       originalName: file.name,
       format: check.format,
       sizeBytes: bytes.byteLength,
+      blob: Buffer.from(bytes),
       alphaTex,
     },
-  });
-
-  const storedPath = await saveRevisionFile(
-    songId,
-    revision.id,
-    check.extension,
-    bytes,
-  );
-
-  const saved = await prisma.revision.update({
-    where: { id: revision.id },
-    data: { storedPath },
+    select: {
+      id: true,
+      number: true,
+      authorName: true,
+      message: true,
+      source: true,
+      format: true,
+      originalName: true,
+      kind: true,
+      createdAt: true,
+    },
   });
 
   // Touch the song so it sorts to the top of the list.
@@ -113,5 +123,5 @@ export async function POST(request: Request, { params }: Params) {
     data: { updatedAt: new Date() },
   });
 
-  return NextResponse.json(saved, { status: 201 });
+  return NextResponse.json(revision, { status: 201 });
 }
