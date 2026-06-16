@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-16** — Sessão 1 (marco: 1º revezamento real — DESIGN): mecanismo do M2 dado
+  como concluído. João pediu para **desenhar o marco antes de tocar infra**. Escrita a
+  **ADR-0003** (`docs/adr/0003-primeiro-revezamento-real.md`): (1) **identidade leve por
+  cookie** (nome→User→cookie assinado; gate passa de match-de-string para match-de-userId
+  — a "mudança pequena" prevista; magic link como upgrade); (2) **deploy enxuto**:
+  Render/Railway (Node, `next start` do build webpack) + Postgres gerenciado (Neon/Render),
+  **blob como Bytes no DB** (adia object storage — a verdade viva já está no DB), **sem
+  serverless**; (3) **UX do relay** A→B (compartilhar link, prompt de identidade, claim/
+  editar como a identidade). Critério de sucesso: 2 pessoas, 1 música, bastão passa numa
+  instância deployada. **Aguardando aprovação da ADR antes de qualquer infra.**
 - **2026-06-15** — Sessão 1 (M2 mural de incompletude): a pausa de 30s do João virou
   modelagem. **Dois tipos de incompletude**: lacuna na trilha (grid dá) vs **trilha
   ausente** ("falta baixo" — precisa de **instrumentação declarada**). `declareTrack` cria
