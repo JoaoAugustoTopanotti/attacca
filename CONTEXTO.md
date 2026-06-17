@@ -91,6 +91,16 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-17** — Sessão 1 (🎉 ENSAIO DO RELAY PASSOU): João rodou o **ciclo inteiro no
+  navegador** com 2 identidades (normal + anônima): "Riff de Teste" (riff original semeado,
+  só guitarra) → materializar → declarar Baixo → compartilhar → 2ª identidade reivindica
+  Baixo → cola fragmentos alphaTex célula a célula → aceita → remonta → **toca guitarra+
+  baixo**. **Mecanismo agora provado por usuário real no browser**, não só server-side.
+  **Honestidade (X≠Y):** ensaio SOLO prova o **encanamento** com browsers/identidades reais;
+  **não** prova relay com 2ª pessoa real, nem **self-serve** (João escreveu os dois lados =
+  coached extremo), nem densidade. Feedback do João em uso real: **"o fluxo/UX está
+  estranho"** — agora é dado de uso, não especulação (justifica o polish, esp. do editor =
+  o degrau alphaTex). Material de teste (slug `riff-teste`) está no dev.db.
 - **2026-06-16** — Sessão 1 (botão compartilhar + caminho crítico = humano): feito o
   **botão "Compartilhar"** (copia `${origin}/songs/[id]` — passo 1 do relay, A→B), última
   peça **local** do relay. Balde local do marco **fechado**. ⚠️ **O caminho crítico agora é
