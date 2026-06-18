@@ -12,6 +12,7 @@ export type RevisionDTO = {
   message: string | null;
   source: string;
   format: string;
+  kind: string;
   originalName: string | null;
   createdAt: string;
 };
@@ -42,6 +43,15 @@ export default function SongWorkspace({
       })
       .catch(() => {})
       .finally(() => setChecked(true));
+  }, [songId]);
+
+  // Refetch the history on mount: snapshots created on the /edit page (accepting
+  // a proposal, owner edits) must show here even on client-side navigation.
+  useEffect(() => {
+    fetch(`/api/songs/${songId}/revisions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setRevisions(data))
+      .catch(() => {});
   }, [songId]);
 
   const selectedRev = revisions.find((r) => r.id === view) ?? null;

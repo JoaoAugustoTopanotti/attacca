@@ -108,6 +108,14 @@ por humano (M3). **Não implementado** — só decidido.
   **tela de revisão**: "Revisar" → player toca a **pré-visualização** (`/assembled?track=&
   author=` aplica a proposta sem aceitar) + mostra o **tab proposto** (`getProposalContent`,
   `/tracks/[order]/proposal`) → Aceitar/Recusar. Testado: live=0 notas, prévia=16.
+  **Mais dois feedbacks:** (1) o colaborador não via nada após propor — agora o não-dono
+  tem a seção **"Suas propostas"** persistente, com **Ver** (mesma pré-visualização: toca +
+  mostra o tab, sem Aceitar/Recusar). (2) o **histórico** não mostrava as mudanças aceitas
+  (só o upload #1) — agora cada mudança que entra na grade viva grava uma **Revision
+  `kind="snapshot"`** (`snapshotGrid` em materialize.ts; chamado no aceite e no save direto
+  do dono): congela o alphaTex remontado, aparece no Histórico como "mudança" e é tocável.
+  Snapshot não tem botão Reverter (a grade viva é a verdade). Testado: propor não cria
+  snapshot; aceitar cria `#2 "Baixo — 4 compassos (proposta de Maria)"`, tocável com 2 trilhas.
 - **2026-06-18** — Sessão 1 (modelo de autoridade refeito pós-teste): o ensaio expôs um
   furo de MODELAGEM (não UX). João: "reivindicar trilha é estranho — a pessoa só quer
   propor" + "quem criou a música é dono dela, ele que aceita" (o criador ficou sem poder

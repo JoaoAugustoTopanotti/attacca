@@ -29,6 +29,7 @@ export default async function SongPage({
     message: r.message,
     source: r.source,
     format: r.format,
+    kind: r.kind,
     originalName: r.originalName,
     createdAt: r.createdAt.toISOString(),
   }));

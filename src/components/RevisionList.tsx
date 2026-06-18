@@ -49,7 +49,9 @@ export default function RevisionList({
               <div className="rev-head">
                 <span className="rev-num">#{r.number}</span>
                 {isCurrent && <span className="tag tag-current">atual</span>}
-                <span className="tag tag-fmt">{r.format}</span>
+                <span className="tag tag-fmt">
+                  {r.kind === "snapshot" ? "mudança" : r.format}
+                </span>
               </div>
               <div className="rev-meta">
                 {r.authorName} · {formatDate(r.createdAt)}
@@ -67,7 +69,7 @@ export default function RevisionList({
               >
                 {isSelected ? "Vendo" : "Ver"}
               </button>
-              {!isCurrent && (
+              {!isCurrent && r.kind !== "snapshot" && (
                 <button
                   type="button"
                   className="rev-btn"

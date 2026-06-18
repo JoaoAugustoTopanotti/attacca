@@ -46,6 +46,10 @@ export default function TrackEditor({
   const ownerId = content?.song.ownerId ?? null;
   const ownerName = content?.song.ownerName ?? null;
   const isOwner = !!me && (!ownerId || ownerId === me.id);
+  // The owner reviews everyone's proposals; a collaborator sees only their own.
+  const visibleProposals = isOwner
+    ? proposals
+    : proposals.filter((p) => p.authorId && p.authorId === me?.id);
 
   const loadTrack = useCallback(async () => {
     setError(null);
@@ -84,7 +88,7 @@ export default function TrackEditor({
       setInfo(
         json.accepted
           ? `Salvo — ${json.changed} compasso(s) atualizado(s).`
-          : `Proposta enviada — ${json.changed} compasso(s), aguardando o dono aceitar.`,
+          : `Proposta enviada — ${json.changed} compasso(s). Veja em "Suas propostas" ao lado; aguardando o dono aceitar.`,
       );
       setPlayerVersion((v) => v + 1);
       await loadTrack();
@@ -190,19 +194,27 @@ export default function TrackEditor({
           {info && <div className="form-ok">{info}</div>}
         </div>
 
-        <h2>{reviewing ? `Pré-visualização: proposta de ${reviewing.authorName}` : "Versão ao vivo (do grid)"}</h2>
+        <h2>
+          {reviewing
+            ? reviewing.authorId === me?.id
+              ? "Pré-visualização: sua proposta"
+              : `Pré-visualização: proposta de ${reviewing.authorName}`
+            : "Versão ao vivo (do grid)"}
+        </h2>
         <AlphaTabPlayer key={playerUrl} alphaTexUrl={playerUrl} />
       </section>
 
       <aside>
-        <h2>Propostas a revisar</h2>
-        {!isOwner ? (
-          <p className="muted">Só o dono da música revisa propostas.</p>
-        ) : proposals.length === 0 ? (
-          <p className="muted">Nenhuma proposta pendente.</p>
+        <h2>{isOwner ? "Propostas a revisar" : "Suas propostas"}</h2>
+        {visibleProposals.length === 0 ? (
+          <p className="muted">
+            {isOwner
+              ? "Nenhuma proposta pendente."
+              : "Você ainda não propôs mudanças nesta música."}
+          </p>
         ) : (
           <ul className="revision-list">
-            {proposals.map((p) => {
+            {visibleProposals.map((p) => {
               const active =
                 reviewing?.trackOrder === p.trackOrder &&
                 reviewing?.authorId === p.authorId;
@@ -223,7 +235,7 @@ export default function TrackEditor({
                     className="secondary"
                     onClick={() => (active ? setReviewing(null) : startReview(p))}
                   >
-                    {active ? "Fechar" : "Revisar"}
+                    {active ? "Fechar" : isOwner ? "Revisar" : "Ver"}
                   </button>
                 </li>
               );
@@ -234,9 +246,9 @@ export default function TrackEditor({
         {reviewing && (
           <div className="panel" style={{ marginTop: 10 }}>
             <div className="muted">
-              Proposta de <strong>{reviewing.authorName}</strong> para{" "}
-              <strong>{reviewing.trackName}</strong> — ouça na pré-visualização ao
-              lado e veja o tab abaixo.
+              {reviewing.authorId === me?.id ? "Sua proposta" : `Proposta de ${reviewing.authorName}`}{" "}
+              para <strong>{reviewing.trackName}</strong> — ouça na pré-visualização
+              ao lado e veja o tab abaixo.
             </div>
             <label className="muted" style={{ display: "block", marginTop: 8 }}>
               Tab proposto:
@@ -256,19 +268,25 @@ export default function TrackEditor({
             >
               {reviewContent?.proposedAlphaTex ?? "…"}
             </pre>
-            <div className="player-toolbar">
-              <button type="button" onClick={() => review(reviewing, "accept")} disabled={busy}>
-                Aceitar
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => review(reviewing, "reject")}
-                disabled={busy}
-              >
-                Recusar
-              </button>
-            </div>
+            {isOwner ? (
+              <div className="player-toolbar">
+                <button type="button" onClick={() => review(reviewing, "accept")} disabled={busy}>
+                  Aceitar
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => review(reviewing, "reject")}
+                  disabled={busy}
+                >
+                  Recusar
+                </button>
+              </div>
+            ) : (
+              <p className="muted" style={{ marginTop: 8 }}>
+                Aguardando <strong>{ownerName ?? "o dono"}</strong> aceitar.
+              </p>
+            )}
           </div>
         )}
 

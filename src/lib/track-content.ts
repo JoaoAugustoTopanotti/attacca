@@ -4,8 +4,10 @@
 // the song owner). Cell-level remains the storage/merge granularity.
 
 import { prisma } from "@/lib/prisma";
-import { assembleSongAlphaTex } from "@/lib/materialize";
+import { assembleSongAlphaTex, snapshotGrid } from "@/lib/materialize";
 import type { Actor } from "@/lib/cells";
+
+const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 
 const BAR_SEP = "\n|\n";
 
@@ -122,6 +124,15 @@ export async function submitTrackContent(
       });
     }
     changed++;
+  }
+
+  // Owner edits land in the live grid immediately → record a history snapshot.
+  if (isOwner && changed > 0) {
+    await snapshotGrid(
+      songId,
+      actor.displayName,
+      `${track.name} — ${pluralBars(changed)}`,
+    );
   }
 
   return { changed, accepted: isOwner };
@@ -250,6 +261,15 @@ export async function acceptTrackProposals(
       }),
     ),
   ]);
+
+  // The accepted proposal is now part of the live grid → record a history
+  // snapshot crediting the collaborator who proposed it.
+  await snapshotGrid(
+    songId,
+    props[0].authorName,
+    `${track.name} — ${pluralBars(props.length)} (proposta de ${props[0].authorName})`,
+  );
+
   return { accepted: props.length };
 }
 

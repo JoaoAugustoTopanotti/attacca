@@ -143,6 +143,47 @@ export async function materializeSongGrid(
 }
 
 /**
+ * Freeze the current live grid as an immutable "snapshot" revision — so every
+ * step of the relay (an accepted proposal, an owner edit) shows in the history
+ * and stays playable. Best-effort: if the grid won't assemble, we skip silently
+ * rather than block the edit. Returns the created revision number, or null.
+ */
+export async function snapshotGrid(
+  songId: string,
+  authorName: string,
+  message: string,
+): Promise<number | null> {
+  const { alphaTex, valid } = await assembleSongAlphaTex(songId);
+  if (!valid) return null;
+
+  const last = await prisma.revision.findFirst({
+    where: { songId },
+    orderBy: { number: "desc" },
+    select: { number: true },
+  });
+  const number = (last?.number ?? 0) + 1;
+
+  await prisma.revision.create({
+    data: {
+      songId,
+      number,
+      authorName,
+      message,
+      source: "alphatex",
+      format: "alphatex",
+      kind: "snapshot",
+      alphaTex,
+      sizeBytes: alphaTex.length,
+    },
+  });
+  await prisma.song.update({
+    where: { id: songId },
+    data: { updatedAt: new Date() },
+  });
+  return number;
+}
+
+/**
  * Reassemble a song's full alphaTex from its live cell grid (the derived
  * artifact). Validates by importing through alphaTab; returns the canonical text.
  */
