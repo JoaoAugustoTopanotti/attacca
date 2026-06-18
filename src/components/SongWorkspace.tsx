@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AlphaTabPlayer from "@/components/AlphaTabPlayer";
 import UploadForm from "@/components/UploadForm";
 import RevisionList from "@/components/RevisionList";
@@ -24,22 +24,34 @@ export default function SongWorkspace({
   initialRevisions: RevisionDTO[];
 }) {
   const [revisions, setRevisions] = useState<RevisionDTO[]>(initialRevisions);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialRevisions[0]?.id ?? null,
-  );
+  const [materialized, setMaterialized] = useState(false);
+  const [checked, setChecked] = useState(false);
+  // "live" = the document assembled from the cell grid (the collaborative truth).
+  // Otherwise a revision id = an old snapshot.
+  const [view, setView] = useState<string>(initialRevisions[0]?.id ?? "live");
 
-  const selected = revisions.find((r) => r.id === selectedId) ?? null;
+  // Once a song is materialized, the live grid (guitar + bass + …) is the truth —
+  // the player should reflect that, not the original uploaded snapshot.
+  useEffect(() => {
+    fetch(`/api/songs/${songId}/completeness`)
+      .then((r) => r.json())
+      .then((c) => {
+        const isMat = (c?.tracks?.length ?? 0) > 0;
+        setMaterialized(isMat);
+        if (isMat) setView("live");
+      })
+      .catch(() => {})
+      .finally(() => setChecked(true));
+  }, [songId]);
+
+  const selectedRev = revisions.find((r) => r.id === view) ?? null;
 
   async function refreshRevisions(selectId?: string) {
     const res = await fetch(`/api/songs/${songId}/revisions`);
     if (!res.ok) return;
     const data: RevisionDTO[] = await res.json();
     setRevisions(data);
-    if (selectId) {
-      setSelectedId(selectId);
-    } else if (data.length > 0 && !data.some((r) => r.id === selectedId)) {
-      setSelectedId(data[0].id);
-    }
+    if (selectId && !materialized) setView(selectId);
   }
 
   async function revertTo(sourceId: string) {
@@ -59,13 +71,15 @@ export default function SongWorkspace({
   return (
     <div className="song-layout">
       <section>
-        {selected ? (
+        {!checked ? null : view === "live" && materialized ? (
+          <AlphaTabPlayer key="live" alphaTexUrl={`/api/songs/${songId}/assembled`} />
+        ) : selectedRev ? (
           <AlphaTabPlayer
-            key={selected.id}
+            key={selectedRev.id}
             revision={{
-              id: selected.id,
-              format: selected.format,
-              source: selected.source,
+              id: selectedRev.id,
+              format: selectedRev.format,
+              source: selectedRev.source,
             }}
           />
         ) : (
@@ -82,6 +96,27 @@ export default function SongWorkspace({
               Nenhuma revisão ainda. Envie um arquivo ao lado para começar.
             </p>
           </div>
+        )}
+
+        {materialized && (
+          <p className="sub" style={{ marginTop: 8 }}>
+            Tocando:{" "}
+            {view === "live" ? (
+              <strong>versão ao vivo (do grid de células)</strong>
+            ) : (
+              <>
+                snapshot #{selectedRev?.number}{" "}
+                <button
+                  type="button"
+                  className="secondary"
+                  style={{ padding: "2px 8px", fontSize: "0.75rem" }}
+                  onClick={() => setView("live")}
+                >
+                  voltar ao vivo
+                </button>
+              </>
+            )}
+          </p>
         )}
       </section>
 
@@ -106,8 +141,8 @@ export default function SongWorkspace({
           </div>
           <RevisionList
             revisions={revisions}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedId={view === "live" ? null : view}
+            onSelect={setView}
             onRevert={revertTo}
           />
         </div>
