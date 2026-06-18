@@ -127,6 +127,58 @@ export async function submitTrackContent(
   return { changed, accepted: isOwner };
 }
 
+/** Cell overrides (cellId → alphaTex) for an author's proposals in a track —
+ *  used to PREVIEW the document as it would be if accepted. */
+export async function proposalOverrides(
+  songId: string,
+  trackOrder: number,
+  authorId: string,
+) {
+  const track = await prisma.track.findFirst({ where: { songId, order: trackOrder } });
+  if (!track) return new Map<string, string>();
+  const props = await prisma.cellContribution.findMany({
+    where: { status: "proposed", authorId, cell: { trackId: track.id } },
+  });
+  return new Map(props.map((p) => [p.cellId, p.alphaTex]));
+}
+
+/** Proposed vs current content of a track (for the owner's review screen). */
+export async function getProposalContent(
+  songId: string,
+  trackOrder: number,
+  authorId: string,
+) {
+  const track = await prisma.track.findFirst({ where: { songId, order: trackOrder } });
+  if (!track) return null;
+  const measures = await prisma.measure.findMany({
+    where: { songId },
+    orderBy: { order: "asc" },
+  });
+  const cells = await prisma.cell.findMany({
+    where: { trackId: track.id },
+    include: { acceptedContribution: true },
+  });
+  const byMeasure = new Map(cells.map((c) => [c.measureId, c]));
+  const props = await prisma.cellContribution.findMany({
+    where: { status: "proposed", authorId, cell: { trackId: track.id } },
+  });
+  const propByCell = new Map(props.map((p) => [p.cellId, p.alphaTex]));
+
+  const current = measures.map(
+    (m) => byMeasure.get(m.id)?.acceptedContribution?.alphaTex?.trim() ?? "",
+  );
+  const proposed = measures.map((m) => {
+    const c = byMeasure.get(m.id);
+    return (c && propByCell.get(c.id)?.trim()) || (c?.acceptedContribution?.alphaTex?.trim() ?? "");
+  });
+
+  return {
+    trackName: track.name,
+    currentAlphaTex: current.join("\n|\n"),
+    proposedAlphaTex: proposed.join("\n|\n"),
+  };
+}
+
 /** Pending track proposals grouped by (track, author) — the owner's review queue. */
 export async function pendingTrackProposals(songId: string) {
   const props = await prisma.cellContribution.findMany({

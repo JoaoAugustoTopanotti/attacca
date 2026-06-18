@@ -104,6 +104,10 @@ por humano (M3). **Não implementado** — só decidido.
   estrutural). **Testado**: Maria propõe o baixo inteiro (1 ação, changed:4) → fila mostra
   "Maria propôs Baixo 4 compassos" → João aceita (1 clique) → 16 notas no assembled. `tsc`
   limpo. CellEditor por-célula vira legado.
+  **Feedback seguinte:** o dono aprovava **às cegas** (só Aceitar/Recusar). Adicionada a
+  **tela de revisão**: "Revisar" → player toca a **pré-visualização** (`/assembled?track=&
+  author=` aplica a proposta sem aceitar) + mostra o **tab proposto** (`getProposalContent`,
+  `/tracks/[order]/proposal`) → Aceitar/Recusar. Testado: live=0 notas, prévia=16.
 - **2026-06-18** — Sessão 1 (modelo de autoridade refeito pós-teste): o ensaio expôs um
   furo de MODELAGEM (não UX). João: "reivindicar trilha é estranho — a pessoa só quer
   propor" + "quem criou a música é dono dela, ele que aceita" (o criador ficou sem poder

@@ -34,6 +34,10 @@ export default function TrackEditor({
   const [info, setInfo] = useState<string | null>(null);
   const [playerVersion, setPlayerVersion] = useState(0);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [reviewing, setReviewing] = useState<Proposal | null>(null);
+  const [reviewContent, setReviewContent] = useState<
+    { proposedAlphaTex: string; currentAlphaTex: string } | null
+  >(null);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then(setMe).catch(() => {});
@@ -92,6 +96,17 @@ export default function TrackEditor({
     }
   }
 
+  async function startReview(p: Proposal) {
+    setReviewing(p);
+    setReviewContent(null);
+    setInfo(null);
+    setError(null);
+    const res = await fetch(
+      `/api/songs/${songId}/tracks/${p.trackOrder}/proposal?author=${p.authorId}`,
+    );
+    if (res.ok) setReviewContent(await res.json());
+  }
+
   async function review(p: Proposal, action: "accept" | "reject") {
     setBusy(true);
     setError(null);
@@ -104,6 +119,8 @@ export default function TrackEditor({
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
       setInfo(action === "accept" ? "Proposta aceita." : "Proposta recusada.");
+      setReviewing(null);
+      setReviewContent(null);
       setPlayerVersion((v) => v + 1);
       await loadTrack();
       await loadProposals();
@@ -113,6 +130,11 @@ export default function TrackEditor({
       setBusy(false);
     }
   }
+
+  // Player previews the proposal under review, else the live document.
+  const playerUrl = reviewing
+    ? `/api/songs/${songId}/assembled?track=${reviewing.trackOrder}&author=${reviewing.authorId}&v=${playerVersion}`
+    : `/api/songs/${songId}/assembled?v=${playerVersion}`;
 
   return (
     <div className="layout-2col">
@@ -168,50 +190,86 @@ export default function TrackEditor({
           {info && <div className="form-ok">{info}</div>}
         </div>
 
-        <h2>Versão ao vivo (do grid)</h2>
-        <AlphaTabPlayer
-          key={playerVersion}
-          alphaTexUrl={`/api/songs/${songId}/assembled?v=${playerVersion}`}
-        />
+        <h2>{reviewing ? `Pré-visualização: proposta de ${reviewing.authorName}` : "Versão ao vivo (do grid)"}</h2>
+        <AlphaTabPlayer key={playerUrl} alphaTexUrl={playerUrl} />
       </section>
 
       <aside>
         <h2>Propostas a revisar</h2>
         {!isOwner ? (
-          <p className="muted">
-            Só o dono da música revisa propostas.
-          </p>
+          <p className="muted">Só o dono da música revisa propostas.</p>
         ) : proposals.length === 0 ? (
           <p className="muted">Nenhuma proposta pendente.</p>
         ) : (
           <ul className="revision-list">
-            {proposals.map((p) => (
-              <li key={`${p.trackOrder}-${p.authorId}`} className="revision-item">
-                <div>
+            {proposals.map((p) => {
+              const active =
+                reviewing?.trackOrder === p.trackOrder &&
+                reviewing?.authorId === p.authorId;
+              return (
+                <li
+                  key={`${p.trackOrder}-${p.authorId}`}
+                  className={`revision-item${active ? " active" : ""}`}
+                >
                   <div>
-                    <strong>{p.authorName}</strong> propôs{" "}
-                    <strong>{p.trackName}</strong>
+                    <div>
+                      <strong>{p.authorName}</strong> propôs{" "}
+                      <strong>{p.trackName}</strong>
+                    </div>
+                    <div className="revision-meta">{p.count} compasso(s)</div>
                   </div>
-                  <div className="revision-meta">
-                    {p.count} compasso(s)
-                  </div>
-                </div>
-                <div className="revision-actions">
-                  <button type="button" onClick={() => review(p, "accept")} disabled={busy}>
-                    Aceitar
-                  </button>
                   <button
                     type="button"
                     className="secondary"
-                    onClick={() => review(p, "reject")}
-                    disabled={busy}
+                    onClick={() => (active ? setReviewing(null) : startReview(p))}
                   >
-                    Recusar
+                    {active ? "Fechar" : "Revisar"}
                   </button>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
+        )}
+
+        {reviewing && (
+          <div className="panel" style={{ marginTop: 10 }}>
+            <div className="muted">
+              Proposta de <strong>{reviewing.authorName}</strong> para{" "}
+              <strong>{reviewing.trackName}</strong> — ouça na pré-visualização ao
+              lado e veja o tab abaixo.
+            </div>
+            <label className="muted" style={{ display: "block", marginTop: 8 }}>
+              Tab proposto:
+            </label>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: "0.78rem",
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: 8,
+                marginTop: 4,
+                maxHeight: 200,
+                overflow: "auto",
+              }}
+            >
+              {reviewContent?.proposedAlphaTex ?? "…"}
+            </pre>
+            <div className="player-toolbar">
+              <button type="button" onClick={() => review(reviewing, "accept")} disabled={busy}>
+                Aceitar
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => review(reviewing, "reject")}
+                disabled={busy}
+              >
+                Recusar
+              </button>
+            </div>
+          </div>
         )}
 
         <p className="muted" style={{ marginTop: 10 }}>
