@@ -91,6 +91,19 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-18** — Sessão 1 (autoria por trilha + player ao vivo, pós-feedback de uso):
+  João redid o teste como dono e achou 2 coisas. **(a) Bug:** dono aceita o baixo, completude
+  100%, mas o **player só mostrava guitarra** — causa: o player tocava a REVISÃO (snapshot de
+  upload), não o grid; corrigido (`SongWorkspace` toca `/assembled` quando materializado).
+  **(b) Atrito de modelo:** preencher o baixo célula a célula (4 propostas separadas,
+  invisíveis até aceitar) é péssimo — escala a 167 PRs. **Solução (aprovada): autoria por
+  TRILHA** (`src/lib/track-content.ts` + `TrackEditor`): edita a trilha inteira como um
+  alphaTex (compassos por `|`), decompõe em células por baixo; dono salva direto, outro faz
+  **uma** proposta de trilha; dono revisa/aceita **em lote** por trilha+autor
+  (`pendingTrackProposals`/`acceptTrackProposals`). Mudar nº de compassos = bloqueado (op
+  estrutural). **Testado**: Maria propõe o baixo inteiro (1 ação, changed:4) → fila mostra
+  "Maria propôs Baixo 4 compassos" → João aceita (1 clique) → 16 notas no assembled. `tsc`
+  limpo. CellEditor por-célula vira legado.
 - **2026-06-18** — Sessão 1 (modelo de autoridade refeito pós-teste): o ensaio expôs um
   furo de MODELAGEM (não UX). João: "reivindicar trilha é estranho — a pessoa só quer
   propor" + "quem criou a música é dono dela, ele que aceita" (o criador ficou sem poder

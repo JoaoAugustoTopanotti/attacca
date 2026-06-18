@@ -183,6 +183,21 @@ O raciocínio que levou à decisão (mantido como contexto):
   dono vê "Salvar (aceito direto)"; resto vê "Propor mudança"; só o dono aceita/recusa
   propostas. **Futuro (delegação):** o dono delegar manutenção de trilha a alguém (era o
   papel da reivindicação, agora opcional e por baixo do dono).
+- **Autoria por TRILHA (pós-teste real)** — `src/lib/track-content.ts`. A unidade de
+  autoria virou a **trilha** ("eu faço o baixo"), não a célula — célula por célula era
+  inviável (167 compassos = 167 PRs). `getTrackContent`/`submitTrackContent`: edita a
+  trilha inteira como **um alphaTex** (compassos separados por `|`); ao enviar, decompõe
+  em contribuições **por célula** (a granularidade de merge provada), validando o documento
+  antes. Dono → aceito direto; outro → **uma** proposta de trilha. **Revisão em lote pelo
+  dono**: `pendingTrackProposals` (fila agrupada por trilha+autor) + `acceptTrackProposals`/
+  `rejectTrackProposals` (aceitar/recusar a trilha de um autor de uma vez). UI = `TrackEditor`
+  no `/edit` (CellEditor por-célula virou legado). Mudar nº de compassos é bloqueado (operação
+  estrutural separada). Rotas: `/tracks/[order]/content` (GET/POST), `/tracks/[order]/accept`,
+  `/proposals`.
+- **Player mostra a verdade viva** — `SongWorkspace`: música materializada → o player
+  toca o **remontado-das-células** (`/assembled`, guitarra+baixo+…), não o snapshot de
+  upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico ainda toca
+  snapshots antigos.
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.

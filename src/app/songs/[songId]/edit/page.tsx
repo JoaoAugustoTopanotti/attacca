@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import CellEditor from "@/components/CellEditor";
+import TrackEditor from "@/components/TrackEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +25,13 @@ export default async function EditPage({
       <p className="muted">
         <Link href={`/songs/${songId}`}>← {song.title}</Link>
       </p>
-      <h1>Editar por célula</h1>
+      <h1>Editar por trilha</h1>
       {song.tracks.length === 0 || measureCount === 0 ? (
         <div className="player-error" role="alert">
           O grid de células ainda não foi materializado para esta música.
         </div>
       ) : (
-        <CellEditor
-          songId={songId}
-          tracks={song.tracks}
-          measureCount={measureCount}
-        />
+        <TrackEditor songId={songId} tracks={song.tracks} />
       )}
     </div>
   );
