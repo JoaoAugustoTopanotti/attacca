@@ -91,6 +91,22 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-18** — Sessão 2 (deploy — Postgres + Render + Neon): preparação para o
+  **primeiro revezamento real** (João + amigo). Decisão: **Render (free) + Neon (free)**
+  — zero custo, sem Dockerfile, sem cartão. Railway descartado (sem free tier). Mudanças:
+  (1) `prisma/schema.prisma` → `provider = "postgresql"`; (2) migrações SQLite deletadas;
+  criado baseline Postgres consolidado em
+  `prisma/migrations/20260618000000_postgres_baseline/migration.sql` (gerado via
+  `prisma migrate diff --from-empty --to-schema-datamodel`); (3) `package.json` →
+  `start: next start -p ${PORT:-4000}` (Render injeta `$PORT`); (4) `render.yaml` criado
+  (`buildCommand: npm install && npm run build`, `startCommand: npx prisma migrate
+  deploy && npm start` — migrações automáticas a cada deploy, idempotentes); (5)
+  `.env.example` atualizado; (6) `CLAUDE.md`/`CONTEXTO.md` atualizados. `prisma
+  generate` + `tsc` limpos. Dev local continua no SQLite (schema estável, não rodar
+  `prisma migrate dev`). **Próximos passos ao vivo com João**: criar conta Neon + banco
+  `gitsong`, criar conta Render + conectar repo, setar `DATABASE_URL` e
+  `GS_COOKIE_SECRET` no dashboard, deploy, ouvir o áudio em produção (teste pendente
+  desde 2026-06-16), compartilhar URL com o amigo → relay real começa.
 - **2026-06-18** — Sessão 1 (autoria por trilha + player ao vivo, pós-feedback de uso):
   João redid o teste como dono e achou 2 coisas. **(a) Bug:** dono aceita o baixo, completude
   100%, mas o **player só mostrava guitarra** — causa: o player tocava a REVISÃO (snapshot de

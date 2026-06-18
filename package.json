@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack -p 4000",
     "build": "next build --webpack",
-    "start": "next start -p 4000",
+    "start": "next start -p ${PORT:-4000}",
     "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {

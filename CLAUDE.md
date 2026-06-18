@@ -110,9 +110,20 @@ O raciocínio que levou à decisão (mantido como contexto):
     `enablePlayer`, `enableCursor`, `scrollMode=Continuous`; `display.staveProfile="Tab"`
     (só tablatura), `display.scale` aumentado e `display.resources` com cores claras
     (**tema escuro**). Cursor estilizado via CSS (`.at-cursor-bar/.at-cursor-beat/...`).
-- **Prisma 6 + SQLite** (`prisma/dev.db`). Prisma 6 de propósito: o 7 exige
-  `prisma.config.ts` + driver adapter, peso desnecessário para o M1. Cliente de
-  `@prisma/client` via singleton em `src/lib/prisma.ts`.
+- **Prisma 6 + PostgreSQL** (produção) / SQLite (dev local, `prisma/dev.db`). Prisma 6
+  de propósito: o 7 exige `prisma.config.ts` + driver adapter, peso desnecessário.
+  Cliente de `@prisma/client` via singleton em `src/lib/prisma.ts`. `schema.prisma`
+  declarado com `provider = "postgresql"`; `migration_lock.toml` travado em postgresql.
+  Dev local ainda usa `DATABASE_URL=file:./dev.db` (schema estável, não rodar
+  `prisma migrate dev` localmente — não tem conexão Postgres). Usar `prisma generate`
+  para recriar o client sem conexão. **Unificar para Postgres localmente (Docker)**
+  após o primeiro revezamento real.
+- **Deploy: Render + Neon** (gratuito). Render hospeda o app Node (`render.yaml`); Neon
+  (neon.tech) fornece o Postgres serverless (free tier, sem pausa). `startCommand` no
+  `render.yaml` = `npx prisma migrate deploy && npm start` (migrações automáticas a cada
+  deploy). Variáveis `DATABASE_URL` e `GS_COOKIE_SECRET` ficam no dashboard do Render
+  (nunca no repo). HTTPS provido pelo Render. Migração consolidada em
+  `prisma/migrations/20260618000000_postgres_baseline/migration.sql`.
 - **Arquivos enviados no disco**, em `storage/` (gitignored, fora de `/public`). Servidos
   por API route que faz stream dos bytes; o player carrega via `fetch` → `ArrayBuffer` →
   `api.load()` (ou `api.tex()` para AlphaTex).
@@ -247,14 +258,27 @@ storage/  # uploads (gitignored)
 ```
 
 ## 10. Como rodar
+
+### Dev local (SQLite)
 ```
 npm install                                   # use --use-system-ca se houver TLS corp.
-npx prisma migrate dev --name init            # cria o SQLite + client (idempotente)
+# .env já tem DATABASE_URL=file:./dev.db e GS_COOKIE_SECRET=dev-insecure-change-me
+npx prisma db push                            # aplica schema no dev.db sem migração (dev only)
 npm run db:seed                               # música demo tocável (AlphaTex)
 npm run dev                                    # http://localhost:4000  (webpack)
 ```
 > Nota TLS corporativo: se algo falhar com `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, rode com
 > `NODE_OPTIONS=--use-system-ca` (Node usa o trust store do Windows).
+
+### Deploy (Render + Neon — gratuito)
+1. Criar conta em **neon.tech** → novo projeto → banco `gitsong` → copiar `DATABASE_URL`
+2. Criar conta em **render.com** → New Web Service → conectar repo GitSong
+3. No Render, Environment: `DATABASE_URL` (URL Neon) + `GS_COOKIE_SECRET` (string aleatória)
+   - PowerShell para gerar o secret:
+     `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`
+4. Deploy automático roda `npm install && npm run build`, depois
+   `npx prisma migrate deploy && npm start`
+5. Verificar logs → URL pública do Render compartilhável
 
 ## 11. Já implementado (M1)
 - Upload → render/play → **histórico de revisões** (ver/tocar qualquer uma).

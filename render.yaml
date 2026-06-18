@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: gitsong
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false   # preencher no dashboard: URL Neon (postgresql://...neon.tech/...?sslmode=require)
+      - key: GS_COOKIE_SECRET
+        sync: false   # preencher no dashboard: string aleatória (32+ bytes)
