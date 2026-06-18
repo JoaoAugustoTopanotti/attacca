@@ -194,10 +194,25 @@ O raciocínio que levou à decisão (mantido como contexto):
   no `/edit` (CellEditor por-célula virou legado). Mudar nº de compassos é bloqueado (operação
   estrutural separada). Rotas: `/tracks/[order]/content` (GET/POST), `/tracks/[order]/accept`,
   `/proposals`.
+- **Revisão com VER/OUVIR antes de aceitar (pós-teste real)** — o dono aprovava às cegas.
+  No `TrackEditor`, "Revisar" → o player ao lado toca a **pré-visualização** (`GET
+  /assembled?track=&author=` aplica a proposta **sem** aceitar, via `proposalOverrides`) +
+  mostra o **tab proposto** (`getProposalContent`, rota `/tracks/[order]/proposal`); só então
+  Aceitar/Recusar.
+- **Colaborador vê a própria proposta (pós-teste real)** — antes, quem propunha não tinha
+  sinal persistente. No `TrackEditor` o **não-dono** vê a seção **"Suas propostas"**
+  (`proposals` filtrado por `authorId`), com **Ver** = mesma pré-visualização (toca + tab),
+  **sem** Aceitar/Recusar ("Aguardando o dono aceitar").
 - **Player mostra a verdade viva** — `SongWorkspace`: música materializada → o player
   toca o **remontado-das-células** (`/assembled`, guitarra+baixo+…), não o snapshot de
-  upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico ainda toca
-  snapshots antigos.
+  upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico toca snapshots.
+- **Histórico = passos do revezamento (snapshots)** — `Revision.kind="snapshot"` agora é
+  **usado**: toda mudança que entra na grade viva (dono **aceita** uma proposta, ou dono
+  **salva** direto) grava um snapshot via `snapshotGrid` (`src/lib/materialize.ts`) —
+  congela o alphaTex remontado, credita o autor ("Baixo — 4 compassos (proposta de Maria)"),
+  aparece no `RevisionList` como **"mudança"** e é **tocável** (rota `/revisions/[id]/file`
+  serve o alphaTex). Snapshot **não** tem botão Reverter (a grade viva é a verdade; Reverter
+  só nos uploads `kind="import"`). `SongWorkspace` refaz o fetch do histórico ao montar.
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.
