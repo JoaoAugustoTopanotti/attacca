@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import SongWorkspace, { type RevisionDTO } from "@/components/SongWorkspace";
-import CompletenessPanel from "@/components/CompletenessPanel";
+import SongTabs from "@/components/SongTabs";
 import ShareButton from "@/components/ShareButton";
+import Contributors from "@/components/Contributors";
+import type { RevisionDTO } from "@/components/SongWorkspace";
 
 export const dynamic = "force-dynamic";
 
@@ -34,26 +35,22 @@ export default async function SongPage({
 
   return (
     <div>
-      <p className="muted">
+      <nav className="breadcrumb">
         <Link href="/">← Músicas</Link>
-      </p>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ margin: 0 }}>{song.title}</h1>
-        <ShareButton songId={song.id} />
+        <span className="breadcrumb-sep">/</span>
+        <span>{song.title}</span>
+      </nav>
+
+      <div className="song-header">
+        <div className="song-header-top">
+          <h1>{song.title}</h1>
+          <ShareButton songId={song.id} />
+        </div>
+        {song.artist && <p className="sub">{song.artist}</p>}
+        <Contributors songId={song.id} />
       </div>
-      <p className="muted">
-        {song.artist ?? "Artista desconhecido"} ·{" "}
-        <Link href={`/songs/${song.id}/compare`}>comparar snapshot × células</Link>{" "}
-        · <Link href={`/songs/${song.id}/edit`}>editar por célula</Link>
-      </p>
 
-      <SongWorkspace
-        songId={song.id}
-        initialRevisions={revisions}
-      />
-
-      <h2>Instrumentação & completude</h2>
-      <CompletenessPanel songId={song.id} />
+      <SongTabs songId={song.id} initialRevisions={revisions} />
     </div>
   );
 }

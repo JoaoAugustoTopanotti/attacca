@@ -12,19 +12,15 @@ type Contribution = {
   alphaTex: string;
 };
 type CellResponse = {
-  track: {
-    id: string;
-    order: number;
-    name: string;
-    ownerName: string | null;
-    ownerId: string | null;
-  };
+  track: { id: string; order: number; name: string };
   measure: { id: string; order: number };
   cell: {
     id: string;
     acceptedContributionId: string | null;
     contributions: Contribution[];
   };
+  // Maintainer model: the SONG owner (creator) is the accept authority.
+  song: { id: string; ownerId: string | null; ownerName: string | null };
 };
 
 function fmt(iso: string) {
@@ -47,7 +43,7 @@ export default function CellEditor({
   const [data, setData] = useState<CellResponse | null>(null);
   const [fragment, setFragment] = useState("");
   const [me, setMe] = useState<{ id: string; displayName: string } | null>(null);
-  const [reviewId, setReviewId] = useState<string | null>(null); // history entry under review
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +60,10 @@ export default function CellEditor({
   const acceptedId = data?.cell.acceptedContributionId ?? null;
   const reviewContrib = data?.cell.contributions.find((c) => c.id === reviewId) ?? null;
 
-  // Social gate by identity: a claimed track is accepted only by its owner (userId).
-  const owner = data?.track.ownerName?.trim() || null;
-  const ownerId = data?.track.ownerId ?? null;
-  const canAccept = !!me && (!ownerId || ownerId === me.id);
+  // Maintainer gate: the song owner accepts. Legacy/no owner = open.
+  const ownerName = data?.song.ownerName ?? null;
+  const ownerId = data?.song.ownerId ?? null;
+  const isOwner = !!me && (!ownerId || ownerId === me.id);
 
   const loadCell = useCallback(async () => {
     setLoading(true);
@@ -127,8 +123,8 @@ export default function CellEditor({
     if (ok) {
       setInfo(
         accept
-          ? "Contribuição salva e aceita (anterior virou histórico)."
-          : "Proposta registrada (não aceita ainda).",
+          ? "Salvo e aceito (a versão anterior virou histórico)."
+          : "Proposta enviada — aguardando o dono aceitar.",
       );
       setPlayerVersion((v) => v + 1);
       await loadCell();
@@ -139,17 +135,8 @@ export default function CellEditor({
     if (!data) return;
     const ok = await postJson(`/api/cells/${data.cell.id}/accept`, { contributionId });
     if (ok) {
-      setInfo("Proposta aceita — o ponteiro re-apontou para ela.");
+      setInfo("Proposta aceita — virou a versão atual.");
       setPlayerVersion((v) => v + 1);
-      await loadCell();
-    }
-  }
-
-  async function setOwner(release: boolean) {
-    if (!data) return;
-    const ok = await postJson(`/api/tracks/${data.track.id}/owner`, { release });
-    if (ok) {
-      setInfo(release ? "Trilha liberada." : `Trilha reivindicada por ${me?.displayName}.`);
       await loadCell();
     }
   }
@@ -158,12 +145,12 @@ export default function CellEditor({
     if (!data) return;
     const ok = await postJson(`/api/cells/${data.cell.id}/reject`, { contributionId });
     if (ok) {
-      setInfo("Proposta recusada (continua no histórico, marcada como rejeitada).");
+      setInfo("Proposta recusada (fica no histórico).");
       await loadCell();
     }
   }
 
-  // The player shows the accepted document, or a PREVIEW with the reviewed
+  // Player shows the accepted document, or a PREVIEW with the reviewed
   // contribution swapped in (without accepting it).
   const previewing = reviewContrib && reviewContrib.id !== acceptedId;
   const playerUrl = previewing
@@ -206,35 +193,16 @@ export default function CellEditor({
             </div>
           </div>
 
-          <div className="field" style={{ marginBottom: 12 }}>
-            <span className="muted">
-              Dono da trilha:{" "}
-              {owner ? <strong>{owner}</strong> : "sem dono (qualquer um aceita)"}
-            </span>{" "}
-            {!me ? null : ownerId === me.id ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setOwner(true)}
-                disabled={busy || !data}
-              >
-                Liberar
-              </button>
-            ) : !owner ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setOwner(false)}
-                disabled={busy || !data}
-              >
-                Reivindicar como “{me.displayName}”
-              </button>
-            ) : null}
-          </div>
+          {ownerName && (
+            <p className="muted" style={{ marginBottom: 10 }}>
+              Dono da música: <strong>{ownerName}</strong>
+              {isOwner ? " (você)" : " — você pode propor; o dono aceita."}
+            </p>
+          )}
 
           {!me && (
             <div className="form-error">
-              Identifique-se no topo da página para editar, reivindicar e aceitar.
+              Identifique-se no topo da página para propor ou editar.
             </div>
           )}
 
@@ -253,23 +221,30 @@ export default function CellEditor({
               style={{ fontFamily: "ui-monospace, monospace", fontSize: "0.85rem" }}
             />
           </div>
+
           <div className="player-toolbar">
-            <button
-              type="button"
-              onClick={() => saveContribution(true)}
-              disabled={busy || loading || !data || !canAccept}
-              title={!canAccept ? `Só ${owner} aceita esta trilha` : undefined}
-            >
-              Salvar e aceitar
-            </button>
-            <button type="button" className="secondary" onClick={() => saveContribution(false)} disabled={busy || loading || !data || !me}>
-              Propor (não aceitar)
-            </button>
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={() => saveContribution(true)}
+                disabled={busy || loading || !data}
+              >
+                Salvar (aceito direto)
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => saveContribution(false)}
+                disabled={busy || loading || !data || !me}
+              >
+                Propor mudança
+              </button>
+            )}
           </div>
-          {!canAccept && (
+          {data && !isOwner && me && (
             <div className="muted">
-              Trilha de <strong>{owner}</strong> — você pode <strong>Propor</strong>;
-              só {owner} aceita. (Digite “{owner}” no seu nome se for você.)
+              Você não é o dono — sua mudança vai como <strong>proposta</strong>
+              {ownerName ? ` para ${ownerName} aceitar.` : "."}
             </div>
           )}
           {error && <div className="form-error">{error}</div>}
@@ -277,7 +252,7 @@ export default function CellEditor({
         </div>
 
         <h2>
-          {previewing ? "Pré-visualização (proposta não aceita)" : "Remontado das células"}
+          {previewing ? "Pré-visualização (proposta)" : "Remontado das células"}
         </h2>
         <AlphaTabPlayer key={playerUrl} alphaTexUrl={playerUrl} />
       </section>
@@ -297,7 +272,7 @@ export default function CellEditor({
                   <div>
                     <strong>{c.authorName}</strong>
                     <span className="badge">{c.status}</span>
-                    {c.id === acceptedId && <span className="badge">aceita</span>}
+                    {c.id === acceptedId && <span className="badge">atual</span>}
                   </div>
                   <div className="revision-meta">{fmt(c.createdAt)}</div>
                 </div>
@@ -316,9 +291,9 @@ export default function CellEditor({
         {reviewContrib && (
           <div className="panel" style={{ marginTop: 10 }}>
             <div className="muted">
-              Revisando contribuição de <strong>{reviewContrib.authorName}</strong>{" "}
+              Contribuição de <strong>{reviewContrib.authorName}</strong>{" "}
               ({reviewContrib.status})
-              {reviewContrib.id === acceptedId ? " — é a aceita atual" : ""}
+              {reviewContrib.id === acceptedId ? " — versão atual" : ""}
             </div>
             <pre
               style={{
@@ -335,33 +310,27 @@ export default function CellEditor({
             >
               {reviewContrib.alphaTex}
             </pre>
-            {reviewContrib.id !== acceptedId && (
-              <>
-                <div className="player-toolbar">
-                  <button
-                    type="button"
-                    onClick={() => accept(reviewContrib.id)}
-                    disabled={busy || !canAccept}
-                    title={!canAccept ? `Só ${owner} aceita esta trilha` : undefined}
-                  >
-                    Aceitar esta
-                  </button>
-                  <button type="button" className="secondary" onClick={() => reject(reviewContrib.id)} disabled={busy}>
-                    Recusar
-                  </button>
-                </div>
-                {!canAccept && (
-                  <div className="muted">Só {owner} pode aceitar (portão social).</div>
-                )}
-              </>
+            {reviewContrib.id !== acceptedId && isOwner && (
+              <div className="player-toolbar">
+                <button type="button" onClick={() => accept(reviewContrib.id)} disabled={busy}>
+                  Aceitar esta
+                </button>
+                <button type="button" className="secondary" onClick={() => reject(reviewContrib.id)} disabled={busy}>
+                  Recusar
+                </button>
+              </div>
+            )}
+            {reviewContrib.id !== acceptedId && !isOwner && (
+              <div className="muted" style={{ marginTop: 6 }}>
+                Só {ownerName ?? "o dono"} aceita ou recusa.
+              </div>
             )}
           </div>
         )}
 
         <p className="muted" style={{ marginTop: 10 }}>
           Append-only: cada edição/proposta é uma linha nova; aceitar só move o
-          ponteiro. (Por enquanto qualquer um pode aceitar — abertura temporária
-          até existir reivindicação de trilha.)
+          ponteiro da “atual”. O dono da música é quem aceita; qualquer um propõe.
         </p>
       </aside>
     </div>

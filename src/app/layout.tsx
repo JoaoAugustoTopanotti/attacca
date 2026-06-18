@@ -5,7 +5,7 @@ import IdentityWidget from "@/components/IdentityWidget";
 
 export const metadata: Metadata = {
   title: "GitSong",
-  description: "Transcrições musicais colaborativas — Milestone 1",
+  description: "Transcrições musicais colaborativas",
 };
 
 export default function RootLayout({
@@ -20,12 +20,11 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <header className="site-header">
           <Link href="/" className="brand">
+            <span className="brand-icon">♪</span>
             GitSong
           </Link>
-          <span className="muted">transcrições musicais colaborativas</span>
-          <span style={{ marginLeft: "auto" }}>
-            <IdentityWidget />
-          </span>
+          <div className="header-spacer" />
+          <IdentityWidget />
         </header>
         <main className="container">{children}</main>
       </body>

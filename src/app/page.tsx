@@ -11,43 +11,46 @@ export default async function HomePage() {
     orderBy: { updatedAt: "desc" },
     include: { _count: { select: { revisions: true } } },
   });
-  // The wall: per-song completeness + what's missing.
   const completeness = await Promise.all(
     songs.map((s) => songCompleteness(s.id)),
   );
 
   return (
     <div>
-      <h1>Mural de músicas</h1>
-      <p className="muted">
-        O que a comunidade quer tocar e o quão completo está. Crie uma música,
-        envie um Guitar Pro/MusicXML, e declare os instrumentos que faltam.
-      </p>
+      <div className="home-hero">
+        <h1>Mural de músicas</h1>
+        <p className="sub">
+          Transcrições coletivas — cada pessoa cuida do seu instrumento e passa
+          o bastão. Comece uma música, envie um Guitar Pro e declare o que
+          falta.
+        </p>
+      </div>
 
-      <h2>Nova música</h2>
-      <div className="panel">
+      <div className="new-song-panel">
+        <p className="new-song-caption">Nova música</p>
         <NewSongForm />
       </div>
 
-      <h2>Todas as músicas</h2>
+      <div className="song-list-header">
+        <h2>Todas as músicas</h2>
+      </div>
+
       {songs.length === 0 ? (
-        <p className="muted">Nenhuma música ainda. Crie a primeira acima.</p>
+        <p className="sub">Nenhuma música ainda. Crie a primeira acima.</p>
       ) : (
-        <ul className="song-list">
+        <div className="song-cards">
           {songs.map((song, i) => {
             const c = completeness[i];
             const materialized = c.tracks.length > 0;
             return (
-              <li key={song.id}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <div className="song-title">
-                    <Link href={`/songs/${song.id}`}>{song.title}</Link>
-                  </div>
+              <Link key={song.id} href={`/songs/${song.id}`} className="song-card">
+                <div className="song-card-top">
+                  <span className="song-card-title">{song.title}</span>
                   {materialized && (
-                    <span className="muted">{c.percent}% completo</span>
+                    <span className="song-card-pct">{c.percent}%</span>
                   )}
                 </div>
-                <div className="muted">
+                <div className="song-card-meta">
                   {song.artist ? `${song.artist} · ` : ""}
                   {song._count.revisions}{" "}
                   {song._count.revisions === 1 ? "revisão" : "revisões"}
@@ -55,16 +58,13 @@ export default async function HomePage() {
                 </div>
                 {materialized && (
                   <>
-                    <div
-                      className={`bar${c.percent === 100 ? " full" : c.percent === 0 ? " empty" : ""}`}
-                      style={{ marginTop: 8 }}
-                    >
+                    <div className="song-card-bar">
                       <span style={{ width: `${c.percent}%` }} />
                     </div>
                     {c.missing.length > 0 && (
-                      <div className="missing-tags">
+                      <div className="song-card-foot">
                         {c.missing.map((m) => (
-                          <span key={m} className="missing-tag">
+                          <span key={m} className="tag">
                             falta {m}
                           </span>
                         ))}
@@ -72,10 +72,10 @@ export default async function HomePage() {
                     )}
                   </>
                 )}
-              </li>
+              </Link>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );

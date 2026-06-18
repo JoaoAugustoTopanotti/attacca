@@ -18,6 +18,12 @@ model Song {
   slug      String     @unique
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  // Maintainer model (ADR 0003 rev): the creator owns the song and is the accept
+  // authority. ownerId null = legacy/open (anyone identified accepts).
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
   revisions Revision[]
   // M2 live collaborative grid:
   /// Opaque global alphaTex header (\title/\artist/stylesheet) for assembly.
@@ -25,6 +31,8 @@ model Song {
   tracks         Track[]
   measures       Measure[]
   cells          Cell[]
+
+  @@index([ownerId])
 }
 
 /// One uploaded (or seeded) version of a Song's score.
@@ -177,6 +185,7 @@ model User {
   displayName String
   createdAt   DateTime @default(now())
 
+  ownedSongs    Song[]
   ownedTracks   Track[]
   contributions CellContribution[]
 }

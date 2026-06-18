@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UPLOAD_ACCEPT } from "@/lib/format";
 
 export default function UploadForm({
@@ -11,10 +11,24 @@ export default function UploadForm({
   onUploaded: (newRevisionId: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [authorName, setAuthorName] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill author from the cookie identity so the user doesn't have to type
+  // their name again. Falls back to "" → the server uses "anon".
+  const [authorName, setAuthorName] = useState("");
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((u) => { if (u?.displayName) setAuthorName(u.displayName); })
+      .catch(() => {});
+  }, []);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setFileName(e.target.files?.[0]?.name ?? null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,11 +52,9 @@ export default function UploadForm({
         body: form,
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Falha no upload.");
-      }
-      // Reset and hand the new revision id back to the workspace.
+      if (!res.ok) throw new Error(data?.error ?? "Falha no upload.");
       setMessage("");
+      setFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       onUploaded(data.id);
     } catch (err) {
@@ -54,31 +66,41 @@ export default function UploadForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="field">
-        <label htmlFor="file">Arquivo (Guitar Pro ou MusicXML)</label>
-        <input id="file" type="file" ref={fileInputRef} accept={UPLOAD_ACCEPT} />
-      </div>
-      <div className="field">
-        <label htmlFor="author">Seu nome</label>
+      {/* Hidden file input — triggered by clicking the label below */}
+      <input
+        id="upload-file"
+        type="file"
+        ref={fileInputRef}
+        accept={UPLOAD_ACCEPT}
+        onChange={handleFileChange}
+        style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 1, height: 1 }}
+      />
+      <label htmlFor="upload-file" className="upload-zone">
+        <div className="upload-zone-icon">🎵</div>
+        <div>
+          <span className="upload-zone-link">Escolher arquivo</span>
+          {" "}ou arraste aqui
+        </div>
+        <div className="upload-zone-hint">.gp · .gp5 · .gpx · .xml</div>
+      </label>
+      {fileName && <div className="upload-filename">{fileName}</div>}
+
+      <div className="field" style={{ marginTop: 10 }}>
+        <label htmlFor="upload-message">Mensagem (opcional)</label>
         <input
-          id="author"
-          type="text"
-          value={authorName}
-          onChange={(e) => setAuthorName(e.target.value)}
-          placeholder="anon"
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="message">Mensagem (opcional)</label>
-        <input
-          id="message"
+          id="upload-message"
           type="text"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ex: comecei a guitarra"
+          placeholder='ex.: "comecei a guitarra"'
         />
       </div>
-      <button type="submit" disabled={submitting}>
+
+      <button
+        type="submit"
+        disabled={submitting}
+        style={{ width: "100%", marginTop: 8 }}
+      >
         {submitting ? "Enviando…" : "Enviar revisão"}
       </button>
       {error && <div className="form-error">{error}</div>}

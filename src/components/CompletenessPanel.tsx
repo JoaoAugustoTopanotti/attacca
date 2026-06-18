@@ -79,15 +79,17 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
   }
 
   if (!data) return null;
+
+  // Not yet materialized — show a single action.
   if (data.tracks.length === 0) {
     return (
       <div className="panel">
-        <p className="muted">
-          Esta música ainda não foi materializada no grid de células (necessário
-          para declarar instrumentos e medir completude).
+        <p className="sub" style={{ marginBottom: 12 }}>
+          Esta música ainda não foi materializada no grid de células — necessário
+          para declarar instrumentos e medir completude.
         </p>
         <button type="button" onClick={materialize} disabled={busy}>
-          {busy ? "Materializando…" : "Materializar grid de células"}
+          {busy ? "Materializando…" : "Materializar grid"}
         </button>
         {error && <div className="form-error">{error}</div>}
       </div>
@@ -95,73 +97,88 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
   }
 
   return (
-    <div className="panel">
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-        <strong>Completude</strong>
-        <span className="muted">{data.percent}% no total</span>
+    <div>
+      {/* Track rows */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card-header">
+          Trilhas
+          <span style={{ fontWeight: 400, color: "var(--accent)", fontSize: "0.82rem" }}>
+            {data.percent}% completo
+          </span>
+        </div>
+        <div className="card-body">
+          {data.tracks.map((t) => (
+            <div key={t.id} className="comp-track-row">
+              <div className="comp-track-top">
+                <span className="comp-track-name">
+                  {t.name}
+                  {t.ownerName && (
+                    <span className="tag" style={{ marginLeft: 6 }}>{t.ownerName}</span>
+                  )}
+                </span>
+                <span className="comp-track-pct">{t.percent}%</span>
+              </div>
+              <div className="comp-bar">
+                <div className="comp-bar-fill" style={{ width: `${t.percent}%` }} />
+              </div>
+            </div>
+          ))}
+
+          {data.missing.length > 0 && (
+            <div className="comp-missing-block">
+              <div className="comp-missing-label">Faltando</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {data.missing.map((m) => (
+                  <span key={m} className="tag">falta {m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {data.tracks.map((t) => (
-        <div key={t.id} className="track-row">
-          <div>
-            <div className="track-name">
-              {t.name}
-              {t.ownerName ? (
-                <span className="badge">{t.ownerName}</span>
-              ) : (
-                <span className="badge">sem dono</span>
-              )}
+      {/* Declare instrument */}
+      <div className="card">
+        <div className="card-header">Declarar instrumento</div>
+        <div className="card-body">
+          <div className="row">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="preset">Instrumento</label>
+              <select
+                id="preset"
+                value={presetKey}
+                onChange={(e) => setPresetKey(e.target.value)}
+              >
+                {presets.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div
-              className={`bar${t.percent === 100 ? " full" : t.percent === 0 ? " empty" : ""}`}
-            >
-              <span style={{ width: `${t.percent}%` }} />
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="trackname">Nome (opcional)</label>
+              <input
+                id="trackname"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="ex.: Baixo"
+              />
             </div>
           </div>
-          <div className="pct">{t.percent}%</div>
-        </div>
-      ))}
-
-      {data.missing.length > 0 && (
-        <div className="missing-tags">
-          {data.missing.map((m) => (
-            <span key={m} className="missing-tag">
-              falta {m}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="row" style={{ marginTop: 14 }}>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="preset">Declarar instrumento que falta</label>
-          <select
-            id="preset"
-            value={presetKey}
-            onChange={(e) => setPresetKey(e.target.value)}
+          <button
+            type="button"
+            onClick={declare}
+            disabled={busy}
+            className="secondary"
+            style={{ width: "100%", marginTop: 10 }}
           >
-            {presets.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="trackname">Nome (opcional)</label>
-          <input
-            id="trackname"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="ex.: Baixo"
-          />
+            {busy ? "Declarando…" : "Declarar slot (nasce vazio, sem dono)"}
+          </button>
+          {error && <div className="form-error">{error}</div>}
         </div>
       </div>
-      <button type="button" onClick={declare} disabled={busy} style={{ marginTop: 8 }}>
-        {busy ? "Declarando…" : "Declarar slot (nasce vazio, sem dono)"}
-      </button>
-      {error && <div className="form-error">{error}</div>}
     </div>
   );
 }

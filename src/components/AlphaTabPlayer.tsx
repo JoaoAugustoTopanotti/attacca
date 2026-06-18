@@ -232,21 +232,32 @@ export default function AlphaTabPlayer({
   }
 
   return (
-    <div className="player">
+    <div className="player-card">
+      {status === "error" && (
+        <div className="player-error" role="alert">
+          <strong>Não foi possível renderizar esta revisão.</strong>
+          <div>{errorMessage}</div>
+        </div>
+      )}
+
       <div className="player-toolbar">
         <button
           type="button"
+          className="player-play-btn"
           onClick={handlePlayPause}
           disabled={!playerReady || status !== "ready"}
+          aria-label={isPlaying ? "Pausar" : "Tocar"}
         >
-          {isPlaying ? "Pausar" : "Tocar"}
+          {isPlaying ? "⏸" : "▶"}
         </button>
         <button
           type="button"
+          className="player-stop-btn"
           onClick={handleStop}
           disabled={!playerReady || status !== "ready"}
+          aria-label="Parar"
         >
-          Parar
+          ■
         </button>
 
         {tracks.length > 0 && status === "ready" && (
@@ -265,7 +276,9 @@ export default function AlphaTabPlayer({
         )}
 
         {!playerReady && status === "ready" && (
-          <span className="muted">carregando áudio…</span>
+          <span className="sub" style={{ fontSize: "0.8rem" }}>
+            carregando áudio…
+          </span>
         )}
       </div>
 
@@ -291,20 +304,17 @@ export default function AlphaTabPlayer({
         <span className="player-time">{formatTime(endTimeMs)}</span>
       </div>
 
-      {status === "error" && (
-        <div className="player-error" role="alert">
-          <strong>Não foi possível renderizar esta revisão.</strong>
-          <div>{errorMessage}</div>
-        </div>
-      )}
-
+      {/* alphaTab owns everything inside this div — do not add CSS that
+          interferes with its layout. The cursor and notation are rendered here. */}
       <div
         ref={viewportRef}
         id="at-viewport"
         className="player-viewport"
         aria-busy={status === "loading"}
       >
-        {status === "loading" && <div className="player-loading">Carregando…</div>}
+        {status === "loading" && (
+          <div className="player-loading">Carregando…</div>
+        )}
         <div ref={surfaceRef} className="player-surface" />
       </div>
     </div>

@@ -31,35 +31,38 @@ export default function IdentityWidget() {
       });
       if (res.ok) {
         setMe(await res.json());
-        router.refresh(); // re-run server components with the new identity
+        router.refresh();
       }
     } finally {
       setBusy(false);
     }
   }
 
+  // Don't render anything while loading to avoid layout shift.
   if (!loaded) return null;
 
   if (me) {
     return (
-      <span className="muted">
-        você é <strong style={{ color: "var(--text)" }}>{me.displayName}</strong>
-      </span>
+      <div className="identity-pill">
+        <div className="identity-avatar">
+          {me.displayName[0].toUpperCase()}
+        </div>
+        {me.displayName}
+      </div>
     );
   }
 
   return (
-    <form onSubmit={identify} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <span className="muted">quem é você?</span>
+    <form onSubmit={identify} className="identity-form">
+      <span className="identity-prompt">quem é você?</span>
       <input
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="seu nome"
-        style={{ width: 140, padding: "4px 8px", fontSize: "0.85rem" }}
       />
-      <button type="submit" disabled={busy} style={{ padding: "4px 10px", fontSize: "0.85rem" }}>
-        Entrar
+      <button type="submit" disabled={busy} className="secondary">
+        {busy ? "…" : "Entrar"}
       </button>
     </form>
   );

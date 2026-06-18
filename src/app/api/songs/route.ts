@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
+import { getCurrentUser } from "@/lib/identity";
 
 // GET /api/songs — list songs (newest first) with revision counts.
 export async function GET() {
@@ -41,8 +42,16 @@ export async function POST(request: Request) {
     slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
   }
 
+  // The creator owns the song (maintainer model). Anonymous → ownerId null (open).
+  const me = await getCurrentUser();
+
   const song = await prisma.song.create({
-    data: { title: title.trim(), artist: artistValue, slug },
+    data: {
+      title: title.trim(),
+      artist: artistValue,
+      slug,
+      ownerId: me?.id ?? null,
+    },
   });
 
   return NextResponse.json(song, { status: 201 });

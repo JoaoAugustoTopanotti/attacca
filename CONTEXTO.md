@@ -91,6 +91,18 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-18** — Sessão 1 (modelo de autoridade refeito pós-teste): o ensaio expôs um
+  furo de MODELAGEM (não UX). João: "reivindicar trilha é estranho — a pessoa só quer
+  propor" + "quem criou a música é dono dela, ele que aceita" (o criador ficou sem poder
+  aceitar porque outro reivindicou o baixo). Trocado para **modelo maintainer (GitHub)**:
+  **`Song.ownerId` = criador = quem aceita; qualquer um identificado PROPÕE**;
+  `assertCanAccept` por `song.ownerId` (dono null = aberto); **reivindicar trilha REMOVIDO**
+  (rota deletada, `Track.ownerId` inerte); **lista de contribuidores** (dono + aceitos,
+  estilo GitHub) no lugar do reivindicar. CellEditor: dono "Salvar (aceito direto)", resto
+  "Propor"; só dono aceita/recusa. Migration `song_owner`. **Testado com 2 cookies**: João
+  cria (dono) → Maria propõe (201)/não aceita (400) → João aceita (200) → contribuidores
+  João+Maria. Trade-off honesto: centraliza no criador (simples, certo agora); delegação de
+  trilha vira futuro. `npm run dev` agora na **:4000**. `tsc` limpo.
 - **2026-06-17** — Sessão 1 (🎉 ENSAIO DO RELAY PASSOU): João rodou o **ciclo inteiro no
   navegador** com 2 identidades (normal + anônima): "Riff de Teste" (riff original semeado,
   só guitarra) → materializar → declarar Baixo → compartilhar → 2ª identidade reivindica

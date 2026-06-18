@@ -21,9 +21,7 @@ export default function NewSongForm() {
         body: JSON.stringify({ title, artist }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Falha ao criar a música.");
-      }
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao criar a música.");
       router.push(`/songs/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
@@ -35,13 +33,13 @@ export default function NewSongForm() {
     <form onSubmit={handleSubmit}>
       <div className="row">
         <div className="field">
-          <label htmlFor="title">Título *</label>
+          <label htmlFor="title">Título</label>
           <input
             id="title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ex: Blackbird"
+            placeholder="ex.: Blackbird"
             required
           />
         </div>
@@ -52,13 +50,15 @@ export default function NewSongForm() {
             type="text"
             value={artist}
             onChange={(e) => setArtist(e.target.value)}
-            placeholder="Ex: The Beatles"
+            placeholder="ex.: The Beatles"
           />
         </div>
+        <div className="field-btn">
+          <button type="submit" disabled={submitting || title.trim() === ""}>
+            {submitting ? "Criando…" : "Criar"}
+          </button>
+        </div>
       </div>
-      <button type="submit" disabled={submitting || title.trim() === ""}>
-        {submitting ? "Criando…" : "Criar música"}
-      </button>
       {error && <div className="form-error">{error}</div>}
     </form>
   );

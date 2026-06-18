@@ -171,14 +171,18 @@ O raciocínio que levou à decisão (mantido como contexto):
   assinado** (HMAC, `GS_COOKIE_SECRET`) → `User` (`displayName`). `getCurrentUser()` lê o
   cookie. Widget no header (prompt "quem é você?" / "você é X"). **Não é auth** (sem senha/
   e-mail); identidade por-navegador. Upgrade = magic link.
-- **Reivindicar trilha (M2, portão social) — agora por `userId`** — `setTrackOwner` (`POST
-  /api/tracks/[id]/owner` { release? }) reivindica/libera **como a identidade atual**.
-  `Track.ownerId` é o gate (`ownerName` é cache de display). Trilhas **começam sem dono**.
-  Sem dono → qualquer um (identificado) aceita; **com dono → só `ownerId` aceita**
-  (`assertCanAccept` por id); **propor segue aberto** a qualquer identificado; escrever
-  exige identidade (senão 401). É **honra, não trava** (cookie ≠ auth) — coerente com nicho
-  confiável. `CellContribution.authorId` registra autoria. UI no `/edit` usa a identidade
-  (sem campo de nome livre).
+- **Autoridade = MODELO MAINTAINER (revisão da ADR-0003, pós-teste real)** — o **dono da
+  música é o criador** (`Song.ownerId`, setado ao criar). **O dono aceita; qualquer um
+  identificado PROPÕE** (PR aberto). `assertCanAccept` checa `song.ownerId` (não a trilha);
+  dono null = aberto. **Reivindicar trilha FOI REMOVIDO** (`Track.ownerId` fica inerte;
+  rota `/tracks/[id]/owner` deletada) — ele tornava o criador impotente na própria música,
+  exatamente a dor que o João sentiu no 1º teste. **Contribuidores** = dono + todos com
+  contribuição aceita (`songContributors`, `GET /api/songs/[id]/contributors`), no lugar do
+  "reivindicar" (reconhecimento estilo GitHub). `CellContribution.authorId` registra autoria;
+  escrever exige identidade (401 se anônimo). Honra, não trava (cookie ≠ auth). UI no `/edit`:
+  dono vê "Salvar (aceito direto)"; resto vê "Propor mudança"; só o dono aceita/recusa
+  propostas. **Futuro (delegação):** o dono delegar manutenção de trilha a alguém (era o
+  papel da reivindicação, agora opcional e por baixo do dono).
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.
@@ -217,7 +221,7 @@ storage/  # uploads (gitignored)
 npm install                                   # use --use-system-ca se houver TLS corp.
 npx prisma migrate dev --name init            # cria o SQLite + client (idempotente)
 npm run db:seed                               # música demo tocável (AlphaTex)
-npm run dev                                    # http://localhost:3000  (webpack)
+npm run dev                                    # http://localhost:4000  (webpack)
 ```
 > Nota TLS corporativo: se algo falhar com `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, rode com
 > `NODE_OPTIONS=--use-system-ca` (Node usa o trust store do Windows).
