@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-// Step 1 of the relay: A copies the song link and sends it to B.
+// Copies the song's URL to the clipboard. Primary sharing mechanism for the relay.
 export default function ShareButton({ songId }: { songId: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -13,14 +13,14 @@ export default function ShareButton({ songId }: { songId: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard blocked (e.g. non-HTTPS): show the link to copy manually.
-      window.prompt("Copie o link da música:", url);
+      // Clipboard blocked (e.g. non-HTTPS): prompt user to copy manually.
+      window.prompt("Copie o link:", url);
     }
   }
 
   return (
-    <button type="button" className="secondary" onClick={copy}>
-      {copied ? "Link copiado ✓" : "Compartilhar"}
+    <button type="button" className="share-btn" onClick={copy}>
+      {copied ? "✓ copiado" : "↗ Compartilhar"}
     </button>
   );
 }

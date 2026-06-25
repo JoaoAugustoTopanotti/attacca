@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SongTabs from "@/components/SongTabs";
 import ShareButton from "@/components/ShareButton";
-import Contributors from "@/components/Contributors";
-import type { RevisionDTO } from "@/components/SongWorkspace";
+import type { RevisionDTO } from "@/lib/song-types";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +46,7 @@ export default async function SongPage({
           <h1>{song.title}</h1>
           <ShareButton songId={song.id} />
         </div>
-        {song.artist && <p className="sub">{song.artist}</p>}
-        <Contributors songId={song.id} />
+        {song.artist && <p className="song-artist">{song.artist}</p>}
       </div>
 
       <SongTabs songId={song.id} initialRevisions={revisions} />

@@ -178,6 +178,7 @@ label {
   display: flex; align-items: center; gap: 10px;
   flex-wrap: wrap; margin-bottom: 3px;
 }
+.song-artist { color: var(--sub); font-size: 0.9rem; margin: 2px 0 0; }
 .share-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; background: transparent;
@@ -207,13 +208,64 @@ label {
   padding: 0 6px; font-size: 0.7rem; font-weight: 600;
 }
 
-/* ── Song page layout ────────────────────────────────────────────── */
+/* ── Song page layout (legacy — used in /edit and /compare) ─────── */
 .song-layout {
   display: grid; grid-template-columns: 1fr 280px;
   gap: 20px; align-items: start;
 }
 @media (max-width: 780px) { .song-layout { grid-template-columns: 1fr; } }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Player full-page (no sidebar) ──────────────────────────────── */
+.player-fullpage { }
+.player-empty {
+  text-align: center; padding: 80px 24px; color: var(--sub);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+}
+.player-snapshot-bar {
+  padding: 7px 14px; font-size: 0.78rem; color: var(--sub);
+  background: var(--panel-2); border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+}
+
+/* ── Collab panel ────────────────────────────────────────────────── */
+.collab-panel { max-width: 680px; padding-top: 16px; }
+.collab-section { margin-bottom: 34px; }
+.collab-section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.collab-section h3 {
+  font-size: 0.75rem; font-weight: 600; margin: 0;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--sub);
+}
+.btn-tool {
+  display: inline-block; padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.82rem; color: var(--muted); text-decoration: none;
+}
+.btn-tool:hover { color: var(--text); border-color: var(--muted); text-decoration: none; }
+
+/* ── Contributors panel ──────────────────────────────────────────── */
+.contrib-panel { padding-top: 16px; max-width: 480px; }
+.contrib-list { list-style: none; padding: 0; margin: 0; }
+.contrib-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.contrib-item:last-child { border-bottom: none; }
+.contrib-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--panel-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 600; color: var(--muted); flex-shrink: 0;
+}
+.contrib-name { flex: 1; font-size: 0.92rem; font-weight: 500; }
+.contrib-role {
+  font-size: 0.72rem; color: var(--sub);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 1px 8px; background: var(--panel-2);
+}
 
 /* ── Home page ───────────────────────────────────────────────────── */
 .home-hero { margin-bottom: 24px; }
@@ -387,8 +439,8 @@ label {
 .player-seek { flex: 1; accent-color: var(--accent); cursor: pointer; }
 .player-seek:disabled { cursor: default; opacity: .4; }
 .player-viewport {
-  position: relative; height: 560px; overflow-y: auto;
-  background: #0a0c10; padding: 12px;
+  position: relative; min-height: 520px; height: 68vh; max-height: 820px;
+  overflow-y: auto; background: #0a0c10; padding: 12px;
 }
 .player-loading {
   position: absolute; inset: 0;
