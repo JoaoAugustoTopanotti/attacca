@@ -14,7 +14,14 @@ export default function UploadForm({
   const [fileName, setFileName] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!submitting) { setSlow(false); return; }
+    const t = setTimeout(() => setSlow(true), 10_000);
+    return () => clearTimeout(t);
+  }, [submitting]);
 
   // Pre-fill author from the cookie identity so the user doesn't have to type
   // their name again. Falls back to "" → the server uses "anon".
@@ -103,6 +110,11 @@ export default function UploadForm({
       >
         {submitting ? "Enviando…" : "Enviar revisão"}
       </button>
+      {slow && (
+        <p className="form-slow">
+          Arquivo grande ou servidor acordando — pode levar até 30s. Aguarde…
+        </p>
+      )}
       {error && <div className="form-error">{error}</div>}
     </form>
   );

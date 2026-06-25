@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function NewSongForm() {
@@ -8,7 +8,15 @@ export default function NewSongForm() {
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Show a "taking too long" hint after 10s — common on Render free tier cold start.
+  useEffect(() => {
+    if (!submitting) { setSlow(false); return; }
+    const t = setTimeout(() => setSlow(true), 10_000);
+    return () => clearTimeout(t);
+  }, [submitting]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,6 +67,12 @@ export default function NewSongForm() {
           </button>
         </div>
       </div>
+      {slow && (
+        <p className="form-slow">
+          Demorando mais que o esperado — o servidor pode estar acordando (até 30s no
+          primeiro acesso). Aguarde…
+        </p>
+      )}
       {error && <div className="form-error">{error}</div>}
     </form>
   );

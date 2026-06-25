@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import NewSongForm from "@/components/NewSongForm";
+import NewSongToggle from "@/components/NewSongToggle";
 import { songCompleteness } from "@/lib/tracks";
 
 // Always read fresh from the DB (no static caching of the song list).
@@ -26,17 +26,16 @@ export default async function HomePage() {
         </p>
       </div>
 
-      <div className="new-song-panel">
-        <p className="new-song-caption">Nova música</p>
-        <NewSongForm />
-      </div>
-
       <div className="song-list-header">
         <h2>Todas as músicas</h2>
+        <NewSongToggle />
       </div>
 
       {songs.length === 0 ? (
-        <p className="sub">Nenhuma música ainda. Crie a primeira acima.</p>
+        <div className="empty-state">
+          <p>Nenhuma música ainda.</p>
+          <p className="sub">Clique em <strong>+ Nova música</strong> para começar.</p>
+        </div>
       ) : (
         <div className="song-cards">
           {songs.map((song, i) => {
