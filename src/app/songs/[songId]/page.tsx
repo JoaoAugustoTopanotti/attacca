@@ -34,7 +34,7 @@ export default async function SongPage({
   }));
 
   return (
-    <div>
+    <div className="song-page">
       <nav className="breadcrumb">
         <Link href="/">← Músicas</Link>
         <span className="breadcrumb-sep">/</span>
@@ -46,7 +46,9 @@ export default async function SongPage({
           <h1>{song.title}</h1>
           <ShareButton songId={song.id} />
         </div>
-        {song.artist && <p className="song-artist">{song.artist}</p>}
+        {song.artist && (
+          <p className="song-artist">por {song.artist}</p>
+        )}
       </div>
 
       <SongTabs songId={song.id} initialRevisions={revisions} />

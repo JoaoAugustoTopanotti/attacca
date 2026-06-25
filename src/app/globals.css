@@ -20,6 +20,8 @@ html, body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 15px;
   line-height: 1.5;
+  /* Allows children to break out of the container to 100vw without scrollbar */
+  overflow-x: clip;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -175,8 +177,9 @@ label {
 /* ── Song header ─────────────────────────────────────────────────── */
 .song-header { margin-bottom: 2px; }
 .song-header-top {
-  display: flex; align-items: center; gap: 10px;
-  flex-wrap: wrap; margin-bottom: 3px;
+  display: flex; align-items: center;
+  justify-content: space-between;   /* title left, share btn right */
+  gap: 10px; flex-wrap: wrap; margin-bottom: 3px;
 }
 .song-artist { color: var(--sub); font-size: 0.9rem; margin: 2px 0 0; }
 .share-btn {
@@ -216,16 +219,26 @@ label {
 @media (max-width: 780px) { .song-layout { grid-template-columns: 1fr; } }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 
-/* ── Player full-page (no sidebar) ──────────────────────────────── */
-.player-fullpage { }
+/* ── Player full-page (no sidebar, edge-to-edge) ─────────────────── */
+.player-fullpage {
+  /* Break out of the centered container and fill 100% of the browser window */
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+/* Remove card framing — the player IS the page */
+.player-fullpage .player-card {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border);
+}
 .player-empty {
   text-align: center; padding: 80px 24px; color: var(--sub);
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
 }
 .player-snapshot-bar {
-  padding: 7px 14px; font-size: 0.78rem; color: var(--sub);
+  padding: 7px 20px; font-size: 0.78rem; color: var(--sub);
   background: var(--panel-2); border-top: 1px solid var(--border);
-  border-radius: 0 0 8px 8px;
 }
 
 /* ── Collab panel ────────────────────────────────────────────────── */
@@ -440,7 +453,7 @@ label {
 .player-seek:disabled { cursor: default; opacity: .4; }
 .player-viewport {
   position: relative; min-height: 520px; height: 68vh; max-height: 820px;
-  overflow-y: auto; background: #0a0c10; padding: 12px;
+  overflow-y: auto; background: #0a0c10; padding: 16px 20px;
 }
 .player-loading {
   position: absolute; inset: 0;

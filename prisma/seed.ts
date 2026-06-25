@@ -17,7 +17,7 @@ const SONGS: Array<{
   {
     slug: "gitsong-demo",
     title: "GitSong Demo",
-    artist: "GitSong",
+    artist: "Equipe GitSong",
     message: "Demo inicial em AlphaTex",
     alphaTex: `\\title "GitSong Demo"
 \\subtitle "Exemplo de revezamento"
