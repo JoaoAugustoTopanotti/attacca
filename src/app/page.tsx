@@ -1,81 +1,52 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import NewSongToggle from "@/components/NewSongToggle";
 import { songCompleteness } from "@/lib/tracks";
+import HomeTabs from "@/components/HomeTabs";
 
 // Always read fresh from the DB (no static caching of the song list).
 export const dynamic = "force-dynamic";
 
+// Songs at or above this threshold of completeness go to "Tocar".
+const TOCAR_THRESHOLD = 80;
+
 export default async function HomePage() {
   const songs = await prisma.song.findMany({
     orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { revisions: true } } },
   });
-  const completeness = await Promise.all(
-    songs.map((s) => songCompleteness(s.id)),
-  );
+
+  const completeness = await Promise.all(songs.map((s) => songCompleteness(s.id)));
+
+  type SongItem = {
+    id: string;
+    title: string;
+    artist: string | null;
+    percent: number;
+    missing: string[];
+    tracks: number;
+  };
+
+  const tocar: SongItem[] = [];
+  const colaborar: SongItem[] = [];
+
+  for (let i = 0; i < songs.length; i++) {
+    const c = completeness[i];
+    const item: SongItem = {
+      id: songs[i].id,
+      title: songs[i].title,
+      artist: songs[i].artist,
+      percent: c.percent,
+      missing: c.missing,
+      tracks: c.tracks.length,
+    };
+    if (c.tracks.length > 0 && c.percent >= TOCAR_THRESHOLD) {
+      tocar.push(item);
+    } else {
+      colaborar.push(item);
+    }
+  }
 
   return (
     <div>
-      <div className="home-hero">
-        <h1>Mural de músicas</h1>
-        <p className="sub">
-          Transcrições coletivas — cada pessoa cuida do seu instrumento e passa
-          o bastão. Comece uma música, envie um Guitar Pro e declare o que
-          falta.
-        </p>
-      </div>
-
-      <div className="song-list-header">
-        <h2>Todas as músicas</h2>
-        <NewSongToggle />
-      </div>
-
-      {songs.length === 0 ? (
-        <div className="empty-state">
-          <p>Nenhuma música ainda.</p>
-          <p className="sub">Clique em <strong>+ Nova música</strong> para começar.</p>
-        </div>
-      ) : (
-        <div className="song-cards">
-          {songs.map((song, i) => {
-            const c = completeness[i];
-            const materialized = c.tracks.length > 0;
-            return (
-              <Link key={song.id} href={`/songs/${song.id}`} className="song-card">
-                <div className="song-card-top">
-                  <span className="song-card-title">{song.title}</span>
-                  {materialized && (
-                    <span className="song-card-pct">{c.percent}%</span>
-                  )}
-                </div>
-                <div className="song-card-meta">
-                  {song.artist ? `${song.artist} · ` : ""}
-                  {song._count.revisions}{" "}
-                  {song._count.revisions === 1 ? "revisão" : "revisões"}
-                  {!materialized && " · grid não materializado"}
-                </div>
-                {materialized && (
-                  <>
-                    <div className="song-card-bar">
-                      <span style={{ width: `${c.percent}%` }} />
-                    </div>
-                    {c.missing.length > 0 && (
-                      <div className="song-card-foot">
-                        {c.missing.map((m) => (
-                          <span key={m} className="tag">
-                            falta {m}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <HomeTabs tocar={tocar} colaborar={colaborar} />
     </div>
   );
 }
