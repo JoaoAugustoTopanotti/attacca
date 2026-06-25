@@ -126,7 +126,7 @@ export async function materializeSongGrid(
 
       // Point each cell at its (single) accepted contribution in one statement.
       await tx.$executeRawUnsafe(
-        `UPDATE "Cell" SET "acceptedContributionId" = (SELECT "id" FROM "CellContribution" WHERE "CellContribution"."cellId" = "Cell"."id" LIMIT 1) WHERE "songId" = ?`,
+        `UPDATE "Cell" SET "acceptedContributionId" = (SELECT "id" FROM "CellContribution" WHERE "CellContribution"."cellId" = "Cell"."id" LIMIT 1) WHERE "songId" = $1`,
         songId,
       );
 
