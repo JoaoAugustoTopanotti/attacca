@@ -860,3 +860,158 @@ label {
 }
 .btn-new-primary:hover:not(:disabled) { opacity: .88; }
 .btn-new-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Edit page (full-viewport shell, mirrors song-shell) ─────────── */
+.edit-shell {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: -28px;
+  height: calc(100vh - 48px);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Breadcrumb + title row */
+.edit-top {
+  flex-shrink: 0;
+  padding: 13px 24px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.edit-title { font-size: 1.1rem; font-weight: 700; margin: 4px 0 0; }
+
+/* TrackEditor root — fills the rest of edit-shell */
+.edit-main {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Controls bar: play · track select · role badge · save button */
+.edit-controls {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 24px; height: 50px;
+  background: var(--panel-2); border-bottom: 1px solid var(--border);
+}
+
+/* Role badge inside controls bar */
+.edit-role-badge {
+  font-size: 0.74rem; color: var(--sub);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 2px 9px; background: var(--panel); white-space: nowrap;
+}
+.edit-role-badge.owner {
+  border-color: rgba(88,166,255,.3);
+  color: var(--accent);
+  background: rgba(88,166,255,.06);
+}
+
+/* "Pré-visualizando proposta de X" badge */
+.edit-preview-badge {
+  font-size: 0.74rem; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 2px 9px; background: var(--panel); white-space: nowrap;
+}
+
+/* Save / propose button */
+.btn-edit-save {
+  height: 34px; padding: 0 16px; font-size: 0.85rem; font-weight: 500;
+  background: var(--accent); color: var(--bg); border: none; border-radius: 8px;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.btn-edit-save:hover:not(:disabled) { opacity: .88; }
+.btn-edit-save:disabled { background: var(--panel-2); color: var(--sub); cursor: not-allowed; }
+
+/* Full-width player area (flex:1) */
+.edit-player {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+/* AlphaTabPlayer in editMode reuses player-card--fullpage CSS */
+
+/* Bottom panel: editor (left) + proposals (right), fixed height */
+.edit-bottom {
+  flex-shrink: 0; height: 220px;
+  display: flex; border-top: 1px solid var(--border); overflow: hidden;
+}
+
+/* Left: tablature textarea */
+.edit-editor {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  padding: 11px 14px 11px 24px;
+  border-right: 1px solid var(--border); overflow: hidden;
+}
+.edit-editor-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 7px; flex-shrink: 0;
+}
+.edit-editor-label {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sub);
+}
+.edit-editor-hint { font-size: 0.72rem; color: var(--sub); }
+.edit-textarea {
+  flex: 1; resize: none; min-height: 0; width: 100%;
+  background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 7px 10px;
+  font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem;
+  line-height: 1.6;
+}
+.edit-textarea:focus { outline: none; border-color: var(--accent); }
+.edit-textarea:disabled { opacity: .5; }
+.edit-actions {
+  margin-top: 6px; flex-shrink: 0; min-height: 18px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Right: proposals panel */
+.edit-proposals {
+  width: 270px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  padding: 11px 16px; overflow: hidden;
+}
+.proposals-head {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sub); margin-bottom: 8px; flex-shrink: 0;
+}
+.proposals-list {
+  flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0;
+}
+.proposal-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+}
+.proposal-item:last-child { border-bottom: none; }
+.proposal-meta { flex: 1; min-width: 0; }
+.proposal-who {
+  font-size: 0.82rem; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proposal-track { font-size: 0.72rem; color: var(--sub); }
+.btn-review {
+  padding: 3px 9px; font-size: 0.72rem; white-space: nowrap; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--sub); border-radius: 5px; cursor: pointer; font-family: inherit;
+}
+.btn-review:hover { color: var(--text); border-color: var(--muted); }
+.btn-review.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,.06); }
+.proposals-empty { font-size: 0.8rem; color: var(--sub); }
+
+/* Accept / reject buttons shown when reviewing */
+.review-actions {
+  display: flex; gap: 6px; margin-top: 10px; flex-shrink: 0;
+}
+.btn-accept {
+  flex: 1; padding: 5px 0; font-size: 0.8rem; font-weight: 500;
+  background: var(--accent); color: var(--bg); border: none; border-radius: 6px;
+  cursor: pointer; font-family: inherit;
+}
+.btn-accept:disabled { opacity: .5; cursor: not-allowed; }
+.btn-reject {
+  flex: 1; padding: 5px 0; font-size: 0.8rem;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--sub); border-radius: 6px; cursor: pointer; font-family: inherit;
+}
+.btn-reject:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+.btn-reject:disabled { opacity: .5; cursor: not-allowed; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { instrumentLabel } from "@/lib/instruments";
 
 type AlphaTabModule = typeof import("@coderline/alphatab");
@@ -14,6 +14,11 @@ export type PlayerRevision = {
   source: string;
 };
 
+/** Handle exposed via ref in editMode */
+export type AlphaTabPlayerHandle = {
+  playPause: () => void;
+};
+
 type Status = "loading" | "ready" | "error";
 
 function formatTime(ms: number): string {
@@ -23,17 +28,33 @@ function formatTime(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-export default function AlphaTabPlayer({
-  revision,
-  alphaTexUrl,
-  fullpage = false,
-}: {
-  revision?: PlayerRevision;
-  alphaTexUrl?: string;
-  /** fullpage=true: bottom bar layout (song page).
-   *  fullpage=false (default): top toolbar + transport (edit/compare). */
-  fullpage?: boolean;
-}) {
+const AlphaTabPlayer = forwardRef<
+  AlphaTabPlayerHandle,
+  {
+    revision?: PlayerRevision;
+    alphaTexUrl?: string;
+    /** fullpage=true: bottom bar layout (song page).
+     *  fullpage=false (default): top toolbar + transport (history preview / compare). */
+    fullpage?: boolean;
+    /** editMode=true: full-width tablature, no built-in controls.
+     *  Play/pause is controlled externally via the ref handle. */
+    editMode?: boolean;
+    /** Called when isPlaying changes (only in editMode). */
+    onPlayingChange?: (playing: boolean) => void;
+    /** Called when playerReady changes (only in editMode). */
+    onPlayerReadyChange?: (ready: boolean) => void;
+  }
+>(function AlphaTabPlayer(
+  {
+    revision,
+    alphaTexUrl,
+    fullpage = false,
+    editMode = false,
+    onPlayingChange,
+    onPlayerReadyChange,
+  },
+  ref,
+) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
@@ -51,6 +72,15 @@ export default function AlphaTabPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
+
+  // Expose playPause() for editMode callers
+  useImperativeHandle(ref, () => ({
+    playPause: () => apiRef.current?.playPause(),
+  }));
+
+  // Bubble playing / ready state to parent (editMode)
+  useEffect(() => { onPlayingChange?.(isPlaying); }, [isPlaying, onPlayingChange]);
+  useEffect(() => { onPlayerReadyChange?.(playerReady); }, [playerReady, onPlayerReadyChange]);
 
   useEffect(() => {
     let api: AlphaTabApi | null = null;
@@ -196,6 +226,32 @@ export default function AlphaTabPlayer({
     if (api && endTimeMs > 0) api.timePosition = targetMs;
   }
 
+  // ── EDIT MODE (track editor — no built-in controls) ─────────────────
+  if (editMode) {
+    return (
+      <div className="player-card player-card--fullpage">
+        {status === "error" && (
+          <div className="player-error" role="alert">
+            <strong>Não foi possível renderizar esta revisão.</strong>
+            <div>{errorMessage}</div>
+          </div>
+        )}
+        <div
+          ref={viewportRef}
+          id="at-viewport"
+          className="player-viewport player-viewport--fullpage"
+          aria-busy={status === "loading"}
+        >
+          {status === "loading" && (
+            <div className="player-loading">Carregando…</div>
+          )}
+          <div ref={surfaceRef} className="player-surface" />
+        </div>
+        {/* No bottom bar — play is controlled externally via ref */}
+      </div>
+    );
+  }
+
   // ── FULLPAGE LAYOUT (song player page) ─────────────────────────────
   if (fullpage) {
     return (
@@ -261,7 +317,7 @@ export default function AlphaTabPlayer({
     );
   }
 
-  // ── COMPACT LAYOUT (edit / compare / cell editor) ───────────────────
+  // ── COMPACT LAYOUT (history preview / compare / cell editor) ────────
   return (
     <div className="player-card">
       {status === "error" && (
@@ -342,4 +398,7 @@ export default function AlphaTabPlayer({
       </div>
     </div>
   );
-}
+});
+
+AlphaTabPlayer.displayName = "AlphaTabPlayer";
+export default AlphaTabPlayer;
