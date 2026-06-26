@@ -37,7 +37,7 @@ export default function ContribPanel({ songId }: { songId: string }) {
   const others = data.contributors.filter((c) => !c.isOwner);
 
   return (
-    <div className="contrib-panel">
+    <div className="contrib-panel contrib-panel--scroll">
       <p className="sub" style={{ marginBottom: 20 }}>
         Pessoas que moldaram esta transcrição.
       </p>

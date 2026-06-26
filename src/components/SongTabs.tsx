@@ -19,10 +19,8 @@ export default function SongTabs({
   const [revisions, setRevisions] = useState<RevisionDTO[]>(initialRevisions);
   const [materialized, setMaterialized] = useState(false);
   const [checked, setChecked] = useState(false);
-  // "live" = assembled from the cell grid; a revision id = a historical snapshot.
   const [view, setView] = useState<string>(initialRevisions[0]?.id ?? "live");
 
-  // Check whether the grid has been materialized (determines what the player shows).
   useEffect(() => {
     fetch(`/api/songs/${songId}/completeness`)
       .then((r) => r.json())
@@ -35,7 +33,6 @@ export default function SongTabs({
       .finally(() => setChecked(true));
   }, [songId]);
 
-  // Refetch the revision list on mount — snapshots created in /edit show here too.
   useEffect(() => {
     fetch(`/api/songs/${songId}/revisions`)
       .then((r) => (r.ok ? r.json() : null))
@@ -63,7 +60,8 @@ export default function SongTabs({
   }
 
   return (
-    <div>
+    // song-tabs-shell fills remaining height from the song-shell flex layout
+    <div className="song-tabs-shell">
       <nav className="song-tabs">
         <button
           type="button"
@@ -88,28 +86,31 @@ export default function SongTabs({
         </button>
       </nav>
 
-      {active === "player" && (
-        <PlayerPanel
-          songId={songId}
-          revisions={revisions}
-          materialized={materialized}
-          checked={checked}
-          view={view}
-          setView={setView}
-        />
-      )}
-      {active === "colaborar" && (
-        <CollabPanel
-          songId={songId}
-          revisions={revisions}
-          materialized={materialized}
-          view={view}
-          setView={setView}
-          refreshRevisions={refreshRevisions}
-          revertTo={revertTo}
-        />
-      )}
-      {active === "contribuidores" && <ContribPanel songId={songId} />}
+      {/* tab content area — fills the rest of the shell */}
+      <div className="song-tab-content">
+        {active === "player" && (
+          <PlayerPanel
+            songId={songId}
+            revisions={revisions}
+            materialized={materialized}
+            checked={checked}
+            view={view}
+            setView={setView}
+          />
+        )}
+        {active === "colaborar" && (
+          <CollabPanel
+            songId={songId}
+            revisions={revisions}
+            materialized={materialized}
+            view={view}
+            setView={setView}
+            refreshRevisions={refreshRevisions}
+            revertTo={revertTo}
+          />
+        )}
+        {active === "contribuidores" && <ContribPanel songId={songId} />}
+      </div>
     </div>
   );
 }

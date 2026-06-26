@@ -22,7 +22,7 @@ export default function CollabPanel({
   revertTo: (sourceId: string) => Promise<void>;
 }) {
   return (
-    <div className="collab-panel">
+    <div className="collab-panel collab-panel--scroll">
       <section className="collab-section">
         <div className="collab-section-head">
           <h3>Enviar revisão</h3>

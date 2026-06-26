@@ -34,21 +34,22 @@ export default async function SongPage({
   }));
 
   return (
-    <div className="song-page">
-      <nav className="breadcrumb">
-        <Link href="/">← Músicas</Link>
-        <span className="breadcrumb-sep">/</span>
-        <span>{song.title}</span>
-      </nav>
-
-      <div className="song-header">
-        <div className="song-header-top">
-          <h1>{song.title}</h1>
+    // song-shell: full-viewport-width, full-height flex column.
+    // Breaks out of the .container constraints so the player can be truly edge-to-edge.
+    <div className="song-shell">
+      <div className="song-top">
+        {/* Breadcrumb + share button on the SAME line */}
+        <div className="breadcrumb-row">
+          <nav className="breadcrumb">
+            <Link href="/">← Músicas</Link>
+            <span className="breadcrumb-sep">/</span>
+            <span>{song.title}</span>
+          </nav>
           <ShareButton songId={song.id} />
         </div>
-        {song.artist && (
-          <p className="song-artist">por {song.artist}</p>
-        )}
+
+        {/* Title alone, prominent */}
+        <h1 className="song-title">{song.title}</h1>
       </div>
 
       <SongTabs songId={song.id} initialRevisions={revisions} />

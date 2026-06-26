@@ -20,13 +20,12 @@ export default function PlayerPanel({
 }) {
   const selectedRev = revisions.find((r) => r.id === view) ?? null;
 
-  // Don't flash an empty state while the materialization check is in flight.
-  if (!checked) return <div style={{ minHeight: 240 }} />;
+  if (!checked) return <div style={{ flex: 1 }} />;
 
   const isEmpty = !materialized && !selectedRev;
 
   return (
-    <div className="player-fullpage">
+    <div className="player-panel">
       {isEmpty ? (
         <div className="player-empty">
           <p>Nenhuma versão ainda.</p>
@@ -35,7 +34,11 @@ export default function PlayerPanel({
           </p>
         </div>
       ) : view === "live" && materialized ? (
-        <AlphaTabPlayer key="live" alphaTexUrl={`/api/songs/${songId}/assembled`} />
+        <AlphaTabPlayer
+          key="live"
+          alphaTexUrl={`/api/songs/${songId}/assembled`}
+          fullpage
+        />
       ) : selectedRev ? (
         <AlphaTabPlayer
           key={selectedRev.id}
@@ -44,16 +47,17 @@ export default function PlayerPanel({
             format: selectedRev.format,
             source: selectedRev.source,
           }}
+          fullpage
         />
       ) : null}
 
       {materialized && view !== "live" && selectedRev && (
         <div className="player-snapshot-bar">
-          Visualizando snapshot #{selectedRev.number}
+          Visualizando snapshot #{selectedRev.number} —{" "}
           <button
             type="button"
             className="ghost"
-            style={{ fontSize: "0.78rem", marginLeft: 10 }}
+            style={{ fontSize: "0.78rem", padding: "0 4px" }}
             onClick={() => setView("live")}
           >
             ver versão atual
