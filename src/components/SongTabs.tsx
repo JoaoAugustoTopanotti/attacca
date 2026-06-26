@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import PlayerPanel from "@/components/PlayerPanel";
 import CollabPanel from "@/components/CollabPanel";
+import HistoryPanel from "@/components/HistoryPanel";
 import ContribPanel from "@/components/ContribPanel";
 import type { RevisionDTO } from "@/lib/song-types";
 
-type Tab = "player" | "colaborar" | "contribuidores";
+type Tab = "player" | "colaborar" | "historico" | "contribuidores";
 
 export default function SongTabs({
   songId,
@@ -59,31 +60,26 @@ export default function SongTabs({
     else alert(data?.error ?? "Falha ao reverter.");
   }
 
+  const TABS: { id: Tab; label: string }[] = [
+    { id: "player", label: "Player" },
+    { id: "colaborar", label: "Colaborar" },
+    { id: "historico", label: "Histórico" },
+    { id: "contribuidores", label: "Contribuidores" },
+  ];
+
   return (
-    // song-tabs-shell fills remaining height from the song-shell flex layout
     <div className="song-tabs-shell">
       <nav className="song-tabs">
-        <button
-          type="button"
-          className={`tab${active === "player" ? " active" : ""}`}
-          onClick={() => setActive("player")}
-        >
-          Player
-        </button>
-        <button
-          type="button"
-          className={`tab${active === "colaborar" ? " active" : ""}`}
-          onClick={() => setActive("colaborar")}
-        >
-          Colaborar
-        </button>
-        <button
-          type="button"
-          className={`tab${active === "contribuidores" ? " active" : ""}`}
-          onClick={() => setActive("contribuidores")}
-        >
-          Contribuidores
-        </button>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`tab${active === t.id ? " active" : ""}`}
+            onClick={() => setActive(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
       </nav>
 
       {/* tab content area — fills the rest of the shell */}
@@ -101,13 +97,11 @@ export default function SongTabs({
         {active === "colaborar" && (
           <CollabPanel
             songId={songId}
-            revisions={revisions}
-            materialized={materialized}
-            view={view}
-            setView={setView}
             refreshRevisions={refreshRevisions}
-            revertTo={revertTo}
           />
+        )}
+        {active === "historico" && (
+          <HistoryPanel revisions={revisions} revertTo={revertTo} />
         )}
         {active === "contribuidores" && <ContribPanel songId={songId} />}
       </div>

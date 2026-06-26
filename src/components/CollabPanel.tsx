@@ -1,70 +1,70 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import UploadForm from "@/components/UploadForm";
-import RevisionList from "@/components/RevisionList";
-import type { RevisionDTO } from "@/lib/song-types";
 
 export default function CollabPanel({
   songId,
-  revisions,
-  view,
-  setView,
   refreshRevisions,
-  revertTo,
 }: {
   songId: string;
-  revisions: RevisionDTO[];
-  materialized: boolean;
-  view: string;
-  setView: (v: string) => void;
   refreshRevisions: (selectId?: string) => Promise<void>;
-  revertTo: (sourceId: string) => Promise<void>;
 }) {
+  const [uploadOpen, setUploadOpen] = useState(false);
+
   return (
     <div className="collab-panel collab-panel--scroll">
-      <section className="collab-section">
-        <div className="collab-section-head">
-          <h3>Enviar revisão</h3>
-        </div>
-        <p className="sub" style={{ marginBottom: 14 }}>
-          Envie um arquivo Guitar Pro (.gp / .gp5 / .gpx) para adicionar ou
-          atualizar a transcrição.
-        </p>
-        <UploadForm songId={songId} onUploaded={(id) => refreshRevisions(id)} />
-      </section>
+      <p className="section-label">Como quer contribuir?</p>
 
-      <section className="collab-section">
-        <div className="collab-section-head">
-          <h3>Histórico</h3>
-          <span className="sub">
-            {revisions.length}{" "}
-            {revisions.length === 1 ? "revisão" : "revisões"}
-          </span>
+      {/* Primary action — links to the track editor */}
+      <Link
+        href={`/songs/${songId}/edit`}
+        className="action-card action-card--primary"
+      >
+        <div className="action-body">
+          <div className="action-title">Editar uma faixa</div>
+          <div className="action-desc">
+            Escolha uma faixa (guitarra, baixo, bateria…) e edite o conteúdo
+            dela. Sua versão fica pendente — o dono revisa antes de aceitar.
+          </div>
         </div>
-        <div className="card" style={{ marginTop: 10 }}>
-          <RevisionList
-            revisions={revisions}
-            selectedId={view === "live" ? null : view}
-            onSelect={setView}
-            onRevert={revertTo}
+        <span className="action-arrow">→</span>
+      </Link>
+
+      {/* Secondary action — collapsible upload */}
+      <button
+        type="button"
+        className={`action-card action-card--toggle${uploadOpen ? " open" : ""}`}
+        onClick={() => setUploadOpen((p) => !p)}
+      >
+        <div className="action-body">
+          <div className="action-title">Enviar arquivo completo</div>
+          <div className="action-desc">
+            Upload de um arquivo Guitar Pro com sua versão da música inteira
+          </div>
+        </div>
+        <span className="action-arrow">{uploadOpen ? "▴" : "▾"}</span>
+      </button>
+
+      {uploadOpen && (
+        <div className="action-upload-area">
+          <UploadForm
+            songId={songId}
+            onUploaded={(id) => {
+              refreshRevisions(id);
+              setUploadOpen(false);
+            }}
           />
         </div>
-      </section>
+      )}
 
-      <section className="collab-section">
-        <div className="collab-section-head">
-          <h3>Ferramentas</h3>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-          <Link href={`/songs/${songId}/edit`} className="btn-tool">
-            Editar por faixa →
-          </Link>
-          <Link href={`/songs/${songId}/compare`} className="btn-tool">
-            Comparar versões →
-          </Link>
-        </div>
-      </section>
+      <p className="collab-note">
+        <strong>Dica:</strong> &quot;Editar uma faixa&quot; é o jeito
+        recomendado para contribuir com seu instrumento. O upload de arquivo
+        completo é útil quando você já tem a partitura pronta num arquivo
+        Guitar Pro.
+      </p>
     </div>
   );
 }
