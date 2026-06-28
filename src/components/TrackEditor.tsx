@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AlphaTabPlayer, { type AlphaTabPlayerHandle } from "@/components/AlphaTabPlayer";
+import TabEditor from "@/components/TabEditor";
 
 type Me = { id: string; displayName: string } | null;
 type Content = {
@@ -219,26 +220,22 @@ export default function TrackEditor({
 
       {/* ── Bottom panel: editor + proposals ── */}
       <div className="edit-bottom">
-        {/* Left — textarea editor */}
-        <div className="edit-editor">
-          <div className="edit-editor-head">
-            <span className="edit-editor-label">Tablatura da faixa</span>
-            <span className="edit-editor-hint">
-              {content?.measureCount ?? "—"} compassos, separados por |
-            </span>
-          </div>
-          <textarea
-            className="edit-textarea"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={!content}
-            spellCheck={false}
+        {/* Left — visual tab editor (substitui o textarea) */}
+        {content ? (
+          <TabEditor
+            key={trackOrder}
+            alphaTex={text}
+            onChange={setText}
+            disabled={!me}
+            trackStringCount={/baixo/i.test(content.track.name) ? 4 : 6}
+            error={error}
+            info={info}
           />
-          <div className="edit-actions">
-            {error && <span className="form-error">{error}</span>}
-            {info && <span className="form-ok">{info}</span>}
+        ) : (
+          <div className="edit-editor">
+            <div className="player-loading" style={{ flex: 1 }}>Carregando…</div>
           </div>
-        </div>
+        )}
 
         {/* Right — proposals */}
         <div className="edit-proposals">

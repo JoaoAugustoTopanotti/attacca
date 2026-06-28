@@ -1015,3 +1015,100 @@ label {
 }
 .btn-reject:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
 .btn-reject:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Tab Editor ───────────────────────────────────────────────────── */
+
+/* Raiz: ocupa o espaço do .edit-editor, mesma borda direita */
+.tab-editor {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+/* Cabeçalho: label + toggle textarea + mensagens de status */
+.tab-editor-header {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 14px 0 24px;
+}
+.tab-editor-section-label {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sub);
+}
+.tab-editor-header-right {
+  display: flex; align-items: center; gap: 10px;
+}
+.tab-editor-raw-toggle {
+  font-size: 0.72rem; color: var(--sub);
+  background: none; border: none; cursor: pointer;
+  text-decoration: underline; padding: 0; font-family: inherit;
+  flex-shrink: 0;
+}
+.tab-editor-raw-toggle:hover { color: var(--text); }
+
+/* Toolbar: duração + efeitos + posição */
+.tab-editor-toolbar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 5px 14px 5px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.tab-editor-toolbar-group { display: flex; align-items: center; gap: 3px; }
+.tab-editor-toolbar-sep {
+  width: 1px; height: 14px;
+  background: var(--border); margin: 0 4px; flex-shrink: 0;
+}
+.tab-editor-toolbar-label {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--sub); margin-right: 2px;
+}
+
+/* Botões da toolbar */
+.tab-editor-btn {
+  padding: 2px 8px; font-size: 0.78rem;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--sub); border-radius: 5px; cursor: pointer;
+  font-family: inherit; min-width: 26px; text-align: center;
+}
+.tab-editor-btn:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+.tab-editor-btn.active {
+  border-color: var(--accent); color: var(--accent);
+  background: rgba(88,166,255,.06);
+}
+.tab-editor-btn.effect-active {
+  border-color: #d29922; color: #d29922;
+  background: rgba(210,153,34,.08);
+}
+.tab-editor-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Indicador de posição do cursor */
+.tab-editor-pos {
+  font-size: 0.75rem; color: var(--sub); margin-left: 4px;
+  white-space: nowrap;
+}
+.tab-editor-pos strong { color: var(--text); font-weight: 600; }
+
+/* Viewport: área scrollável onde o alphaTab renderiza */
+.tab-editor-viewport {
+  flex: 1; overflow-y: auto; min-height: 0;
+  background: #0a0c10;
+  padding: 10px 14px 32px;   /* 32px embaixo para os hints de teclado */
+  position: relative;
+  outline: none;              /* recebe foco para keyboard events */
+  cursor: default;
+}
+.tab-editor-viewport:focus { outline: none; }
+
+/* Hints de teclado no rodapé do viewport */
+.tab-editor-kbd-hints {
+  position: absolute; bottom: 6px; left: 24px; right: 14px;
+  display: flex; gap: 10px; flex-wrap: wrap;
+  font-size: 0.68rem; color: var(--sub); pointer-events: none;
+}
+.tab-editor-key {
+  display: inline-block;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 3px; padding: 0 5px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.68rem; color: var(--sub);
+}

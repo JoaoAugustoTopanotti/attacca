@@ -12,7 +12,7 @@ GitSong é um "GitHub para tablatura": transcrições musicais colaborativas, on
 várias pessoas completam uma música por instrumento/trilha, com histórico de versões
 e um player estilo Songsterr (notação/tab + playback com cursor).
 
-## Estado atual (2026-06-07)
+## Estado atual (2026-06-28)
 **Milestone 1 entregue e rodando localmente.** O app:
 - Lista músicas e cria música nova. ✅
 - Recebe upload de Guitar Pro / MusicXML, cada upload vira uma **revisão**. ✅
@@ -91,6 +91,20 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-06-28** — Sessão 1 (editor visual de tablatura — M5): substituído o `<textarea>`
+  de AlphaTex bruto na tela `/songs/[id]/edit` por um **editor visual** (`TabEditor`).
+  Criados: `src/lib/alphatex-editor.ts` (módulo puro: tipos `EditorNote/Beat/Measure/Model/
+  Cursor`, `parseTrackTex`, `serializeModel`, mutações imutáveis `setNote/deleteNote/setRest/
+  setBeatDuration/insertBeat/deleteBeat/toggleEffect`) e `src/components/TabEditor.tsx`
+  (componente `"use client"` com instância própria do alphaTab). Fluxo: click numa nota →
+  `noteMouseDown` define cursor; teclado `0–9` → casa; `← →` → navega beats; `↑ ↓` →
+  navega cordas; `r` → rest; `i` → insere beat; `Del` → apaga nota/beat; toolbar com
+  duração (`1/2/4/8/16`) + efeitos (`b h p sl v`). Toggle "editar como texto" expõe o
+  textarea bruto (fallback para power users e frets > 9). `text` state e POST para
+  `/tracks/[order]/content` continuam iguais — zero mudança na API. `TrackEditor` usa
+  `key={trackOrder}` para remontar o editor a cada troca de trilha. CSS: classes
+  `.tab-editor-*` em `globals.css`. **Decisão de MVP**: sem overlay de posições vazias
+  (notas novas via `i`); single-digit (0–9) para frets; multi-voz postergado. `tsc` limpo.
 - **2026-06-18** — Sessão 2 (deploy — Postgres + Render + Neon): preparação para o
   **primeiro revezamento real** (João + amigo). Decisão: **Render (free) + Neon (free)**
   — zero custo, sem Dockerfile, sem cartão. Railway descartado (sem free tier). Mudanças:

@@ -235,8 +235,15 @@ O raciocínio que levou à decisão (mantido como contexto):
   Rotas `/api/songs/[id]/tracks` (declarar + presets) e `/completeness`. UI: **home = mural**
   (% + "falta X" por música) + painel por música (barras por trilha + declarar + materializar).
   Slot vazio **assembla válido** (só pausas) — verificado.
-- ⚠️ **Limite atual**: editor é de fragmento alphaTex **bruto** (editor visual de tab = M5);
-  auto-materializar no upload é o "último parafuso", depois do loop maduro.
+- **Editor visual de tablatura (M5, implementado)** — `src/components/TabEditor.tsx` +
+  `src/lib/alphatex-editor.ts`. Click numa nota → cursor; teclado `0–9` → casa; `←→` →
+  navega beats; `↑↓` → navega cordas; `r` → rest; `i` → insere beat após cursor; `Del` →
+  apaga nota/beat; toolbar com duração (`1/2/4/8/16`) e efeitos (`b h p sl v`). Toggle
+  "editar como texto" expõe o textarea bruto como fallback. O `text` state e o POST para
+  `/api/songs/[id]/tracks/[order]/content` continuam iguais — zero mudança na API.
+  MVP sem overlay de notas vazias (inserir via `i`); multi-voz voice 0 apenas.
+- ⚠️ **Limite atual**: frets > 9 requerem modo texto (MVP: dígito único); overlay de
+  posições vazias não implementado. Auto-materializar no upload é o "último parafuso".
 
 ## 9. Estrutura
 ```
