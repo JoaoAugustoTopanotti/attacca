@@ -929,10 +929,11 @@ label {
 }
 /* AlphaTabPlayer in editMode reuses player-card--fullpage CSS */
 
-/* Bottom panel: editor (left) + proposals (right), fixed height */
+/* Bottom panel: editor (left) + proposals (right) — altura controlada via inline style */
 .edit-bottom {
-  flex-shrink: 0; height: 220px;
-  display: flex; border-top: 1px solid var(--border); overflow: hidden;
+  flex-shrink: 0;
+  display: flex; overflow: hidden;
+  /* sem border-top: o resize-handle já faz essa separação */
 }
 
 /* Left: tablature textarea */
@@ -1112,3 +1113,34 @@ label {
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.68rem; color: var(--sub);
 }
+
+/* Overlay do modo texto: cobre o viewport sem tirá-lo do DOM */
+.tab-editor-raw-overlay {
+  position: absolute;
+  /* começa abaixo do cabeçalho (header ~30px + toolbar ~34px = ~64px)
+     mas quando rawMode a toolbar não existe, então só abaixo do header */
+  top: 30px; left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  background: var(--panel);
+  display: flex; flex-direction: column; gap: 0;
+  padding: 8px 14px 8px 24px;
+}
+.tab-editor-raw-overlay .edit-textarea {
+  flex: 1; min-height: 0;
+}
+
+/* ── Resize handle entre o player e o painel inferior ── */
+.edit-resize-handle {
+  flex-shrink: 0;
+  height: 5px;
+  cursor: ns-resize;
+  background: var(--border);
+  position: relative;
+  user-select: none;
+}
+.edit-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;  /* aumenta a área clicável sem alterar o visual */
+}
+.edit-resize-handle:hover { background: var(--accent); }

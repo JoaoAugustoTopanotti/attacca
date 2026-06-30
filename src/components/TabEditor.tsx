@@ -31,7 +31,7 @@ const DURATIONS: Array<{ value: 1 | 2 | 4 | 8 | 16; label: string; title: string
 ];
 
 const EFFECTS: Array<{ value: NoteEffect; label: string; title: string }> = [
-  { value: "b",  label: "b", title: "Bend"     },
+  { value: "b",  label: "b", title: "Bend"      },
   { value: "h",  label: "h", title: "Hammer-on" },
   { value: "p",  label: "p", title: "Pull-off"  },
   { value: "sl", label: "/", title: "Slide"     },
@@ -41,7 +41,6 @@ const EFFECTS: Array<{ value: NoteEffect; label: string; title: string }> = [
 // Nomes de cordas (string 1 = mais aguda)
 const STRING_NAMES_6 = ["e", "B", "G", "D", "A", "E"];
 const STRING_NAMES_4 = ["G", "D", "A", "E"];
-
 function stringName(s: number, count: number): string {
   const names = count === 4 ? STRING_NAMES_4 : STRING_NAMES_6;
   return names[s - 1] ?? String(s);
@@ -55,9 +54,9 @@ type Props = {
   disabled?: boolean;
   /** 6 para guitarra, 4 para baixo. Default 6. */
   trackStringCount?: number;
-  /** Mensagem de erro a exibir (vinda do TrackEditor). */
+  /** Mensagem de erro vinda do TrackEditor. */
   error?: string | null;
-  /** Mensagem de sucesso/info a exibir. */
+  /** Mensagem de sucesso/info vinda do TrackEditor. */
   info?: string | null;
 };
 
@@ -78,18 +77,29 @@ export default function TabEditor({
   const [rawMode, setRawMode] = useState(false);
   const [apiReady, setApiReady] = useState(false);
 
-  // Refs para evitar closures obsoletas nos event handlers
+  // Refs para evitar closures obsoletas nos event handlers do alphaTab
   const modelRef  = useRef<EditorModel>(model);
   const cursorRef = useRef<EditorCursor>(cursor);
   const surfaceRef  = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
+  // Detecta transição rawMode true → false para sincronizar o alphaTab
+  const prevRawModeRef = useRef(false);
 
-  // Mantém refs em sincronia com o estado
   useEffect(() => { modelRef.current = model; }, [model]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
 
-  // ── Inicialização do alphaTab ──────────────────────────────────────────────
+  // ── Fix 2: surface sempre no DOM ───────────────────────────────────────────
+  // Quando o usuário sai do modo texto e volta ao visual, sincroniza o alphaTab
+  // com o modelo atual (que pode ter sido editado no textarea).
+  useEffect(() => {
+    if (!rawMode && prevRawModeRef.current && apiRef.current) {
+      apiRef.current.tex(serializeModel(modelRef.current));
+    }
+    prevRawModeRef.current = rawMode;
+  }, [rawMode]);
+
+  // ── Inicialização do alphaTab (uma vez na montagem) ────────────────────────
   useEffect(() => {
     let api: AlphaTabApi | null = null;
     let disposed = false;
@@ -114,24 +124,29 @@ export default function TabEditor({
         },
         player: {
           enablePlayer:          true,
-          enableCursor:          false,   // cursor de playback desativado
-          enableUserInteraction: true,    // necessário para noteMouseDown
+          enableCursor:          false,  // cursor de playback desativado
+          enableUserInteraction: true,   // habilita noteMouseDown
           soundFont:             "/soundfont/sonivox.sf2",
           scrollElement:         viewportRef.current ?? undefined,
           scrollMode:            at.ScrollMode.Continuous,
         },
       });
 
-      // Score carregada → editor pronto
-      api.scoreLoaded.on(() => setApiReady(true));
+      api.scoreLoaded.on(() => {
+        setApiReady(true);
+        // Fix 1: foca o viewport logo após a partitura carregar,
+        // para que o teclado funcione imediatamente.
+        requestAnimationFrame(() => viewportRef.current?.focus());
+      });
 
-      // Clique numa nota → define cursor
+      // Fix 1: ao clicar numa nota, define o cursor E foca o viewport.
+      // Sem o focus(), o onKeyDown do viewport nunca dispara.
       api.noteMouseDown.on((note) => {
         const measureIndex = note.beat.voice.bar.index;
         const beatIndex    = note.beat.index;
         const string       = note.string;
         setCursor({ measureIndex, beatIndex, string });
-        return false; // impede seleção padrão do alphaTab
+        viewportRef.current?.focus();
       });
 
       api.error.on((err) => {
@@ -139,7 +154,6 @@ export default function TabEditor({
       });
 
       apiRef.current = api;
-      // Carrega o alphaTex inicial
       api.tex(alphaTex);
     })();
 
@@ -149,9 +163,9 @@ export default function TabEditor({
       api?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Apenas na montagem — remontagem via key={trackOrder} no pai
+  }, []); // Apenas na montagem — pai usa key={trackOrder} para remontar ao trocar trilha
 
-  // ── Aplicar modelo ao alphaTab e notificar pai ─────────────────────────────
+  // ── Aplicar edição ao alphaTab e notificar o pai ───────────────────────────
   const applyModel = useCallback(
     (newModel: EditorModel) => {
       const tex = serializeModel(newModel);
@@ -169,12 +183,11 @@ export default function TabEditor({
       const cur = cursorRef.current;
       const mod = modelRef.current;
 
-      // Dígito 0–9 → define a casa
+      // Dígito 0–9 → define a casa da nota selecionada
       if (/^[0-9]$/.test(e.key)) {
         if (!cur) return;
         e.preventDefault();
-        const fret = parseInt(e.key, 10);
-        applyModel(setNote(mod, cur.measureIndex, cur.beatIndex, cur.string, fret));
+        applyModel(setNote(mod, cur.measureIndex, cur.beatIndex, cur.string, parseInt(e.key, 10)));
         return;
       }
 
@@ -238,7 +251,6 @@ export default function TabEditor({
           if (!cur) return;
           const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
           if (!beat) return;
-          // Se há nota nesta corda: apaga só ela; senão, apaga o beat inteiro
           if (beat.notes.some((n) => n.string === cur.string)) {
             applyModel(deleteNote(mod, cur.measureIndex, cur.beatIndex, cur.string));
           } else {
@@ -273,138 +285,145 @@ export default function TabEditor({
     applyModel(toggleEffect(mod, cur.measureIndex, cur.beatIndex, cur.string, effect));
   }
 
-  // Efeitos ativos na nota sob o cursor
   function activeEffects(): NoteEffect[] {
     if (!cursor) return [];
     const beat = model.measures[cursor.measureIndex]?.beats[cursor.beatIndex];
-    if (!beat) return [];
-    return beat.notes.find((n) => n.string === cursor.string)?.effects ?? [];
+    return beat?.notes.find((n) => n.string === cursor.string)?.effects ?? [];
   }
-
   const effects = activeEffects();
 
-  // ── Modo texto (fallback) ──────────────────────────────────────────────────
-  if (rawMode) {
-    return (
-      <div className="edit-editor">
-        <div className="edit-editor-head">
-          <span className="edit-editor-label">Tablatura da faixa (texto)</span>
-          <button
-            type="button"
-            className="tab-editor-raw-toggle"
-            onClick={() => setRawMode(false)}
-          >
-            usar editor visual
-          </button>
-        </div>
-        <textarea
-          className="edit-textarea"
-          value={alphaTex}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setModel(parseTrackTex(e.target.value));
-          }}
-          disabled={disabled}
-          spellCheck={false}
-        />
-        <div className="edit-actions">
-          {error && <span className="form-error">{error}</span>}
-          {info  && <span className="form-ok">{info}</span>}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Editor visual ──────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
+  //
+  // Fix 2 — a <div ref={surfaceRef}> NUNCA sai do DOM.
+  // Quando rawMode=true, um overlay absoluto cobre o editor visual.
+  // Assim o alphaTab mantém sua instância e o canvas tem sempre dimensões válidas.
+  // Ao retornar do rawMode, o useEffect acima chama api.tex() para sincronizar.
+  //
   return (
-    <div className="tab-editor">
+    <div className="tab-editor" style={{ position: "relative" }}>
 
-      {/* Cabeçalho: label + toggle para modo texto */}
+      {/* ── Cabeçalho: label + toggle ── */}
       <div className="tab-editor-header">
-        <span className="tab-editor-section-label">Editor visual</span>
+        <span className="tab-editor-section-label">
+          {rawMode ? "Tablatura da faixa (texto)" : "Editor visual"}
+        </span>
         <div className="tab-editor-header-right">
           {error && <span className="form-error" style={{ fontSize: "0.75rem" }}>{error}</span>}
           {info  && <span className="form-ok"   style={{ fontSize: "0.75rem" }}>{info}</span>}
           <button
             type="button"
             className="tab-editor-raw-toggle"
-            onClick={() => setRawMode(true)}
+            onClick={() => setRawMode((m) => !m)}
           >
-            editar como texto
+            {rawMode ? "usar editor visual" : "editar como texto"}
           </button>
         </div>
       </div>
 
-      {/* Toolbar: duração + efeitos + posição do cursor */}
-      <div className="tab-editor-toolbar">
-        <span className="tab-editor-toolbar-label">Dur.</span>
-        <div className="tab-editor-toolbar-group">
-          {DURATIONS.map((d) => (
-            <button
-              key={d.value}
-              type="button"
-              className={`tab-editor-btn${duration === d.value ? " active" : ""}`}
-              title={d.title}
-              onClick={() => handleDurationChange(d.value)}
-            >
-              {d.label}
-            </button>
-          ))}
+      {/* ── Toolbar — visível apenas no modo visual ── */}
+      {!rawMode && (
+        <div className="tab-editor-toolbar">
+          <span className="tab-editor-toolbar-label">Dur.</span>
+          <div className="tab-editor-toolbar-group">
+            {DURATIONS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                className={`tab-editor-btn${duration === d.value ? " active" : ""}`}
+                title={d.title}
+                onClick={() => handleDurationChange(d.value)}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="tab-editor-toolbar-sep" />
+
+          <span className="tab-editor-toolbar-label">Efeito</span>
+          <div className="tab-editor-toolbar-group">
+            {EFFECTS.map((ef) => (
+              <button
+                key={ef.value}
+                type="button"
+                className={`tab-editor-btn${effects.includes(ef.value) ? " effect-active" : ""}`}
+                title={ef.title}
+                onClick={() => handleEffectToggle(ef.value)}
+                disabled={!cursor}
+              >
+                {ef.label}
+              </button>
+            ))}
+          </div>
+
+          {cursor && (
+            <>
+              <div className="tab-editor-toolbar-sep" />
+              <span className="tab-editor-pos">
+                Comp.{" "}<strong>{cursor.measureIndex + 1}</strong>
+                {" · "}Beat{" "}<strong>{cursor.beatIndex + 1}</strong>
+                {" · "}Corda{" "}<strong>{cursor.string} ({stringName(cursor.string, trackStringCount)})</strong>
+              </span>
+            </>
+          )}
+
+          {!cursor && (
+            <>
+              <div className="tab-editor-toolbar-sep" />
+              <span className="tab-editor-pos">Clique num número da tablatura para selecionar</span>
+            </>
+          )}
         </div>
+      )}
 
-        <div className="tab-editor-toolbar-sep" />
-
-        <span className="tab-editor-toolbar-label">Efeito</span>
-        <div className="tab-editor-toolbar-group">
-          {EFFECTS.map((ef) => (
-            <button
-              key={ef.value}
-              type="button"
-              className={`tab-editor-btn${effects.includes(ef.value) ? " effect-active" : ""}`}
-              title={ef.title}
-              onClick={() => handleEffectToggle(ef.value)}
-              disabled={!cursor}
-            >
-              {ef.label}
-            </button>
-          ))}
-        </div>
-
-        {cursor && (
-          <>
-            <div className="tab-editor-toolbar-sep" />
-            <span className="tab-editor-pos">
-              Comp.{" "}<strong>{cursor.measureIndex + 1}</strong>
-              {" · "}Beat{" "}<strong>{cursor.beatIndex + 1}</strong>
-              {" · "}Corda{" "}<strong>{cursor.string} ({stringName(cursor.string, trackStringCount)})</strong>
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Viewport do alphaTab — recebe o foco para os eventos de teclado */}
+      {/* ── Viewport com alphaTab — SEMPRE no DOM ──
+          Quando rawMode=true fica coberto pelo overlay abaixo, mas o canvas
+          continua com dimensões válidas e o alphaTab mantém a instância.  */}
       <div
         ref={viewportRef}
         className="tab-editor-viewport"
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        aria-label="Editor de tablatura. Clique numa nota para selecionar e use o teclado para editar."
+        aria-label="Editor de tablatura. Clique num número para selecionar e use o teclado para editar."
+        style={{ visibility: rawMode ? "hidden" : "visible" }}
       >
-        {!apiReady && (
+        {!apiReady && !rawMode && (
           <div className="player-loading">Carregando editor…</div>
         )}
         <div ref={surfaceRef} className="player-surface" />
 
-        {/* Hints de teclado */}
-        <div className="tab-editor-kbd-hints">
-          <span><kbd className="tab-editor-key">0–9</kbd> casa</span>
-          <span><kbd className="tab-editor-key">← →</kbd> beat</span>
-          <span><kbd className="tab-editor-key">↑ ↓</kbd> corda</span>
-          <span><kbd className="tab-editor-key">r</kbd> rest</span>
-          <span><kbd className="tab-editor-key">i</kbd> inserir beat</span>
-          <span><kbd className="tab-editor-key">Del</kbd> apagar</span>
-        </div>
+        {!rawMode && (
+          <div className="tab-editor-kbd-hints">
+            <span><kbd className="tab-editor-key">0–9</kbd> casa</span>
+            <span><kbd className="tab-editor-key">← →</kbd> beat</span>
+            <span><kbd className="tab-editor-key">↑ ↓</kbd> corda</span>
+            <span><kbd className="tab-editor-key">r</kbd> rest</span>
+            <span><kbd className="tab-editor-key">i</kbd> inserir beat</span>
+            <span><kbd className="tab-editor-key">Del</kbd> apagar</span>
+          </div>
+        )}
       </div>
+
+      {/* ── Overlay do modo texto — cobre o editor visual ──
+          Usa position:absolute para sobrepor sem remover o surface do DOM. */}
+      {rawMode && (
+        <div className="tab-editor-raw-overlay">
+          <textarea
+            className="edit-textarea"
+            value={alphaTex}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setModel(parseTrackTex(e.target.value));
+            }}
+            disabled={disabled}
+            spellCheck={false}
+          />
+          <div className="edit-actions">
+            {error && <span className="form-error">{error}</span>}
+            {info  && <span className="form-ok">{info}</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

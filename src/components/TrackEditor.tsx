@@ -33,6 +33,8 @@ export default function TrackEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Altura do painel inferior (redimensionável por drag)
+  const [bottomHeight, setBottomHeight] = useState(220);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [reviewing, setReviewing] = useState<Proposal | null>(null);
   const [reviewContent, setReviewContent] = useState<
@@ -43,6 +45,25 @@ export default function TrackEditor({
   const playerRef = useRef<AlphaTabPlayerHandle>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+
+  // Resize handle: arrastar a borda superior do painel inferior
+  function handleResizeStart(e: React.MouseEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = bottomHeight;
+
+    function onMove(ev: MouseEvent) {
+      // Arrastar para cima (delta negativo) → painel maior
+      const delta = startY - ev.clientY;
+      setBottomHeight(Math.max(120, Math.min(600, startH + delta)));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
   useEffect(() => {
     fetch("/api/me")
@@ -218,8 +239,15 @@ export default function TrackEditor({
         />
       </div>
 
+      {/* ── Resize handle ── */}
+      <div
+        className="edit-resize-handle"
+        onMouseDown={handleResizeStart}
+        title="Arrastar para redimensionar"
+      />
+
       {/* ── Bottom panel: editor + proposals ── */}
-      <div className="edit-bottom">
+      <div className="edit-bottom" style={{ height: bottomHeight }}>
         {/* Left — visual tab editor (substitui o textarea) */}
         {content ? (
           <TabEditor
