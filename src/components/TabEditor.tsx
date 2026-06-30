@@ -109,7 +109,13 @@ export default function TabEditor({
       if (disposed || !surfaceRef.current) return;
 
       api = new at.AlphaTabApi(surfaceRef.current, {
-        core: { fontDirectory: "/font/" },
+        core: {
+          fontDirectory: "/font/",
+          // Necessário para que noteMouseDown dispare ao clicar numa nota.
+          // Sem isso, o alphaTab não calcula as bounds individuais de cada nota
+          // e o evento nunca é acionado (ver _setupClickHandling no bundle).
+          includeNoteBounds: true,
+        },
         display: {
           staveProfile: "Tab",
           scale: 1.0,
