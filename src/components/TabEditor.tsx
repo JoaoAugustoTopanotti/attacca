@@ -311,6 +311,15 @@ export default function TabEditor({
   }
   const effects = activeEffects();
 
+  // ── Duração "exibida" na toolbar ───────────────────────────────────────────
+  // Quando há cursor, reflete a duração REAL do beat apontado — não o último
+  // botão que o usuário clicou. Isso corrige o caso: clicar em A (dur 16),
+  // depois em B (dur 8), voltar a A → botão mostra 16, não 8.
+  // Quando não há cursor, usa o `duration` state como "intenção" para inserção.
+  const displayDuration: 1 | 2 | 4 | 8 | 16 = cursor
+    ? (model.measures[cursor.measureIndex]?.beats[cursor.beatIndex]?.duration ?? duration)
+    : duration;
+
   // ── Render ──────────────────────────────────────────────────────────────────
   //
   // Fix 2 — a <div ref={surfaceRef}> NUNCA sai do DOM.
@@ -348,7 +357,7 @@ export default function TabEditor({
               <button
                 key={d.value}
                 type="button"
-                className={`tab-editor-btn${duration === d.value ? " active" : ""}`}
+                className={`tab-editor-btn${displayDuration === d.value ? " active" : ""}`}
                 title={d.title}
                 onClick={() => handleDurationChange(d.value)}
               >
@@ -382,6 +391,9 @@ export default function TabEditor({
                 Comp.{" "}<strong>{cursor.measureIndex + 1}</strong>
                 {" · "}Beat{" "}<strong>{cursor.beatIndex + 1}</strong>
                 {" · "}Corda{" "}<strong>{cursor.string} ({stringName(cursor.string, trackStringCount)})</strong>
+                {" · "}<strong title={DURATIONS.find((d) => d.value === displayDuration)?.title}>
+                  1/{displayDuration}
+                </strong>
               </span>
             </>
           )}
