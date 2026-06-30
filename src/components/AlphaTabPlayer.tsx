@@ -17,6 +17,8 @@ export type PlayerRevision = {
 /** Handle exposed via ref in editMode */
 export type AlphaTabPlayerHandle = {
   playPause: () => void;
+  /** Exibe a trilha de índice `index` (0-based) no player. */
+  selectTrack: (index: number) => void;
 };
 
 type Status = "loading" | "ready" | "error";
@@ -73,9 +75,17 @@ const AlphaTabPlayer = forwardRef<
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
 
-  // Expose playPause() for editMode callers
+  // Expose playPause() and selectTrack() for editMode callers
   useImperativeHandle(ref, () => ({
     playPause: () => apiRef.current?.playPause(),
+    selectTrack: (index: number) => {
+      const api = apiRef.current;
+      const score = scoreRef.current;
+      if (!api || !score) return;
+      setSelectedTrackIndex(index);
+      const track = score.tracks.find((t: Track) => t.index === index);
+      if (track) api.renderTracks([track]);
+    },
   }));
 
   // Bubble playing / ready state to parent (editMode)

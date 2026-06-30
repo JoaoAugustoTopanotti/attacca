@@ -97,6 +97,15 @@ export default function TrackEditor({
   useEffect(() => { loadTrack(); }, [loadTrack]);
   useEffect(() => { loadProposals(); }, [loadProposals]);
 
+  // Sincroniza o player com a trilha sendo editada.
+  // Quando playerReady muda para true (score carregado) OU quando trackOrder muda,
+  // pede ao player para exibir a trilha correspondente.
+  useEffect(() => {
+    if (!playerReady) return;
+    const trackIndex = tracks.findIndex((t) => t.order === trackOrder);
+    if (trackIndex >= 0) playerRef.current?.selectTrack(trackIndex);
+  }, [trackOrder, playerReady, tracks]);
+
   // Reset player state when switching tracks or proposals
   const playerUrl = reviewing
     ? `/api/songs/${songId}/assembled?track=${reviewing.trackOrder}&author=${reviewing.authorId}`

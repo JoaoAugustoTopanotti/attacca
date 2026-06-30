@@ -140,19 +140,32 @@ export default function TabEditor({
 
       api.scoreLoaded.on(() => {
         setApiReady(true);
-        // Fix 1: foca o viewport logo após a partitura carregar,
-        // para que o teclado funcione imediatamente.
+        // Foca o viewport logo após a partitura carregar para que o
+        // teclado funcione imediatamente.
         requestAnimationFrame(() => viewportRef.current?.focus());
       });
 
-      // Fix 1: ao clicar numa nota, define o cursor E foca o viewport.
-      // Sem o focus(), o onKeyDown do viewport nunca dispara.
+      // beatMouseDown dispara em QUALQUER beat (notas E rests) sem precisar
+      // de includeNoteBounds. Permite selecionar o cursor clicando em qualquer
+      // posição da tablatura, incluindo compassos vazios.
+      api.beatMouseDown.on((beat) => {
+        const measureIndex = beat.voice.bar.index;
+        const beatIndex    = beat.index;
+        // Mantém a corda atual do cursor; se não houver, usa a 1ª corda.
+        const string = cursorRef.current?.string ?? 1;
+        setCursor({ measureIndex, beatIndex, string });
+        viewportRef.current?.focus();
+      });
+
+      // noteMouseDown (requer includeNoteBounds:true) refina a corda quando
+      // o clique foi diretamente sobre um número de casa existente.
+      // Dispara logo após beatMouseDown, sobrescrevendo a corda com precisão.
       api.noteMouseDown.on((note) => {
         const measureIndex = note.beat.voice.bar.index;
         const beatIndex    = note.beat.index;
         const string       = note.string;
         setCursor({ measureIndex, beatIndex, string });
-        viewportRef.current?.focus();
+        // focus já foi chamado pelo beatMouseDown acima
       });
 
       api.error.on((err) => {
