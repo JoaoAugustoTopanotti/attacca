@@ -28,6 +28,13 @@ export type EditorBeat = {
 
 export type EditorMeasure = {
   beats: EditorBeat[];
+  /**
+   * True when this measure came from an empty cell (no contribution on the server).
+   * Used by `serializeModel` to round-trip empty cells as `""` instead of `"r"`,
+   * so `submitTrackContent` skips them (body === "") and doesn't create noise contributions.
+   * Cleared implicitly when the measure gets real content (notes or multiple beats).
+   */
+  wasEmpty?: boolean;
 };
 
 export type EditorModel = {
@@ -118,6 +125,7 @@ function cloneModel(model: EditorModel): EditorModel {
   return {
     header: model.header,
     measures: model.measures.map((m) => ({
+      wasEmpty: m.wasEmpty,
       beats: m.beats.map((b) => ({
         duration: b.duration,
         isRest: b.isRest,
@@ -140,7 +148,19 @@ export function parseTrackTex(tex: string): EditorModel {
 
   for (const raw of measureStrings) {
     const trimmed = raw.trim();
-    if (!trimmed) continue;
+
+    // Empty segment = cell with no contribution on the server.
+    // We must NOT skip it — the measure still exists in the DB and counts toward
+    // the total. We create a placeholder rest so the model index stays in sync with
+    // the server's measure list. wasEmpty=true lets the serializer round-trip it
+    // back to "" so submitTrackContent skips it (body === "").
+    if (!trimmed) {
+      measures.push({
+        wasEmpty: true,
+        beats: [{ duration: currentDuration, notes: [], isRest: true }],
+      });
+      continue;
+    }
 
     const tokens = tokenizeMeasure(trimmed);
     const beats: EditorBeat[] = [];
@@ -190,6 +210,22 @@ export function serializeModel(model: EditorModel): string {
   let prevDuration: 1 | 2 | 4 | 8 | 16 = 4;
 
   for (const measure of model.measures) {
+    // wasEmpty = came from an empty cell (no server contribution).
+    // If the user hasn't added any real content (still a single rest, no notes),
+    // round-trip as "" so submitTrackContent's `body === ""` guard skips it and
+    // avoids creating noise contributions for untouched measures.
+    // Do NOT update prevDuration: alphaTab inherits the active duration from context,
+    // matching what will happen when it parses "" as an implicit rest.
+    if (
+      measure.wasEmpty &&
+      measure.beats.length === 1 &&
+      measure.beats[0].isRest &&
+      measure.beats[0].notes.length === 0
+    ) {
+      measureParts.push("");
+      continue;
+    }
+
     const beatParts: string[] = [];
 
     for (const beat of measure.beats) {
