@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { detectUploadFormat } from "@/lib/format";
 import { scoreBytesToAlphaTex } from "@/lib/canonical";
 import { getCurrentUser } from "@/lib/identity";
+import { materializeSongGrid } from "@/lib/materialize";
 
 type Params = { params: Promise<{ songId: string }> };
 
@@ -86,9 +87,20 @@ export async function POST(request: Request, { params }: Params) {
   });
   const number = (last?.number ?? 0) + 1;
 
-  // Derive the canonical alphaTex (versionable form) alongside the provenance
-  // blob. Best-effort: null if alphaTab can't parse this file.
+  // Derive the canonical alphaTex (versionable form). Sem canônico não há grade
+  // de colaboração — e uma música sem grade é um beco sem saída no site, então
+  // o upload é BARRADO aqui, não aceito pela metade.
   const alphaTex = await scoreBytesToAlphaTex(bytes);
+  if (!alphaTex) {
+    return NextResponse.json(
+      {
+        error:
+          "Não foi possível converter este arquivo para o formato colaborativo. " +
+          "Tente exportar como Guitar Pro (.gp) e enviar de novo.",
+      },
+      { status: 422 },
+    );
+  }
 
   // Provenance blob lives IN the DB (no disk dependency — deploy-friendly).
   const revision = await prisma.revision.create({
@@ -116,6 +128,26 @@ export async function POST(request: Request, { params }: Params) {
       createdAt: true,
     },
   });
+
+  // Materializa a grade (trilha × compasso) DIRETO no upload — colaborar não
+  // depende mais de um passo manual. SÓ quando a música ainda não tem grade:
+  // re-materializar uma grade viva apagaria as contribuições do revezamento.
+  const hasGrid = (await prisma.measure.count({ where: { songId } })) > 0;
+  if (!hasGrid) {
+    try {
+      await materializeSongGrid(songId);
+    } catch (e) {
+      await prisma.revision.delete({ where: { id: revision.id } });
+      return NextResponse.json(
+        {
+          error:
+            "O arquivo converteu mas não montou a grade de colaboração" +
+            (e instanceof Error ? `: ${e.message.split("\n")[0]}` : "."),
+        },
+        { status: 422 },
+      );
+    }
+  }
 
   // Touch the song so it sorts to the top of the list.
   await prisma.song.update({
