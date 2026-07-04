@@ -205,15 +205,42 @@ O raciocínio que levou à decisão (mantido como contexto):
   no `/edit` (CellEditor por-célula virou legado). Mudar nº de compassos é bloqueado (operação
   estrutural separada). Rotas: `/tracks/[order]/content` (GET/POST), `/tracks/[order]/accept`,
   `/proposals`.
-- **Revisão com VER/OUVIR antes de aceitar (pós-teste real)** — o dono aprovava às cegas.
-  No `TrackEditor`, "Revisar" → o player ao lado toca a **pré-visualização** (`GET
-  /assembled?track=&author=` aplica a proposta **sem** aceitar, via `proposalOverrides`) +
-  mostra o **tab proposto** (`getProposalContent`, rota `/tracks/[order]/proposal`); só então
-  Aceitar/Recusar.
-- **Colaborador vê a própria proposta (pós-teste real)** — antes, quem propunha não tinha
-  sinal persistente. No `TrackEditor` o **não-dono** vê a seção **"Suas propostas"**
-  (`proposals` filtrado por `authorId`), com **Ver** = mesma pré-visualização (toca + tab),
-  **sem** Aceitar/Recusar ("Aguardando o dono aceitar").
+- **Revisão = TAB "Propostas" na página da música (2ª revisão pós-teste)** — a fila saiu
+  do editor (`ProposalsPanel` em `SongTabs`, entre Colaborar e Histórico): **dono vê todas**
+  (Aceitar/Recusar), **colaborador vê só as suas** ("aguardando o dono"). Expandir ("Ver
+  mudanças") mostra um **diff estilo GitHub** (verde=acrescentou / vermelho=tirou,
+  `src/lib/linediff.ts` — LCS puro, colapsa trechos iguais; comparação NORMALIZADA) +
+  player "Ouvir como fica" (`GET /assembled?track=&author=`, proposta aplicada sem gravar,
+  abre na trilha via `defaultTrackIndex`). `GET /proposals` retorna
+  `{ song: {ownerId, ownerName}, proposals }`. O `/edit` é 100% editor.
+- **Completude/instrumentos na aba Colaborar** — `CompletenessPanel` (antes órfão) agora
+  vive dentro do `CollabPanel`: barras por trilha + "falta X" + **declarar slot** (o mural
+  de incompletude por-música). Materialização é automática no upload, então não há mais
+  botão "Materializar" no fluxo normal.
+- **Histórico dirige o PLAYER; visível a todos, Reverter só do dono** — `HistoryPanel` sem
+  player inline; "Ouvir" chama `onView(revId)` → `SongTabs` faz `setView(revId)` + vai pra
+  aba Player; `PlayerPanel` mostra a barra "Tocando #N do histórico — ← Voltar ao atual".
+  A tab é visível a todos (é o revezamento acontecendo); só o botão **Reverter** é gateado
+  (`canRevert=isOwner`; `ownerId` vem do server → `SongTabs`).
+- **Diff da proposta NA PARTITURA (killer feature)** — `ProposalsPanel`: "Ver mudanças" abre
+  a **tablatura em tela cheia** (`.proposal-detail`) com as notas mudadas/novas **pintadas de
+  verde** direto na partitura. `AlphaTabPlayer` ganhou `highlightBeats: string[]`
+  ("measureIndex:beatIndex" voz 0) → em `scoreLoaded`, antes do `renderTracks`, seta
+  `note.style`/`beat.style` com `NoteSubElement.GuitarTabFretNumber` = verde (via
+  `alphaTab.model.*`). O painel calcula os beats mudados por LCS de assinaturas de beat
+  (current × proposed, `parseTrackTex`). Removidos só aparecem no "−N" do cabeçalho (não
+  há como mostrá-los na tablatura do PROPOSTO). Cabeçalho: `+N −M · verde = mudou`.
+- **Layout das abas** — Colaborar em largura total; a completude virou **menu recolhível no
+  rodapé** (`CompletenessPanel`: fechado = "X% completo", abre pra cima com % por instrumento
+  em grade + declarar slot). Scrollbars escondidas (`.no-scrollbar` + viewports do player)
+  mantendo o scroll.
+- ⚠️ **Comparação de fragmento é NORMALIZADA** (`normalizeFragment` em track-content:
+  linhas trimadas). O exporter indenta; o editor re-serializa sem indentação — comparação
+  textual crua marcava TODO compasso como "mudado" (proposta de 1 nota virava 103
+  compassos; aconteceu de verdade). Só conteúdo real conta como mudança.
+- **Propor não recarrega o buffer** — após propor, o `TrackEditor` NÃO refaz o fetch do
+  conteúdo (refazer revertia a tela para a versão aceita e a edição "sumia" — parecia que
+  o botão não funcionava). `changed=0` → mensagem "sem mudanças".
 - **Player mostra a verdade viva** — `SongWorkspace`: música materializada → o player
   toca o **remontado-das-células** (`/assembled`, guitarra+baixo+…), não o snapshot de
   upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico toca snapshots.
@@ -236,14 +263,36 @@ O raciocínio que levou à decisão (mantido como contexto):
   (% + "falta X" por música) + painel por música (barras por trilha + declarar + materializar).
   Slot vazio **assembla válido** (só pausas) — verificado.
 - **Editor visual de tablatura (M5, implementado)** — `src/components/TabEditor.tsx` +
-  `src/lib/alphatex-editor.ts`. Click numa nota → cursor; teclado `0–9` → casa; `←→` →
-  navega beats; `↑↓` → navega cordas; `r` → rest; `i` → insere beat após cursor; `Del` →
-  apaga nota/beat; toolbar com duração (`1/2/4/8/16`) e efeitos (`b h p sl v`). Toggle
-  "editar como texto" expõe o textarea bruto como fallback. O `text` state e o POST para
-  `/api/songs/[id]/tracks/[order]/content` continuam iguais — zero mudança na API.
-  MVP sem overlay de notas vazias (inserir via `i`); multi-voz voice 0 apenas.
-- ⚠️ **Limite atual**: frets > 9 requerem modo texto (MVP: dígito único); overlay de
-  posições vazias não implementado. Auto-materializar no upload é o "último parafuso".
+  `src/lib/alphatex-editor.ts` (parser/serializer do dialeto do `AlphaTexExporter`:
+  duração inline `casa.corda.dur`, gramática `nota{fxNota}.dur{fxBeat}`, UM bloco `{}`
+  por nota; anotações/vozes extras/diretivas preservadas opacas). **Pegadinha**: alphaTex
+  numera corda 1 = aguda; o MODELO do alphaTab numera 1 = grave (`tex = total+1−model`).
+  Render do editor via `serializeForRender` (vozes transpostas + `Track.headerFragment`
+  + `Measure.structPrefix`) → mesmos masterbars/ticks da música completa; `\voice` por
+  compasso NÃO é alphaTex válido (cria masterbars extras — só o formato de célula usa).
+  A tela `/edit` é só o editor (player headless `audioOnly` toca a música completa);
+  cursor de playback sincronizado por TICK (`onTickChange`→`seekTick`); clicar num beat
+  faz SEEK; o clique escolhe a corda pelo Y (geometria calibrada por NoteBounds);
+  overlay de seleção (beat+corda); casas de 2 dígitos; efeitos `H P / ~ LR` + Bend
+  padrão `{b (0 4)}` (bends importados ficam opacos). **Noção de compasso**: used/cap
+  em 64avos com pontuado `{d}`/`{dd}`, quiáltera `{tu N}`/`{tu (N M)}`, grace `{gr}`=0
+  → bloqueia estourar + badges "falta/passa X" na tablatura; durações 1..64. **Play
+  toca o que se vê**: edição não salva → `POST /tracks/[order]/preview` monta o doc com
+  a trilha local aplicada e recarrega o player headless. **Compassos**: dono
+  adiciona/remove coluna inteira da grade (`/api/songs/[id]/measures`,
+  `src/lib/measures.ts`; snapshot no histórico; remoção bloqueada se o compasso carrega
+  structPrefix). **Percussão** (`Track.isPercussion`) → modo texto forçado (notação
+  `"Kick (hit)".8` não cabe no modelo visual). POST de submissão continua igual
+  (compassos por `|`; célula vazia round-tripa como "").
+- **Auto-materialização no upload (feito)** — o POST `/revisions` deriva o canônico e,
+  se a música **ainda não tem grade**, materializa na hora; upload que não converte ou
+  não monta a grade é **barrado** (422, revisão desfeita). Re-upload em música JÁ
+  materializada só vira revisão (nunca re-materializa — apagaria o revezamento).
+  Músicas sem dono (`ownerId null`, seeds/legado) = **abertas**: qualquer identificado
+  salva direto (badge "música aberta (sem dono) — salva direto").
+- ⚠️ **Limites atuais**: vozes 1+ são opacas (edita-se a voz 0); percussão sem editor
+  visual; add/remover compasso é só do dono (estrutural-como-proposta precisa de design
+  próprio: compassos têm IDENTIDADE por id, não por índice — insert+delete ≠ edição).
 
 ## 9. Estrutura
 ```
