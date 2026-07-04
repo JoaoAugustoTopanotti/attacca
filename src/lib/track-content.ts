@@ -11,6 +11,19 @@ const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 
 const BAR_SEP = "\n|\n";
 
+/**
+ * Normaliza um fragmento de compasso para COMPARAÇÃO: linhas trimadas, vazias
+ * fora. O conteúdo vindo do exporter é indentado; o editor visual re-serializa
+ * sem indentação — sem normalizar, TODO compasso contava como "mudado" e cada
+ * proposta/save duplicava a trilha inteira (o bug dos "103 compassos").
+ */
+const normalizeFragment = (s: string) =>
+  s
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
+
 function assertOwner(
   song: { ownerId: string | null; owner: { displayName: string } | null },
   actor: Actor,
@@ -41,9 +54,25 @@ export async function getTrackContent(songId: string, trackOrder: number) {
   );
 
   return {
-    track: { id: track.id, order: track.order, name: track.name },
+    track: {
+      id: track.id,
+      order: track.order,
+      name: track.name,
+      // Percussão usa notação própria ("Kick (hit)".8) que o editor visual não
+      // modela — a UI cai para edição em texto.
+      isPercussion: track.isPercussion,
+    },
     measureCount: measures.length,
     alphaTex: bars.join(BAR_SEP),
+    // Contexto para o RENDER fiel no editor visual (não afeta a submissão):
+    // header real da trilha (afinação/instrumento) + estrutura por compasso
+    // (fórmula de compasso, andamento) — ver serializeForRender.
+    trackHeader: track.headerFragment ?? null,
+    measures: measures.map((m) => ({
+      tsNum: m.tsNumerator,
+      tsDen: m.tsDenominator,
+      structPrefix: m.structPrefix ?? null,
+    })),
     song: {
       ownerId: song?.ownerId ?? null,
       ownerName: song?.owner?.displayName ?? null,
@@ -99,14 +128,16 @@ export async function submitTrackContent(
     throw new Error(`Ficaria inválido${error ? `: ${error}` : "."}`);
   }
 
-  // Write a contribution per CHANGED, non-empty bar.
+  // Write a contribution per CHANGED, non-empty bar. A comparação é
+  // NORMALIZADA (whitespace/indentação fora) — só conteúdo real conta.
   let changed = 0;
   for (let i = 0; i < measures.length; i++) {
     const cell = cellByMeasure.get(measures[i].id);
     if (!cell) continue;
     const body = fragments[i];
-    const current = cell.acceptedContribution?.alphaTex?.trim() ?? "";
-    if (body === "" || body === current) continue; // skip empty / unchanged
+    const bodyN = normalizeFragment(body);
+    const currentN = normalizeFragment(cell.acceptedContribution?.alphaTex ?? "");
+    if (bodyN === "" || bodyN === currentN) continue; // skip empty / unchanged
 
     const created = await prisma.cellContribution.create({
       data: {
@@ -136,6 +167,40 @@ export async function submitTrackContent(
   }
 
   return { changed, accepted: isOwner };
+}
+
+/**
+ * Preview (read-only): assemble the full song with this track's bars replaced by
+ * an UNSAVED local edit. Lets the editor play "what you're seeing" before saving.
+ * Nothing is written.
+ */
+export async function previewTrackContent(
+  songId: string,
+  trackOrder: number,
+  fullAlphaTex: string,
+) {
+  const track = await prisma.track.findFirst({ where: { songId, order: trackOrder } });
+  if (!track) throw new Error("Trilha não encontrada.");
+  const measures = await prisma.measure.findMany({
+    where: { songId },
+    orderBy: { order: "asc" },
+  });
+  const cells = await prisma.cell.findMany({ where: { trackId: track.id } });
+  const cellByMeasure = new Map(cells.map((c) => [c.measureId, c]));
+
+  const fragments = fullAlphaTex.split("|").map((s) => s.trim());
+  if (fragments.length !== measures.length) {
+    throw new Error(
+      `Esperado ${measures.length} compassos, recebi ${fragments.length}.`,
+    );
+  }
+
+  const overrides = new Map<string, string>();
+  measures.forEach((m, i) => {
+    const c = cellByMeasure.get(m.id);
+    if (c) overrides.set(c.id, fragments[i]);
+  });
+  return assembleSongAlphaTex(songId, overrides);
 }
 
 /** Cell overrides (cellId → alphaTex) for an author's proposals in a track —

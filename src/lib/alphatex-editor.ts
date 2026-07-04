@@ -8,33 +8,86 @@
  *   parseTrackTex(tex)  → EditorModel
  *   <mutações>          → novo EditorModel (imutável)
  *   serializeModel(m)   → tex  (round-trip estável)
+ *
+ * IMPORTANTE — dialeto do alphaTex que recebemos.
+ * O conteúdo de trilha vem das CÉLULAS materializadas, que por sua vez vêm do
+ * `AlphaTexExporter` do alphaTab (ver materialize.ts / alphatex-grid.ts). Esse
+ * exportador usa um dialeto específico:
+ *   - **um beat por linha**;
+ *   - **duração inline por beat**: nota = `casa.corda.duração` (ex. `2.3.8`),
+ *     pausa = `r.duração` (ex. `r.1`), acorde = `(c.s c.s).duração` (ex. `(0.2 0.3).8`);
+ *   - **anotações entre chaves** que CONTÊM ESPAÇOS: `{lyrics (0 "There's") dy mp}`,
+ *     `{ch "Am"}`, `{dy mf instrument tenorsax}` — letra, dinâmica, nome de acorde…;
+ *   - **diretivas de compasso** em linhas próprias: `\clef g2`, `\ks c`, `\ottava`,
+ *     `\simile`, `\barLineRight lightlight`, e o separador de vozes `\voice`.
+ *
+ * Por isso o tokenizador é **ciente de chaves/parênteses e de linhas** (espaços
+ * dentro de `{}`/`()` NÃO separam tokens), as durações são lidas/escritas inline,
+ * e tudo que o editor não modela é **preservado opaco** (suffix da nota, prefix de
+ * diretivas do compasso, tail das vozes extras). Assim o round-trip não destrói
+ * pausas, durações, letras nem acordes — o bug que motivou esta versão.
+ *
+ * O dialeto "escrito à mão" (`:4 5.6 7.6` com duração sticky e vários beats por
+ * linha) também é aceito na leitura (seed/modo texto), mas a escrita sempre
+ * normaliza para o formato inline do exportador.
  */
 
 // ── Tipos públicos ─────────────────────────────────────────────────────────────
 
-export type NoteEffect = "b" | "h" | "p" | "sl" | "v";
+/** Durações suportadas (semibreve → semifusa). 32/64 aparecem em solos reais. */
+export type BeatDuration = 1 | 2 | 4 | 8 | 16 | 32 | 64;
+
+/**
+ * Efeitos de nota EDITÁVEIS por toggle — todos sem parâmetros, então o round-trip
+ * é sem perda. Bend (`b`) ficou de fora de propósito: precisa de pontos
+ * (`{b (0 4)}`) e um toggle achataria a curva real → bends são preservados opacos
+ * em `note.suffix`, não editáveis aqui.
+ */
+export type NoteEffect = "h" | "p" | "sl" | "v" | "lr";
 
 export type EditorNote = {
   fret: number;    // 0–24
   string: number;  // 1 (corda mais aguda) … 6 (corda mais grave)
   effects: NoteEffect[];
+  /**
+   * Efeitos/anotações de NOTA opacos, preservados verbatim. No alphaTex eles vêm
+   * ENTRE `casa.corda` e `.duração` (ex.: `3.2{t}.8` → o `{t}` de ligadura, `{lr}`
+   * de let-ring). Reescrever isso DEPOIS da duração quebra o parser (vira propriedade
+   * de beat inválida) — daí a distinção nota-antes / beat-depois.
+   */
+  suffix?: string;
 };
 
 export type EditorBeat = {
-  duration: 1 | 2 | 4 | 8 | 16;
+  duration: BeatDuration;
   notes: EditorNote[];  // vazio + isRest=true = silêncio; múltiplas = acorde
   isRest: boolean;
+  /**
+   * Anotações de BEAT opacas, que vêm DEPOIS da `.duração`, preservadas verbatim:
+   * letra, dinâmica, nome de acorde, etc. Ex.: `{lyrics (0 "a")}{dy mp}`, `{ch "Am"}`.
+   * (Efeitos de nota ficam em `note.suffix`, antes da duração.)
+   */
+  suffix?: string;
 };
 
 export type EditorMeasure = {
   beats: EditorBeat[];
   /**
-   * True when this measure came from an empty cell (no contribution on the server).
-   * Used by `serializeModel` to round-trip empty cells as `""` instead of `"r"`,
-   * so `submitTrackContent` skips them (body === "") and doesn't create noise contributions.
-   * Cleared implicitly when the measure gets real content (notes or multiple beats).
+   * True quando o compasso veio de uma célula vazia (sem contribuição no servidor).
+   * Faz `serializeModel` round-tripar como "" em vez de "r", para `submitTrackContent`
+   * pular (body === "") e não criar contribuições de ruído em compassos intocados.
    */
   wasEmpty?: boolean;
+  /**
+   * Linhas de diretiva de compasso ANTES do primeiro beat (ex.: `\clef g2`,
+   * `\ks c`, `\barLineRight lightlight`). Preservadas verbatim.
+   */
+  prefix?: string;
+  /**
+   * Conteúdo a partir do primeiro `\voice` (ou diretiva após os beats) até o fim
+   * do compasso. Preserva as vozes 1+ opacas — o editor edita só a voz 0 (MVP).
+   */
+  tail?: string;
 };
 
 export type EditorModel = {
@@ -52,71 +105,238 @@ export type EditorCursor = {
 
 // ── Helpers internos ───────────────────────────────────────────────────────────
 
-const VALID_DURATIONS = new Set<number>([1, 2, 4, 8, 16]);
+const VALID_DURATIONS = new Set<number>([1, 2, 4, 8, 16, 32, 64]);
 
-function parseDuration(s: string): 1 | 2 | 4 | 8 | 16 | null {
+function parseDuration(s: string): BeatDuration | null {
   const n = parseInt(s, 10);
-  return VALID_DURATIONS.has(n) ? (n as 1 | 2 | 4 | 8 | 16) : null;
+  return VALID_DURATIONS.has(n) ? (n as BeatDuration) : null;
 }
 
-/** Tokeniza o conteúdo de um compasso, respeitando grupos entre parênteses (acordes). */
-function tokenizeMeasure(text: string): string[] {
+/**
+ * Divide UMA linha em tokens de beat, mantendo `(...)` e `{...}` (e seus espaços
+ * internos) intactos. Cobre os dois dialetos: uma linha com vários beats
+ * (`:4 5.6 7.6`, escrito à mão) e uma linha com um beat rico do exportador
+ * (`2.3.8{lyrics (0 "x") dy mp}`).
+ */
+function splitBeatTokens(line: string): string[] {
   const tokens: string[] = [];
-  let i = 0;
-  const len = text.length;
-  while (i < len) {
-    // Pula espaços
-    while (i < len && /\s/.test(text[i])) i++;
-    if (i >= len) break;
-
-    if (text[i] === "(") {
-      // Acorde: lê até o ")"
-      const j = text.indexOf(")", i);
-      const end = j === -1 ? len : j + 1;
-      tokens.push(text.slice(i, end));
-      i = end;
+  let depth = 0;
+  let cur = "";
+  for (const ch of line) {
+    if (ch === "(" || ch === "{") {
+      depth++;
+      cur += ch;
+    } else if (ch === ")" || ch === "}") {
+      depth = Math.max(0, depth - 1);
+      cur += ch;
+    } else if (/\s/.test(ch) && depth === 0) {
+      if (cur) {
+        tokens.push(cur);
+        cur = "";
+      }
     } else {
-      // Token normal: lê até espaço
-      let j = i;
-      while (j < len && !/\s/.test(text[j])) j++;
-      tokens.push(text.slice(i, j));
-      i = j;
+      cur += ch;
     }
   }
+  if (cur) tokens.push(cur);
   return tokens;
 }
 
-/** Faz parse de um token de nota como "5.6", "12.3{h}", "0.1{sl}{v}", "5.6{b(100)}". */
-function parseNoteToken(token: string): EditorNote | null {
-  const noteMatch = token.match(/^(\d+)\.(\d+)/);
-  if (!noteMatch) return null;
-
-  const fret = parseInt(noteMatch[1], 10);
-  const string = parseInt(noteMatch[2], 10);
-  if (isNaN(fret) || isNaN(string)) return null;
-
-  const effects: NoteEffect[] = [];
-  // Ex.: {b(100)} → strip parâmetros → "b"
-  const effectRe = /\{([^}]+)\}/g;
-  let em: RegExpExecArray | null;
-  while ((em = effectRe.exec(token)) !== null) {
-    const raw = em[1].replace(/\(.*\)/, "").toLowerCase();
-    if (raw === "h" || raw === "p" || raw === "sl" || raw === "v" || raw === "b") {
-      effects.push(raw as NoteEffect);
+/** Lê grupos de chaves `{...}{...}` consecutivos a partir de `i`. */
+function readBraceGroups(s: string, i: number): { groups: string; next: number } {
+  let out = "";
+  while (i < s.length && s[i] === "{") {
+    let depth = 0;
+    let j = i;
+    for (; j < s.length; j++) {
+      if (s[j] === "{") depth++;
+      else if (s[j] === "}") {
+        depth--;
+        if (depth === 0) {
+          j++;
+          break;
+        }
+      }
     }
+    out += s.slice(i, j);
+    i = j;
   }
-
-  return { fret, string, effects };
+  return { groups: out, next: i };
 }
 
-/** Faz parse de um token de acorde como "(5.6 7.5 9.4)". */
-function parseChordToken(token: string): EditorNote[] {
-  const inner = token.replace(/^\(|\)$/g, "").trim();
-  if (!inner) return [];
-  return inner
-    .split(/\s+/)
-    .map(parseNoteToken)
-    .filter((n): n is EditorNote => n !== null);
+/** Lê uma duração `.N` a partir de `i`, se houver; senão devolve o fallback sticky. */
+function readDuration(
+  s: string,
+  i: number,
+  fallback: BeatDuration,
+): { duration: BeatDuration; next: number } {
+  if (s[i] === ".") {
+    let j = i + 1;
+    while (j < s.length && /\d/.test(s[j])) j++;
+    const d = parseDuration(s.slice(i + 1, j));
+    if (d !== null) return { duration: d, next: j };
+  }
+  return { duration: fallback, next: i };
+}
+
+/** Acha o índice do `)` que fecha o `(` inicial, respeitando chaves aninhadas. */
+function findChordClose(t: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (let k = 0; k < t.length; k++) {
+    const ch = t[k];
+    if (ch === "{") braceDepth++;
+    else if (ch === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (braceDepth === 0 && ch === "(") parenDepth++;
+    else if (braceDepth === 0 && ch === ")") {
+      parenDepth--;
+      if (parenDepth === 0) return k;
+    }
+  }
+  return -1;
+}
+
+/** Divide um sufixo "{...}{...}" nos seus grupos de chaves de nível superior. */
+function splitBraceGroups(suffix: string): string[] {
+  const groups: string[] = [];
+  let i = 0;
+  while (i < suffix.length) {
+    if (suffix[i] === "{") {
+      let depth = 0;
+      let j = i;
+      for (; j < suffix.length; j++) {
+        if (suffix[j] === "{") depth++;
+        else if (suffix[j] === "}") {
+          depth--;
+          if (depth === 0) {
+            j++;
+            break;
+          }
+        }
+      }
+      groups.push(suffix.slice(i, j));
+      i = j;
+    } else {
+      i++; // caractere solto entre grupos (não esperado) — ignora
+    }
+  }
+  return groups;
+}
+
+/** Se o grupo `{...}` é um efeito conhecido (ignorando parâmetros), retorna-o. */
+function effectOf(group: string): NoteEffect | null {
+  const inner = group
+    .replace(/^\{|\}$/g, "")
+    .replace(/\(.*\)/, "")
+    .trim()
+    .toLowerCase();
+  if (
+    inner === "h" ||
+    inner === "p" ||
+    inner === "sl" ||
+    inner === "v" ||
+    inner === "lr"
+  ) {
+    return inner as NoteEffect;
+  }
+  return null;
+}
+
+/** Separa efeitos editáveis (extraídos) das anotações opacas (preservadas). */
+function extractEffectsAndSuffix(rawSuffix: string): {
+  effects: NoteEffect[];
+  suffix: string;
+} {
+  if (!rawSuffix) return { effects: [], suffix: "" };
+  const effects: NoteEffect[] = [];
+  const kept: string[] = [];
+  for (const g of splitBraceGroups(rawSuffix)) {
+    const eff = effectOf(g);
+    if (eff) effects.push(eff);
+    else kept.push(g);
+  }
+  return { effects, suffix: kept.join("") };
+}
+
+/**
+ * Parse de uma nota individual: `casa.corda` seguida de efeitos de NOTA opcionais
+ * (`{t}`, `{lr}`, `{h}`…). Usado para notas soltas e para cada nota de um acorde.
+ */
+function parseNoteCoreToNote(token: string): EditorNote | null {
+  const m = token.match(/^(\d+)\.(\d+)/);
+  if (!m) return null;
+  const fret = parseInt(m[1], 10);
+  const string = parseInt(m[2], 10);
+  if (isNaN(fret) || isNaN(string)) return null;
+  const { groups } = readBraceGroups(token, m[0].length);
+  const { effects, suffix } = extractEffectsAndSuffix(groups);
+  return { fret, string, effects, suffix: suffix || undefined };
+}
+
+/**
+ * Parse de um token de beat completo. Respeita a gramática alphaTex
+ * `casa.corda{efeitosDeNota}.duração{efeitosDeBeat}` — efeitos de nota vêm ANTES
+ * da duração, efeitos de beat DEPOIS. Aceita também o dialeto sticky escrito à mão
+ * (sem `.duração` inline → usa `currentDuration`). Retorna o beat e a próxima
+ * duração sticky (= a duração inline lida, se houver).
+ */
+function parseBeatToken(
+  token: string,
+  currentDuration: BeatDuration,
+): { beat: EditorBeat; nextDuration: BeatDuration } | null {
+  const t = token.trim();
+  if (!t) return null;
+
+  // Pausa: "r", "r.N", "r.N{efeitosDeBeat}" (sem efeitos de nota)
+  if (t === "r" || t.startsWith("r.") || t.startsWith("r{")) {
+    const pre = readBraceGroups(t, 1); // chaves antes da duração (raro) → beat
+    const dur = readDuration(t, pre.next, currentDuration);
+    const post = readBraceGroups(t, dur.next);
+    const suffix = (pre.groups + post.groups) || undefined;
+    return {
+      beat: { duration: dur.duration, notes: [], isRest: true, suffix },
+      nextDuration: dur.duration,
+    };
+  }
+
+  // Acorde: "(nota nota).duração{efeitosDeBeat}"
+  if (t.startsWith("(")) {
+    const close = findChordClose(t);
+    if (close === -1) return null;
+    const inner = t.slice(1, close);
+    const dur = readDuration(t, close + 1, currentDuration);
+    const suffix = readBraceGroups(t, dur.next).groups || undefined;
+    const notes = splitBeatTokens(inner)
+      .map(parseNoteCoreToNote)
+      .filter((n): n is EditorNote => n !== null);
+    if (notes.length === 0) return null;
+    return {
+      beat: { duration: dur.duration, notes, isRest: false, suffix },
+      nextDuration: dur.duration,
+    };
+  }
+
+  // Nota simples: "casa.corda{efeitosDeNota}.duração{efeitosDeBeat}"
+  const m = t.match(/^(\d+)\.(\d+)/);
+  if (!m) return null;
+  const fret = parseInt(m[1], 10);
+  const string = parseInt(m[2], 10);
+  if (isNaN(fret) || isNaN(string)) return null;
+
+  const noteBraces = readBraceGroups(t, m[0].length); // efeitos de NOTA (antes da duração)
+  const dur = readDuration(t, noteBraces.next, currentDuration);
+  const beatBraces = readBraceGroups(t, dur.next).groups; // efeitos de BEAT (depois)
+
+  const { effects, suffix: noteSuffix } = extractEffectsAndSuffix(noteBraces.groups);
+  return {
+    beat: {
+      duration: dur.duration,
+      notes: [{ fret, string, effects, suffix: noteSuffix || undefined }],
+      isRest: false,
+      suffix: beatBraces || undefined,
+    },
+    nextDuration: dur.duration,
+  };
 }
 
 // ── Clone profundo (imutabilidade) ─────────────────────────────────────────────
@@ -126,11 +346,15 @@ function cloneModel(model: EditorModel): EditorModel {
     header: model.header,
     measures: model.measures.map((m) => ({
       wasEmpty: m.wasEmpty,
+      prefix: m.prefix,
+      tail: m.tail,
       beats: m.beats.map((b) => ({
         duration: b.duration,
         isRest: b.isRest,
+        suffix: b.suffix,
         notes: b.notes.map((n) => ({ ...n, effects: [...n.effects] })),
       })),
+      // (note.suffix é copiado pelo spread acima)
     })),
   };
 }
@@ -138,55 +362,77 @@ function cloneModel(model: EditorModel): EditorModel {
 // ── Parser ─────────────────────────────────────────────────────────────────────
 
 /**
- * Converte o alphaTex de uma trilha (ex.: ":4 5.6 7.6 | r r |") em EditorModel.
- * O alphaTex de trilha é apenas o conteúdo dos compassos — sem \title, sem \track.
+ * Converte o alphaTex de uma trilha em EditorModel.
+ * O alphaTex de trilha é apenas o conteúdo dos compassos (separados por "|") —
+ * sem \title, sem \track. Cada `|`-segmento vira EXATAMENTE um compasso, para
+ * o número de compassos casar com o que `submitTrackContent` espera.
  */
 export function parseTrackTex(tex: string): EditorModel {
-  const measureStrings = tex.split("|");
-  let currentDuration: 1 | 2 | 4 | 8 | 16 = 4;
+  const segments = tex.split("|");
+  let currentDuration: BeatDuration = 4;
   const measures: EditorMeasure[] = [];
 
-  for (const raw of measureStrings) {
-    const trimmed = raw.trim();
-
-    // Empty segment = cell with no contribution on the server.
-    // We must NOT skip it — the measure still exists in the DB and counts toward
-    // the total. We create a placeholder rest so the model index stays in sync with
-    // the server's measure list. wasEmpty=true lets the serializer round-trip it
-    // back to "" so submitTrackContent skips it (body === "").
-    if (!trimmed) {
+  for (const segment of segments) {
+    // Segmento vazio = célula sem contribuição no servidor. NÃO pode ser descartado:
+    // o compasso existe no banco e conta no total. Placeholder com uma pausa INTEIRA
+    // (r.1, como o assemble faz) mantém o índice e a duração do compasso; wasEmpty
+    // faz o serializer round-tripar como "".
+    if (!segment.trim()) {
       measures.push({
         wasEmpty: true,
-        beats: [{ duration: currentDuration, notes: [], isRest: true }],
+        beats: [{ duration: 1, notes: [], isRest: true }],
       });
       continue;
     }
 
-    const tokens = tokenizeMeasure(trimmed);
+    const prefix: string[] = [];
+    const tail: string[] = [];
     const beats: EditorBeat[] = [];
+    let phase: "prefix" | "beats" | "tail" = "prefix";
 
-    for (const token of tokens) {
-      if (token.startsWith(":")) {
-        const d = parseDuration(token.slice(1));
-        if (d !== null) currentDuration = d;
-      } else if (token === "r") {
-        beats.push({ duration: currentDuration, notes: [], isRest: true });
-      } else if (token.startsWith("(")) {
-        const notes = parseChordToken(token);
-        if (notes.length > 0) {
-          beats.push({ duration: currentDuration, notes, isRest: false });
+    for (const rawLine of segment.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Diretiva de compasso / separador de voz: preservada verbatim.
+      if (line.startsWith("\\")) {
+        if (phase === "prefix") {
+          prefix.push(line);
+        } else {
+          // \voice ou diretiva após os beats → daqui em diante tudo é tail opaco.
+          phase = "tail";
+          tail.push(line);
         }
-      } else {
-        const note = parseNoteToken(token);
-        if (note) {
-          beats.push({ duration: currentDuration, notes: [note], isRest: false });
+        continue;
+      }
+
+      // Linha de beat já dentro do tail (após \voice): preserva crua.
+      if (phase === "tail") {
+        tail.push(line);
+        continue;
+      }
+
+      phase = "beats";
+      for (const token of splitBeatTokens(line)) {
+        if (token.startsWith(":")) {
+          // Duração sticky (dialeto escrito à mão).
+          const d = parseDuration(token.slice(1));
+          if (d !== null) currentDuration = d;
+          continue;
+        }
+        const parsed = parseBeatToken(token, currentDuration);
+        if (parsed) {
+          beats.push(parsed.beat);
+          currentDuration = parsed.nextDuration;
         }
       }
     }
 
-    if (beats.length > 0) {
-      measures.push({ beats });
-    }
+    measures.push({
+      beats,
+      prefix: prefix.length ? prefix.join("\n") : undefined,
+      tail: tail.length ? tail.join("\n") : undefined,
+    });
   }
 
   return { header: "", measures };
@@ -194,60 +440,217 @@ export function parseTrackTex(tex: string): EditorModel {
 
 // ── Serializer ─────────────────────────────────────────────────────────────────
 
-function serializeNote(note: EditorNote): string {
-  let s = `${note.fret}.${note.string}`;
-  for (const e of note.effects) s += `{${e}}`;
-  return s;
+/**
+ * Serializa uma nota: `casa.corda{prop prop …}` (tudo ANTES da duração).
+ * IMPORTANTE: o alphaTab aceita só UM bloco `{}` por nota — várias propriedades
+ * vão separadas por espaço DENTRO do mesmo bloco. Emitir `{lr}{v}` (blocos
+ * separados) é rejeitado. Por isso unimos efeitos editáveis + anotações opacas de
+ * nota num único grupo.
+ */
+function serializeNote(n: EditorNote): string {
+  const props: string[] = [...n.effects];
+  if (n.suffix) {
+    for (const g of splitBraceGroups(n.suffix)) {
+      const inner = g.slice(1, -1).trim(); // conteúdo sem as chaves
+      if (inner) props.push(inner);
+    }
+  }
+  const base = `${n.fret}.${n.string}`;
+  return props.length ? `${base}{${props.join(" ")}}` : base;
+}
+
+/**
+ * Serializa um beat no formato inline do exportador (duração sempre explícita),
+ * respeitando a gramática `casa.corda{efeitosDeNota}.duração{efeitosDeBeat}`.
+ */
+function serializeBeat(beat: EditorBeat): string {
+  if (beat.isRest || beat.notes.length === 0) {
+    return `r.${beat.duration}${beat.suffix ?? ""}`;
+  }
+  if (beat.notes.length === 1) {
+    // Efeitos/sufixo de nota ANTES da duração; sufixo de beat DEPOIS.
+    return `${serializeNote(beat.notes[0])}.${beat.duration}${beat.suffix ?? ""}`;
+  }
+  const inner = beat.notes.map(serializeNote).join(" ");
+  return `(${inner}).${beat.duration}${beat.suffix ?? ""}`;
+}
+
+/** Um compasso wasEmpty que continua sem conteúdo real → round-trip como "". */
+function isStillEmpty(m: EditorMeasure): boolean {
+  if (!m.wasEmpty || m.prefix || m.tail) return false;
+  if (m.beats.length === 0) return true;
+  if (m.beats.length > 1) return false;
+  const b = m.beats[0];
+  return b.isRest && b.notes.length === 0 && !b.suffix;
 }
 
 /**
  * Converte EditorModel de volta para alphaTex de trilha.
- * Emite ":DURATION" apenas quando a duração muda.
- * Compassos separados por " |\n".
+ * Emite UM segmento por compasso, separados por " |\n" (espelhando o split por "|"
+ * de `submitTrackContent`). Duração sempre inline; anotações/diretivas/vozes
+ * preservadas verbatim.
  */
 export function serializeModel(model: EditorModel): string {
-  const measureParts: string[] = [];
-  let prevDuration: 1 | 2 | 4 | 8 | 16 = 4;
+  const segments = model.measures.map((m) => {
+    if (isStillEmpty(m)) return "";
+    const parts: string[] = [];
+    if (m.prefix) parts.push(m.prefix);
+    for (const b of m.beats) parts.push(serializeBeat(b));
+    if (m.tail) parts.push(m.tail);
+    return parts.join("\n");
+  });
 
-  for (const measure of model.measures) {
-    // wasEmpty = came from an empty cell (no server contribution).
-    // If the user hasn't added any real content (still a single rest, no notes),
-    // round-trip as "" so submitTrackContent's `body === ""` guard skips it and
-    // avoids creating noise contributions for untouched measures.
-    // Do NOT update prevDuration: alphaTab inherits the active duration from context,
-    // matching what will happen when it parses "" as an implicit rest.
-    if (
-      measure.wasEmpty &&
-      measure.beats.length === 1 &&
-      measure.beats[0].isRest &&
-      measure.beats[0].notes.length === 0
-    ) {
-      measureParts.push("");
+  return segments.join(" |\n");
+}
+
+// ── Serialização para RENDER (documento alphaTex real, só para o alphaTab) ─────
+//
+// O formato de SUBMISSÃO (serializeModel) guarda as vozes extras dentro de cada
+// compasso ("beats \voice tail | …") porque é o formato das CÉLULAS — o servidor
+// só divide por "|" e o assemble transpõe. Mas esse texto NÃO é alphaTex válido
+// para renderizar direto: um "\voice" por compasso cria masterbars extras
+// (comprovado: 3 bars em vez de 2) — era isso que deslocava a seleção.
+// Para o render é preciso TRANSPOR (voz externa, compasso interno), igual ao
+// assembleFromNormalized, e opcionalmente incluir o header real da trilha
+// (afinação/instrumento) e os prefixos estruturais por compasso (\ts, \tempo…).
+
+/** Separa o tail em: sufixo da voz 0 (antes do 1º \voice) + conteúdo das vozes 1+. */
+function splitTailVoices(tail: string | undefined): { v0suffix: string; voices: string[] } {
+  if (!tail) return { v0suffix: "", voices: [] };
+  const chunks: string[][] = [[]];
+  for (const line of tail.split(/\r?\n/)) {
+    if (/^\\voice\b/.test(line.trim())) chunks.push([]);
+    else chunks[chunks.length - 1].push(line);
+  }
+  const [first, ...rest] = chunks;
+  const joinClean = (ls: string[]) => ls.filter((l) => l.trim()).join("\n");
+  return { v0suffix: joinClean(first), voices: rest.map(joinClean) };
+}
+
+export type RenderContext = {
+  /** Track.headerFragment do banco (\track/\staff/\tuning…) — dá afinação e
+   *  nº de cordas reais. Sem ele o alphaTab assume guitarra 6 cordas. */
+  trackHeader?: string | null;
+  /** Measure.structPrefix por compasso (\ts, \tempo, \section…) — dá fórmula de
+   *  compasso e andamento reais, alinhando os ticks com a música completa. */
+  structPrefixes?: (string | null | undefined)[];
+};
+
+/**
+ * Serializa o modelo como um documento alphaTex de UMA trilha, renderizável:
+ * vozes transpostas (voz externa, compasso interno), compassos vazios como pausa
+ * inteira, header/structs reais quando fornecidos. Mesmo nº de masterbars que a
+ * música completa → índices de clique e ticks de playback batem 1:1.
+ */
+export function serializeForRender(model: EditorModel, ctx?: RenderContext): string {
+  const tails = model.measures.map((m) => splitTailVoices(m.tail));
+  const nVoices = Math.max(1, ...tails.map((t) => t.voices.length + 1));
+  const out: string[] = [];
+  const header = ctx?.trackHeader?.trim();
+  if (header) out.push(header);
+
+  for (let v = 0; v < nVoices; v++) {
+    if (v > 0) out.push("\\voice");
+    model.measures.forEach((m, i) => {
+      let chunk: string;
+      if (v === 0) {
+        const parts: string[] = [];
+        const struct = ctx?.structPrefixes?.[i];
+        if (struct && struct.trim()) parts.push(struct);
+        if (m.prefix) parts.push(m.prefix);
+        const beats = m.beats.map(serializeBeat);
+        parts.push(...(beats.length ? beats : ["r.1"]));
+        if (tails[i].v0suffix) parts.push(tails[i].v0suffix);
+        chunk = parts.join("\n");
+      } else {
+        chunk = tails[i].voices[v - 1] || "r.1";
+      }
+      out.push(chunk);
+      if (i < model.measures.length - 1) out.push("|");
+    });
+  }
+  return out.join("\n");
+}
+
+// ── Capacidade do compasso (noção de fórmula de compasso) ──────────────────────
+// Unidade: 1/64 de semibreve. Pode ser fracionário: pontuados (×1.5/×1.75) e
+// quiálteras (ex. ×2/3) vêm das anotações de beat — sem eles, metade dos
+// compassos importados leria "fora do tempo" falsamente.
+
+/** Palavras "nuas" de um grupo {…}: ignora conteúdo entre aspas e parênteses
+ *  (letra de música, parâmetros) para não confundir "d" de lyrics com pontuado. */
+function bareWords(inner: string): string[] {
+  const words: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let inStr = false;
+  for (const ch of inner) {
+    if (inStr) {
+      if (ch === '"') inStr = false;
       continue;
     }
-
-    const beatParts: string[] = [];
-
-    for (const beat of measure.beats) {
-      let part = "";
-      if (beat.duration !== prevDuration) {
-        part += `:${beat.duration} `;
-        prevDuration = beat.duration;
-      }
-      if (beat.isRest || beat.notes.length === 0) {
-        part += "r";
-      } else if (beat.notes.length === 1) {
-        part += serializeNote(beat.notes[0]);
-      } else {
-        part += `(${beat.notes.map(serializeNote).join(" ")})`;
-      }
-      beatParts.push(part);
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "(") { depth++; continue; }
+    if (ch === ")") { depth = Math.max(0, depth - 1); continue; }
+    if (depth > 0) continue;
+    if (/\s/.test(ch)) {
+      if (cur) { words.push(cur); cur = ""; }
+    } else {
+      cur += ch;
     }
-
-    measureParts.push(beatParts.join(" "));
   }
+  if (cur) words.push(cur);
+  return words;
+}
 
-  return measureParts.join(" |\n");
+// Denominador padrão de quiáltera por N (alphaTab): 3:2, 5:4, 6:4, 7:4, 9:8…
+const TUPLET_DEN: Record<number, number> = {
+  3: 2, 5: 4, 6: 4, 7: 4, 9: 8, 10: 8, 11: 8, 12: 8, 13: 8,
+};
+
+/**
+ * Fator de duração do beat vindo das anotações:
+ * pontuado {d}=×1.5 / {dd}=×1.75; quiáltera {tu N}=den(N)/N ou {tu (N M)}=M/N;
+ * grace note {gr …}=×0 (não ocupa tempo do compasso).
+ */
+function beatDurationFactor(suffix: string | undefined): number {
+  if (!suffix) return 1;
+  let factor = 1;
+  for (const g of splitBraceGroups(suffix)) {
+    // Strings (letra, nomes) fora da jogada — "d"/"tu" dentro de aspas não conta.
+    let inner = g.slice(1, -1).replace(/"[^"]*"/g, '""');
+    // Quiáltera com razão explícita: tu (N M) = N no tempo de M.
+    inner = inner.replace(/(^|\s)tu\s*\(\s*(\d+)\s+(\d+)\s*\)/g, (_m, pre, n, den) => {
+      factor *= Number(den) / Number(n);
+      return pre;
+    });
+    // Quiáltera simples: tu N (denominador padrão por N).
+    inner = inner.replace(/(^|\s)tu\s+(\d+)/g, (_m, pre, n) => {
+      const N = Number(n);
+      if (N > 0) factor *= (TUPLET_DEN[N] ?? 2) / N;
+      return pre;
+    });
+    for (const w of bareWords(inner)) {
+      const lw = w.toLowerCase();
+      if (lw === "d") factor *= 1.5;
+      else if (lw === "dd") factor *= 1.75;
+      else if (lw === "gr") return 0; // grace: beat não ocupa tempo
+    }
+  }
+  return factor;
+}
+
+/** Soma das durações dos beats do compasso, em 64avos (pode ser fracionário). */
+export function measureUsed64(measure: EditorMeasure): number {
+  return measure.beats.reduce(
+    (sum, b) => sum + (64 / b.duration) * beatDurationFactor(b.suffix),
+    0,
+  );
+}
+
+/** Capacidade da fórmula de compasso (ex.: 4/4 → 64), em 64avos. */
+export function capacity64(tsNum: number, tsDen: number): number {
+  return (tsNum * 64) / tsDen;
 }
 
 // ── Mutações (todas retornam novo EditorModel) ─────────────────────────────────
@@ -267,7 +670,10 @@ export function setNote(
   const beat = next.measures[measureIndex]?.beats[beatIndex];
   if (!beat) return model;
 
+  // Pausa virando nota: anotações de pausa (ex.: dinâmica) não se aplicam.
+  if (beat.isRest) beat.suffix = undefined;
   beat.isRest = false;
+
   const existing = beat.notes.find((n) => n.string === string);
   if (existing) {
     existing.fret = fret;
@@ -290,7 +696,10 @@ export function deleteNote(
   if (!beat) return model;
 
   beat.notes = beat.notes.filter((n) => n.string !== string);
-  if (beat.notes.length === 0) beat.isRest = true;
+  if (beat.notes.length === 0) {
+    beat.isRest = true;
+    beat.suffix = undefined;
+  }
   return next;
 }
 
@@ -306,15 +715,16 @@ export function setRest(
 
   beat.notes = [];
   beat.isRest = true;
+  beat.suffix = undefined;
   return next;
 }
 
-/** Altera a duração de um beat. */
+/** Altera a duração de um beat (preserva notas e anotações). */
 export function setBeatDuration(
   model: EditorModel,
   measureIndex: number,
   beatIndex: number,
-  duration: 1 | 2 | 4 | 8 | 16,
+  duration: BeatDuration,
 ): EditorModel {
   const next = cloneModel(model);
   const beat = next.measures[measureIndex]?.beats[beatIndex];
@@ -326,19 +736,20 @@ export function setBeatDuration(
 
 /**
  * Insere um novo beat (rest) após `afterBeatIndex` no compasso.
- * A duração do novo beat herda a do beat de referência.
+ * Sem `duration` explícita, herda a do beat de referência.
  */
 export function insertBeat(
   model: EditorModel,
   measureIndex: number,
   afterBeatIndex: number,
+  duration?: BeatDuration,
 ): EditorModel {
   const next = cloneModel(model);
   const measure = next.measures[measureIndex];
   if (!measure) return model;
 
-  const refDuration = measure.beats[afterBeatIndex]?.duration ?? 4;
-  const newBeat: EditorBeat = { duration: refDuration, notes: [], isRest: true };
+  const d = duration ?? measure.beats[afterBeatIndex]?.duration ?? 4;
+  const newBeat: EditorBeat = { duration: d, notes: [], isRest: true };
   measure.beats.splice(afterBeatIndex + 1, 0, newBeat);
   return next;
 }
@@ -357,6 +768,53 @@ export function deleteBeat(
   if (!measure || measure.beats.length <= 1) return model;
 
   measure.beats.splice(beatIndex, 1);
+  return next;
+}
+
+/** Um grupo `{b …}` é um bend (ignorando os pontos entre parênteses). */
+function isBendGroup(group: string): boolean {
+  return (
+    group.replace(/^\{|\}$/g, "").replace(/\(.*\)/, "").trim().toLowerCase() === "b"
+  );
+}
+
+/** True se a nota da corda tem um bend (importado ou adicionado no editor). */
+export function noteHasBend(
+  model: EditorModel,
+  measureIndex: number,
+  beatIndex: number,
+  string: number,
+): boolean {
+  const note = model.measures[measureIndex]?.beats[beatIndex]?.notes.find(
+    (n) => n.string === string,
+  );
+  if (!note?.suffix) return false;
+  return splitBraceGroups(note.suffix).some(isBendGroup);
+}
+
+/**
+ * Ativa/desativa um BEND na nota. Bend não é um efeito por-toggle simples (tem
+ * pontos), então mora em `note.suffix` opaco: ativar adiciona um bend padrão de
+ * tom inteiro `{b (0 4)}`; desativar remove qualquer `{b …}`. Bends importados
+ * (com pontos próprios) são preservados — desativar só os apaga a pedido.
+ */
+export function toggleBend(
+  model: EditorModel,
+  measureIndex: number,
+  beatIndex: number,
+  string: number,
+): EditorModel {
+  const next = cloneModel(model);
+  const beat = next.measures[measureIndex]?.beats[beatIndex];
+  if (!beat) return model;
+  const note = beat.notes.find((n) => n.string === string);
+  if (!note) return model;
+
+  const groups = note.suffix ? splitBraceGroups(note.suffix) : [];
+  const had = groups.some(isBendGroup);
+  const kept = groups.filter((g) => !isBendGroup(g));
+  if (!had) kept.push("{b (0 4)}"); // bend padrão: full bend (tom inteiro)
+  note.suffix = kept.length ? kept.join("") : undefined;
   return next;
 }
 

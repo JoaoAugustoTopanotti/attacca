@@ -2,22 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AlphaTabPlayer, { type AlphaTabPlayerHandle } from "@/components/AlphaTabPlayer";
-import TabEditor from "@/components/TabEditor";
+import TabEditor, { type MeasureMeta, type TabEditorHandle } from "@/components/TabEditor";
 
 type Me = { id: string; displayName: string } | null;
 type Content = {
-  track: { id: string; order: number; name: string };
+  track: { id: string; order: number; name: string; isPercussion: boolean };
   measureCount: number;
   alphaTex: string;
+  trackHeader: string | null;
+  measures: MeasureMeta[];
   song: { ownerId: string | null; ownerName: string | null };
 };
-type Proposal = {
-  trackOrder: number;
-  trackName: string;
-  authorId: string | null;
-  authorName: string;
-  count: number;
-};
+
+/** Nº de cordas real, extraído da \tuning do header da trilha (ex.: baixo = 4). */
+function stringCountFromHeader(header: string | null): number | null {
+  const m = header?.match(/\\tuning\s*\(([^)]+)\)/);
+  if (!m) return null;
+  const n = m[1].trim().split(/\s+/).length;
+  return n >= 3 && n <= 8 ? n : null;
+}
 
 export default function TrackEditor({
   songId,
@@ -33,37 +36,44 @@ export default function TrackEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  // Altura do painel inferior (redimensionável por drag)
-  const [bottomHeight, setBottomHeight] = useState(220);
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [reviewing, setReviewing] = useState<Proposal | null>(null);
-  const [reviewContent, setReviewContent] = useState<
-    { proposedAlphaTex: string; currentAlphaTex: string } | null
-  >(null);
 
   // Player external-control state
   const playerRef = useRef<AlphaTabPlayerHandle>(null);
+  const editorRef = useRef<TabEditorHandle>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+  // Recarrega o player quando a grade viva muda (save aceito) — senão ele
+  // continua tocando a versão antiga.
+  const [playerEpoch, setPlayerEpoch] = useState(0);
+  // Última posição de playback (tick) — para retomar após recarregar o score.
+  const lastTickRef = useRef(0);
+  // Texto desta trilha atualmente carregado no player como PREVIEW de edição
+  // não salva (null = o player está com o /assembled salvo).
+  const previewTextRef = useRef<string | null>(null);
 
-  // Resize handle: arrastar a borda superior do painel inferior
-  function handleResizeStart(e: React.MouseEvent<HTMLDivElement>) {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = bottomHeight;
+  // Encaminha o tick de playback (player headless) para o cursor do editor visual.
+  const syncEditorCursor = useCallback((tick: number) => {
+    lastTickRef.current = tick;
+    editorRef.current?.seekTick(tick);
+  }, []);
 
-    function onMove(ev: MouseEvent) {
-      // Arrastar para cima (delta negativo) → painel maior
-      const delta = startY - ev.clientY;
-      setBottomHeight(Math.max(120, Math.min(600, startH + delta)));
+  // Clique num beat do editor → seek na música completa (tocando ou pausado).
+  const seekPlayer = useCallback((tick: number) => {
+    playerRef.current?.seekTick(tick);
+  }, []);
+
+  // Espera o áudio do score recém-carregado ficar pronto, retoma a posição e toca.
+  const playWhenReady = useCallback(async () => {
+    for (let i = 0; i < 24; i++) {
+      const p = playerRef.current;
+      if (p?.isReadyForPlayback()) {
+        p.seekTick(lastTickRef.current);
+        p.playPause();
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 250));
     }
-    function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }
+  }, []);
 
   useEffect(() => {
     fetch("/api/me")
@@ -74,10 +84,8 @@ export default function TrackEditor({
 
   const ownerId = content?.song.ownerId ?? null;
   const ownerName = content?.song.ownerName ?? null;
-  const isOwner = !!me && (!ownerId || ownerId === me.id);
-  const visibleProposals = isOwner
-    ? proposals
-    : proposals.filter((p) => p.authorId && p.authorId === me?.id);
+  // Sem content carregado não dá para saber o papel — não assumir "dono".
+  const isOwner = !!me && !!content && (!ownerId || ownerId === me.id);
 
   const loadTrack = useCallback(async () => {
     setError(null);
@@ -89,33 +97,64 @@ export default function TrackEditor({
     setText(json.alphaTex);
   }, [songId, trackOrder]);
 
-  const loadProposals = useCallback(async () => {
-    const res = await fetch(`/api/songs/${songId}/proposals`);
-    if (res.ok) setProposals(await res.json());
-  }, [songId]);
-
   useEffect(() => { loadTrack(); }, [loadTrack]);
-  useEffect(() => { loadProposals(); }, [loadProposals]);
 
-  // Sincroniza o player com a trilha sendo editada.
-  // Quando playerReady muda para true (score carregado) OU quando trackOrder muda,
-  // pede ao player para exibir a trilha correspondente.
+  // Trocar de trilha descarta o buffer local → o preview carregado no player
+  // (se houver) não corresponde mais a nada; volta ao /assembled salvo.
   useEffect(() => {
-    if (!playerReady) return;
-    const trackIndex = tracks.findIndex((t) => t.order === trackOrder);
-    if (trackIndex >= 0) playerRef.current?.selectTrack(trackIndex);
-  }, [trackOrder, playerReady, tracks]);
+    if (previewTextRef.current !== null) {
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackOrder]);
 
-  // Reset player state when switching tracks or proposals
-  const playerUrl = reviewing
-    ? `/api/songs/${songId}/assembled?track=${reviewing.trackOrder}&author=${reviewing.authorId}`
-    : `/api/songs/${songId}/assembled`;
+  // Edição local ainda não salva? (formatação pode diferir; é só "buffer difere")
+  const dirty = !!content && text !== content.alphaTex;
 
-  useEffect(() => {
-    setIsPlaying(false);
-    setPlayerReady(false);
-  }, [playerUrl]);
+  // ── Play: toca O QUE VOCÊ ESTÁ VENDO ────────────────────────────────────────
+  // Com edição não salva, monta a música completa com a trilha local aplicada
+  // (endpoint de preview, nada é gravado) e carrega no player headless antes de
+  // tocar. Sem edição pendente, toca o /assembled direto.
+  async function handlePlayClick() {
+    const p = playerRef.current;
+    if (!p || !content) return;
+    // Pausar nunca recarrega nada.
+    if (isPlaying) { p.playPause(); return; }
 
+    const needPreview = dirty && previewTextRef.current !== text;
+    const needRestore = !dirty && previewTextRef.current !== null;
+    if (!needPreview && !needRestore) { p.playPause(); return; }
+
+    if (needRestore) {
+      // Buffer voltou ao salvo → recarrega o /assembled e toca.
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      void playWhenReady();
+      return;
+    }
+
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/songs/${songId}/tracks/${trackOrder}/preview`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ alphaTex: text }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha na pré-visualização.");
+      previewTextRef.current = text;
+      p.loadTex(json.alphaTex);
+      void playWhenReady();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao preparar o áudio.");
+    }
+  }
+
+  // ── Salvar (dono) / Propor (colaborador) ────────────────────────────────────
   async function submit() {
     setBusy(true);
     setError(null);
@@ -128,13 +167,26 @@ export default function TrackEditor({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
-      setInfo(
-        json.accepted
-          ? `Salvo — ${json.changed} compasso(s) atualizado(s).`
-          : `Proposta enviada — ${json.changed} compasso(s). Aguardando revisão.`,
-      );
-      await loadTrack();
-      await loadProposals();
+
+      if (json.changed === 0) {
+        setInfo("Sem mudanças em relação à versão atual — nada a enviar.");
+      } else if (json.accepted) {
+        setInfo(`Salvo — ${json.changed} compasso(s) atualizado(s).`);
+        // A grade viva mudou → recarrega o conteúdo e o player.
+        previewTextRef.current = null;
+        setPlayerEpoch((n) => n + 1);
+        await loadTrack();
+        setInfo(`Salvo — ${json.changed} compasso(s) atualizado(s).`);
+      } else {
+        // Proposta: NÃO recarrega o conteúdo — recarregar reverteria o buffer
+        // para a versão aceita e a edição "sumiria" da tela (parecia que o
+        // botão não fazia nada). A edição continua visível; o envio fica
+        // registrado na aba Propostas da música.
+        setInfo(
+          `Proposta enviada — ${json.changed} compasso(s). ` +
+            `Acompanhe na aba Propostas da música; ${ownerName ?? "o dono"} revisa antes de entrar.`,
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro.");
     } finally {
@@ -142,33 +194,63 @@ export default function TrackEditor({
     }
   }
 
-  async function startReview(p: Proposal) {
-    setReviewing(p);
-    setReviewContent(null);
-    setInfo(null);
-    setError(null);
-    const res = await fetch(
-      `/api/songs/${songId}/tracks/${p.trackOrder}/proposal?author=${p.authorId}`,
-    );
-    if (res.ok) setReviewContent(await res.json());
-  }
-
-  async function doReview(p: Proposal, action: "accept" | "reject") {
+  // ── Estrutura: adicionar/remover compasso (dono; afeta todas as trilhas) ────
+  async function addMeasureAfter(afterIndex: number) {
+    if (busy) return;
+    if (
+      dirty &&
+      !window.confirm(
+        "Adicionar um compasso recarrega a trilha e DESCARTA suas edições não salvas. Continuar?",
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
-      const res = await fetch(`/api/songs/${songId}/tracks/${p.trackOrder}/accept`, {
+      const res = await fetch(`/api/songs/${songId}/measures`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ authorId: p.authorId, action }),
+        body: JSON.stringify({ afterOrder: afterIndex }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
-      setInfo(action === "accept" ? "Proposta aceita." : "Proposta recusada.");
-      setReviewing(null);
-      setReviewContent(null);
+      setInfo(`Compasso adicionado após o ${afterIndex + 1}.`);
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
       await loadTrack();
-      await loadProposals();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeMeasure(index: number) {
+    if (busy) return;
+    const extra = dirty ? " Suas edições não salvas também serão descartadas." : "";
+    if (
+      !window.confirm(
+        `Remover o compasso ${index + 1} de TODAS as trilhas? As contribuições desse compasso serão apagadas.${extra}`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(
+        `/api/songs/${songId}/measures?order=${index}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha.");
+      setInfo(`Compasso ${index + 1} removido.`);
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      await loadTrack();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro.");
     } finally {
@@ -183,9 +265,9 @@ export default function TrackEditor({
         <button
           type="button"
           className="playpause-btn"
-          onClick={() => playerRef.current?.playPause()}
+          onClick={handlePlayClick}
           disabled={!playerReady}
-          title={isPlaying ? "Pausar" : "Tocar"}
+          title={isPlaying ? "Pausar" : dirty ? "Tocar (com suas edições)" : "Tocar"}
         >
           {isPlaying ? "⏸" : "▶"}
         </button>
@@ -194,11 +276,7 @@ export default function TrackEditor({
           <select
             className="track-select"
             value={trackOrder}
-            onChange={(e) => {
-              setTrackOrder(Number(e.target.value));
-              setReviewing(null);
-              setReviewContent(null);
-            }}
+            onChange={(e) => setTrackOrder(Number(e.target.value))}
             aria-label="Faixa a editar"
           >
             {tracks.map((t) => (
@@ -209,19 +287,18 @@ export default function TrackEditor({
           </select>
         </div>
 
-        {ownerName && (
+        {content && ownerName && (
           <span className={`edit-role-badge${isOwner ? " owner" : ""}`}>
             {isOwner ? "dono — salva direto" : `proposta · revisada por ${ownerName}`}
           </span>
         )}
+        {content && !ownerName && me && (
+          <span className="edit-role-badge owner">
+            música aberta (sem dono) — salva direto
+          </span>
+        )}
         {!me && (
           <span className="edit-role-badge">identifique-se para editar</span>
-        )}
-
-        {reviewing && (
-          <span className="edit-preview-badge">
-            pré-visualizando proposta de {reviewing.authorName}
-          </span>
         )}
 
         <div style={{ flex: 1 }} />
@@ -232,39 +309,44 @@ export default function TrackEditor({
           onClick={submit}
           disabled={busy || !content || !me}
         >
-          {isOwner ? "Salvar a trilha" : "Propor a trilha"}
+          {!content ? "Carregando…" : isOwner ? "Salvar a trilha" : "Propor a trilha"}
         </button>
       </div>
 
-      {/* ── Full-width player ── */}
-      <div className="edit-player">
-        <AlphaTabPlayer
-          ref={playerRef}
-          key={playerUrl}
-          alphaTexUrl={playerUrl}
-          editMode
-          onPlayingChange={setIsPlaying}
-          onPlayerReadyChange={setPlayerReady}
-        />
-      </div>
-
-      {/* ── Resize handle ── */}
-      <div
-        className="edit-resize-handle"
-        onMouseDown={handleResizeStart}
-        title="Arrastar para redimensionar"
+      {/* ── Player headless: sem tablatura visível, só o áudio ──
+          O play de cima toca a música completa montada (todas as faixas + o que
+          já foi editado). O espaço da tela é todo do editor. */}
+      <AlphaTabPlayer
+        ref={playerRef}
+        key={`${songId}#${playerEpoch}`}
+        alphaTexUrl={`/api/songs/${songId}/assembled`}
+        editMode
+        audioOnly
+        onPlayingChange={setIsPlaying}
+        onPlayerReadyChange={setPlayerReady}
+        onTickChange={syncEditorCursor}
       />
 
-      {/* ── Bottom panel: editor + proposals ── */}
-      <div className="edit-bottom" style={{ height: bottomHeight }}>
-        {/* Left — visual tab editor (substitui o textarea) */}
-        {content ? (
+      {/* ── Editor em tela cheia (propostas moram na aba Propostas da música) ──
+          Só monta quando o content é DA TRILHA SELECIONADA: durante a troca o
+          content antigo ainda está no state e montaria o editor com o texto
+          (e o flag de percussão) da trilha errada. */}
+      <div className="edit-bottom">
+        {content && content.track.order === trackOrder ? (
           <TabEditor
             key={trackOrder}
+            ref={editorRef}
             alphaTex={text}
             onChange={setText}
             disabled={!me}
-            trackStringCount={/baixo/i.test(content.track.name) ? 4 : 6}
+            trackStringCount={stringCountFromHeader(content.trackHeader) ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
+            trackHeader={content.trackHeader}
+            measureMeta={content.measures}
+            onSeek={seekPlayer}
+            percussion={content.track.isPercussion}
+            canEditStructure={isOwner && !!me}
+            onAddMeasure={addMeasureAfter}
+            onDeleteMeasure={removeMeasure}
             error={error}
             info={info}
           />
@@ -273,74 +355,6 @@ export default function TrackEditor({
             <div className="player-loading" style={{ flex: 1 }}>Carregando…</div>
           </div>
         )}
-
-        {/* Right — proposals */}
-        <div className="edit-proposals">
-          <div className="proposals-head">
-            {isOwner ? "Propostas a revisar" : "Suas propostas"}
-          </div>
-
-          {visibleProposals.length === 0 ? (
-            <p className="proposals-empty">
-              {isOwner
-                ? "Nenhuma proposta pendente."
-                : "Você ainda não propôs mudanças."}
-            </p>
-          ) : (
-            <ul className="proposals-list">
-              {visibleProposals.map((p) => {
-                const active =
-                  reviewing?.trackOrder === p.trackOrder &&
-                  reviewing?.authorId === p.authorId;
-                return (
-                  <li key={`${p.trackOrder}-${p.authorId}`} className="proposal-item">
-                    <div className="proposal-meta">
-                      <div className="proposal-who">{p.authorName}</div>
-                      <div className="proposal-track">
-                        {p.trackName} · {p.count} compasso(s)
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className={`btn-review${active ? " active" : ""}`}
-                      onClick={() => (active ? setReviewing(null) : startReview(p))}
-                    >
-                      {active ? "Fechar" : isOwner ? "Revisar" : "Ver"}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {/* Accept / reject when reviewing */}
-          {reviewing && isOwner && (
-            <div className="review-actions">
-              <button
-                type="button"
-                className="btn-accept"
-                onClick={() => doReview(reviewing, "accept")}
-                disabled={busy}
-              >
-                Aceitar
-              </button>
-              <button
-                type="button"
-                className="btn-reject"
-                onClick={() => doReview(reviewing, "reject")}
-                disabled={busy}
-              >
-                Recusar
-              </button>
-            </div>
-          )}
-
-          {reviewing && !isOwner && (
-            <p className="proposals-empty" style={{ marginTop: 8 }}>
-              Aguardando {ownerName ?? "o dono"} aceitar.
-            </p>
-          )}
-        </div>
       </div>
     </div>
   );

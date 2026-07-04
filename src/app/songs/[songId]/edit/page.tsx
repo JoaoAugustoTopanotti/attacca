@@ -37,8 +37,9 @@ export default async function EditPage({
       {notMaterialized ? (
         <div style={{ padding: "24px" }}>
           <div className="player-error" role="alert">
-            O grid de células ainda não foi materializado para esta música.
-            Volte para a página da música e clique em &ldquo;Materializar&rdquo;.
+            Esta música ainda não tem a grade de colaboração (nenhum arquivo
+            processado). Envie um arquivo Guitar Pro na aba Colaborar — a grade
+            é criada automaticamente no upload.
           </div>
         </div>
       ) : (
