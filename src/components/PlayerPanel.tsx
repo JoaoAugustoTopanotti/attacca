@@ -53,14 +53,16 @@ export default function PlayerPanel({
 
       {materialized && view !== "live" && selectedRev && (
         <div className="player-snapshot-bar">
-          Visualizando snapshot #{selectedRev.number} —{" "}
+          <span>
+            Tocando a versão <strong>#{selectedRev.number}</strong> do histórico
+            {selectedRev.message ? ` — “${selectedRev.message}”` : ""}
+          </span>
           <button
             type="button"
-            className="ghost"
-            style={{ fontSize: "0.78rem", padding: "0 4px" }}
+            className="player-snapshot-back"
             onClick={() => setView("live")}
           >
-            ver versão atual
+            ← Voltar ao atual
           </button>
         </div>
       )}

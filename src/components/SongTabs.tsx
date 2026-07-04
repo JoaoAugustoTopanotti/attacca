@@ -3,17 +3,20 @@
 import { useEffect, useState } from "react";
 import PlayerPanel from "@/components/PlayerPanel";
 import CollabPanel from "@/components/CollabPanel";
+import ProposalsPanel from "@/components/ProposalsPanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import ContribPanel from "@/components/ContribPanel";
 import type { RevisionDTO } from "@/lib/song-types";
 
-type Tab = "player" | "colaborar" | "historico" | "contribuidores";
+type Tab = "player" | "colaborar" | "propostas" | "historico" | "contribuidores";
 
 export default function SongTabs({
   songId,
+  ownerId,
   initialRevisions,
 }: {
   songId: string;
+  ownerId: string | null;
   initialRevisions: RevisionDTO[];
 }) {
   const [active, setActive] = useState<Tab>("player");
@@ -21,6 +24,18 @@ export default function SongTabs({
   const [materialized, setMaterialized] = useState(false);
   const [checked, setChecked] = useState(false);
   const [view, setView] = useState<string>(initialRevisions[0]?.id ?? "live");
+  const [meId, setMeId] = useState<string | null>(null);
+
+  // Dono = criador (ADR 0003); música sem dono (ownerId null) é aberta → todos
+  // veem o Histórico. O Histórico é do dono: é dele o poder de reverter.
+  const isOwner = !ownerId || (!!meId && ownerId === meId);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((m) => setMeId(m?.id ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch(`/api/songs/${songId}/completeness`)
@@ -60,9 +75,18 @@ export default function SongTabs({
     else alert(data?.error ?? "Falha ao reverter.");
   }
 
+  // Histórico → player principal: seleciona a versão e leva o usuário ao Player.
+  function viewInPlayer(revId: string) {
+    setView(revId);
+    setActive("player");
+  }
+
   const TABS: { id: Tab; label: string }[] = [
     { id: "player", label: "Player" },
     { id: "colaborar", label: "Colaborar" },
+    { id: "propostas", label: "Propostas" },
+    // Histórico é visível a todos (é o revezamento acontecendo); só o Reverter
+    // é do dono — gate dentro do HistoryPanel.
     { id: "historico", label: "Histórico" },
     { id: "contribuidores", label: "Contribuidores" },
   ];
@@ -100,8 +124,20 @@ export default function SongTabs({
             refreshRevisions={refreshRevisions}
           />
         )}
+        {active === "propostas" && (
+          <ProposalsPanel
+            songId={songId}
+            refreshRevisions={() => refreshRevisions()}
+          />
+        )}
         {active === "historico" && (
-          <HistoryPanel revisions={revisions} revertTo={revertTo} />
+          <HistoryPanel
+            revisions={revisions}
+            revertTo={revertTo}
+            canRevert={isOwner}
+            view={view}
+            onView={viewInPlayer}
+          />
         )}
         {active === "contribuidores" && <ContribPanel songId={songId} />}
       </div>

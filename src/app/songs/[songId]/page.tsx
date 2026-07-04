@@ -52,7 +52,11 @@ export default async function SongPage({
         <h1 className="song-title">{song.title}</h1>
       </div>
 
-      <SongTabs songId={song.id} initialRevisions={revisions} />
+      <SongTabs
+        songId={song.id}
+        ownerId={song.ownerId}
+        initialRevisions={revisions}
+      />
     </div>
   );
 }

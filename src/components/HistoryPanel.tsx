@@ -1,7 +1,5 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import AlphaTabPlayer from "@/components/AlphaTabPlayer";
 import type { RevisionDTO } from "@/lib/song-types";
 
 function formatDate(iso: string): string {
@@ -15,12 +13,19 @@ function formatDate(iso: string): string {
 export default function HistoryPanel({
   revisions,
   revertTo,
+  canRevert,
+  view,
+  onView,
 }: {
   revisions: RevisionDTO[];
   revertTo: (id: string) => Promise<void>;
+  /** Só o dono reverte (o Histórico em si é visível a todos). */
+  canRevert: boolean;
+  /** Versão atualmente carregada no player ("live" = versão viva). */
+  view: string;
+  /** Pede ao player principal para tocar esta versão (e vai para a aba Player). */
+  onView: (id: string) => void;
 }) {
-  const [previewId, setPreviewId] = useState<string | null>(null);
-
   if (revisions.length === 0) {
     return (
       <div className="hist-panel hist-panel--scroll">
@@ -30,10 +35,6 @@ export default function HistoryPanel({
   }
 
   const latestNum = Math.max(...revisions.map((r) => r.number));
-
-  function togglePreview(id: string) {
-    setPreviewId((prev) => (prev === id ? null : id));
-  }
 
   function handleRevert(r: RevisionDTO) {
     if (
@@ -45,94 +46,74 @@ export default function HistoryPanel({
     }
   }
 
-  const previewRev = revisions.find((r) => r.id === previewId) ?? null;
-
   return (
     <div className="hist-panel hist-panel--scroll">
       <p className="hist-intro">
         Versões da transcrição em ordem cronológica. Clique em{" "}
-        <strong>Ver</strong> para ouvir e ver a tablatura de qualquer versão.
+        <strong>Ouvir</strong> para carregar qualquer versão no player — lá dá para
+        voltar à versão atual quando quiser.
       </p>
 
       <ul className="rev-timeline">
         {revisions.map((r) => {
           const isCurrent = r.number === latestNum;
-          const isPreviewing = previewId === r.id;
+          const isViewing = view === r.id;
 
           return (
-            <Fragment key={r.id}>
-              <li className={`rev-item${isPreviewing ? " rev-item--open" : ""}`}>
-                <div className={`rev-dot${isCurrent ? " current" : ""}`} />
-                <div className="rev-body">
-                  <div className="rev-head">
-                    <span className="rev-num">#{r.number}</span>
-                    {isCurrent && (
-                      <span className="tag tag-current">atual</span>
-                    )}
-                    <span className="tag tag-fmt">
-                      {r.kind === "snapshot" ? "mudança" : r.format}
-                    </span>
-                  </div>
-                  <div className="rev-meta">
-                    {r.authorName} · {formatDate(r.createdAt)}
-                  </div>
-                  {r.message && (
-                    <div className="rev-msg">&ldquo;{r.message}&rdquo;</div>
+            <li
+              key={r.id}
+              className={`rev-item${isViewing ? " rev-item--open" : ""}`}
+            >
+              <div className={`rev-dot${isCurrent ? " current" : ""}`} />
+              <div className="rev-body">
+                <div className="rev-head">
+                  <span className="rev-num">#{r.number}</span>
+                  {isCurrent && <span className="tag tag-current">atual</span>}
+                  <span className="tag tag-fmt">
+                    {r.kind === "snapshot" ? "mudança" : r.format}
+                  </span>
+                  {isViewing && !isCurrent && (
+                    <span className="tag tag-current">no player</span>
                   )}
                 </div>
-                <div className="rev-actions">
-                  {isCurrent ? (
-                    <span className="rev-btn-playing">Tocando</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className={`rev-btn${isPreviewing ? " active" : ""}`}
-                      onClick={() => togglePreview(r.id)}
-                    >
-                      {isPreviewing ? "Ver ▴" : "Ver"}
-                    </button>
-                  )}
-                  {!isCurrent && r.kind !== "snapshot" && (
-                    <button
-                      type="button"
-                      className="rev-btn"
-                      onClick={() => handleRevert(r)}
-                      title={`Reverter para #${r.number}`}
-                    >
-                      ⟲
-                    </button>
-                  )}
+                <div className="rev-meta">
+                  {r.authorName} · {formatDate(r.createdAt)}
                 </div>
-              </li>
-
-              {isPreviewing && previewRev && (
-                <li className="rev-preview-li">
-                  <div className="rev-preview-header">
-                    <span>
-                      Revisão #{r.number} — {r.authorName},{" "}
-                      {formatDate(r.createdAt)}
-                    </span>
-                    <button
-                      type="button"
-                      className="rev-preview-close"
-                      onClick={() => setPreviewId(null)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="rev-preview-player">
-                    <AlphaTabPlayer
-                      key={previewRev.id}
-                      revision={{
-                        id: previewRev.id,
-                        format: previewRev.format,
-                        source: previewRev.source,
-                      }}
-                    />
-                  </div>
-                </li>
-              )}
-            </Fragment>
+                {r.message && (
+                  <div className="rev-msg">&ldquo;{r.message}&rdquo;</div>
+                )}
+              </div>
+              <div className="rev-actions">
+                {isCurrent ? (
+                  <button
+                    type="button"
+                    className="rev-btn"
+                    onClick={() => onView("live")}
+                    title="Tocar a versão atual"
+                  >
+                    Ouvir
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`rev-btn${isViewing ? " active" : ""}`}
+                    onClick={() => onView(r.id)}
+                  >
+                    Ouvir
+                  </button>
+                )}
+                {canRevert && !isCurrent && r.kind !== "snapshot" && (
+                  <button
+                    type="button"
+                    className="rev-btn"
+                    onClick={() => handleRevert(r)}
+                    title={`Reverter para #${r.number}`}
+                  >
+                    ⟲
+                  </button>
+                )}
+              </div>
+            </li>
           );
         })}
       </ul>

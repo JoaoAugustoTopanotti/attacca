@@ -1,6 +1,13 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { instrumentLabel } from "@/lib/instruments";
 
 type AlphaTabModule = typeof import("@coderline/alphatab");
@@ -19,6 +26,12 @@ export type AlphaTabPlayerHandle = {
   playPause: () => void;
   /** Exibe a trilha de índice `index` (0-based) no player. */
   selectTrack: (index: number) => void;
+  /** Move a posição de playback para um tick musical (seek). */
+  seekTick: (tick: number) => void;
+  /** Carrega um documento alphaTex direto (preview de edição não salva). */
+  loadTex: (tex: string) => void;
+  /** True quando o áudio do score atual está pronto para tocar. */
+  isReadyForPlayback: () => boolean;
 };
 
 type Status = "loading" | "ready" | "error";
@@ -38,22 +51,38 @@ const AlphaTabPlayer = forwardRef<
     /** fullpage=true: bottom bar layout (song page).
      *  fullpage=false (default): top toolbar + transport (history preview / compare). */
     fullpage?: boolean;
+    /** Trilha exibida ao carregar (0-based). Default: a primeira. */
+    defaultTrackIndex?: number;
+    /** Beats a destacar em verde na trilha exibida — "measureIndex:beatIndex"
+     *  (voz 0). Usado para mostrar o diff de uma proposta NA partitura. */
+    highlightBeats?: string[];
     /** editMode=true: full-width tablature, no built-in controls.
      *  Play/pause is controlled externally via the ref handle. */
     editMode?: boolean;
+    /** audioOnly=true (editMode): headless — mantém a instância viva só para o
+     *  ÁUDIO (tocar a música montada), sem tablatura visível. Na tela de editar
+     *  faixa o espaço é do editor; o play de cima toca a música completa. */
+    audioOnly?: boolean;
     /** Called when isPlaying changes (only in editMode). */
     onPlayingChange?: (playing: boolean) => void;
     /** Called when playerReady changes (only in editMode). */
     onPlayerReadyChange?: (ready: boolean) => void;
+    /** Posição de playback (tick musical) — usado p/ sincronizar o cursor do
+     *  editor visual com a música que toca aqui (headless). */
+    onTickChange?: (currentTick: number) => void;
   }
 >(function AlphaTabPlayer(
   {
     revision,
     alphaTexUrl,
     fullpage = false,
+    defaultTrackIndex,
+    highlightBeats,
     editMode = false,
+    audioOnly = false,
     onPlayingChange,
     onPlayerReadyChange,
+    onTickChange,
   },
   ref,
 ) {
@@ -62,6 +91,13 @@ const AlphaTabPlayer = forwardRef<
   const apiRef = useRef<AlphaTabApi | null>(null);
   const scoreRef = useRef<Score | null>(null);
   const scrubbingRef = useRef(false);
+  // Callback de tick sempre atual (o handler do alphaTab é registrado uma vez).
+  const onTickChangeRef = useRef(onTickChange);
+  onTickChangeRef.current = onTickChange;
+  const defaultTrackIndexRef = useRef(defaultTrackIndex);
+  defaultTrackIndexRef.current = defaultTrackIndex;
+  const highlightBeatsRef = useRef(highlightBeats);
+  highlightBeatsRef.current = highlightBeats;
 
   const [apiReady, setApiReady] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
@@ -75,7 +111,7 @@ const AlphaTabPlayer = forwardRef<
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
 
-  // Expose playPause() and selectTrack() for editMode callers
+  // Expose playPause() / selectTrack() / seekTick() for editMode callers
   useImperativeHandle(ref, () => ({
     playPause: () => apiRef.current?.playPause(),
     selectTrack: (index: number) => {
@@ -86,6 +122,18 @@ const AlphaTabPlayer = forwardRef<
       const track = score.tracks.find((t: Track) => t.index === index);
       if (track) api.renderTracks([track]);
     },
+    seekTick: (tick: number) => {
+      const api = apiRef.current;
+      if (api) api.tickPosition = tick;
+    },
+    loadTex: (tex: string) => {
+      try {
+        apiRef.current?.tex(tex);
+      } catch {
+        // erros de parse já saem via api.error → status "error"
+      }
+    },
+    isReadyForPlayback: () => apiRef.current?.isReadyForPlayback ?? false,
   }));
 
   // Bubble playing / ready state to parent (editMode)
@@ -116,11 +164,15 @@ const AlphaTabPlayer = forwardRef<
         },
         player: {
           enablePlayer: true,
-          enableCursor: true,
+          // Headless (audioOnly): sem cursor/scroll — só o áudio importa e o
+          // surface fica fora da tela, então scrollar seria inútil/problemático.
+          enableCursor: !audioOnly,
           enableUserInteraction: true,
           soundFont: "/soundfont/sonivox.sf2",
-          scrollElement: viewportRef.current ?? undefined,
-          scrollMode: alphaTab.ScrollMode.Continuous,
+          scrollElement: audioOnly ? undefined : viewportRef.current ?? undefined,
+          scrollMode: audioOnly
+            ? alphaTab.ScrollMode.Off
+            : alphaTab.ScrollMode.Continuous,
         },
       });
 
@@ -136,9 +188,35 @@ const AlphaTabPlayer = forwardRef<
           };
         });
         setTracks(list);
-        const firstIndex = list[0]?.index ?? 0;
+        const wanted = defaultTrackIndexRef.current;
+        const firstIndex =
+          wanted != null && list.some((t) => t.index === wanted)
+            ? wanted
+            : list[0]?.index ?? 0;
         setSelectedTrackIndex(firstIndex);
         const firstTrack = score.tracks.find((t) => t.index === firstIndex);
+        // Diff NA partitura: pinta de verde as notas mudadas/novas da proposta.
+        const set = highlightBeatsRef.current;
+        if (firstTrack && set && set.length > 0) {
+          const wanted = new Set(set);
+          const green = new alphaTab.model.Color(63, 185, 80, 255);
+          firstTrack.staves.forEach((staff) => {
+            staff.bars.forEach((bar, measureIndex) => {
+              bar.voices[0]?.beats.forEach((beat, beatIndex) => {
+                if (!wanted.has(`${measureIndex}:${beatIndex}`)) return;
+                const bs = new alphaTab.model.BeatStyle();
+                bs.colors.set(alphaTab.model.BeatSubElement.GuitarTabRests, green);
+                beat.style = bs;
+                for (const note of beat.notes) {
+                  const ns = new alphaTab.model.NoteStyle();
+                  ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabFretNumber, green);
+                  ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabEffects, green);
+                  note.style = ns;
+                }
+              });
+            });
+          });
+        }
         if (firstTrack) apiRef.current?.renderTracks([firstTrack]);
         setStatus("ready");
         setErrorMessage(null);
@@ -151,6 +229,8 @@ const AlphaTabPlayer = forwardRef<
       api.playerPositionChanged.on((e) => {
         setEndTimeMs(e.endTime);
         if (!scrubbingRef.current) setCurrentTimeMs(e.currentTime);
+        // Encaminha o tick musical para sincronizar o cursor do editor visual.
+        onTickChangeRef.current?.(e.currentTick);
       });
       api.error.on((error) => {
         const message = error instanceof Error ? error.message : "Erro desconhecido.";
@@ -238,9 +318,25 @@ const AlphaTabPlayer = forwardRef<
 
   // ── EDIT MODE (track editor — no built-in controls) ─────────────────
   if (editMode) {
+    // audioOnly: fica fora da tela (mas com largura real p/ o alphaTab montar o
+    // layout sem erro), preservando o áudio. O <div ref={surfaceRef}> NUNCA sai
+    // do DOM — a instância continua viva e o play externo funciona.
+    const hidden: CSSProperties = {
+      position: "absolute",
+      left: "-99999px",
+      top: 0,
+      width: "1200px",
+      height: "1px",
+      overflow: "hidden",
+      pointerEvents: "none",
+    };
     return (
-      <div className="player-card player-card--fullpage">
-        {status === "error" && (
+      <div
+        className="player-card player-card--fullpage"
+        style={audioOnly ? hidden : undefined}
+        aria-hidden={audioOnly || undefined}
+      >
+        {!audioOnly && status === "error" && (
           <div className="player-error" role="alert">
             <strong>Não foi possível renderizar esta revisão.</strong>
             <div>{errorMessage}</div>
@@ -252,7 +348,7 @@ const AlphaTabPlayer = forwardRef<
           className="player-viewport player-viewport--fullpage"
           aria-busy={status === "loading"}
         >
-          {status === "loading" && (
+          {!audioOnly && status === "loading" && (
             <div className="player-loading">Carregando…</div>
           )}
           <div ref={surfaceRef} className="player-surface" />
