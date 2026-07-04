@@ -18,6 +18,8 @@ type Completeness = {
 };
 type Preset = { key: string; label: string };
 
+// Menu recolhível no rodapé da aba Colaborar: fechado mostra só "X% completo";
+// abre para cima com a % por instrumento + declarar um instrumento que falta.
 export default function CompletenessPanel({ songId }: { songId: string }) {
   const [data, setData] = useState<Completeness | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -25,6 +27,7 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/songs/${songId}/completeness`);
@@ -63,122 +66,79 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
     }
   }
 
-  async function materialize() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/songs/${songId}/materialize`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Falha ao materializar.");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (!data) return null;
 
-  // Not yet materialized — show a single action.
-  if (data.tracks.length === 0) {
-    return (
-      <div className="panel">
-        <p className="sub" style={{ marginBottom: 12 }}>
-          Esta música ainda não foi materializada no grid de células — necessário
-          para declarar instrumentos e medir completude.
-        </p>
-        <button type="button" onClick={materialize} disabled={busy}>
-          {busy ? "Materializando…" : "Materializar grid"}
-        </button>
-        {error && <div className="form-error">{error}</div>}
-      </div>
-    );
-  }
+  const hasTracks = data.tracks.length > 0;
+  const summary = !hasTracks
+    ? "sem instrumentos ainda — envie um arquivo"
+    : data.missing.length > 0
+      ? `falta ${data.missing.join(", ")}`
+      : "todos os instrumentos presentes";
 
   return (
-    <div>
-      {/* Track rows */}
-      <div className="card" style={{ marginBottom: 12 }}>
-        <div className="card-header">
-          Trilhas
-          <span style={{ fontWeight: 400, color: "var(--accent)", fontSize: "0.82rem" }}>
-            {data.percent}% completo
-          </span>
-        </div>
-        <div className="card-body">
-          {data.tracks.map((t) => (
-            <div key={t.id} className="comp-track-row">
-              <div className="comp-track-top">
-                <span className="comp-track-name">
-                  {t.name}
-                  {t.ownerName && (
-                    <span className="tag" style={{ marginLeft: 6 }}>{t.ownerName}</span>
-                  )}
-                </span>
-                <span className="comp-track-pct">{t.percent}%</span>
+    <div className={`completeness${open ? " open" : ""}`}>
+      {/* Gaveta (abre para cima) */}
+      {open && hasTracks && (
+        <div className="completeness-drawer">
+          <div className="completeness-tracks">
+            {data.tracks.map((t) => (
+              <div key={t.id} className="comp-track-row">
+                <div className="comp-track-top">
+                  <span className="comp-track-name">
+                    {t.name}
+                    {t.ownerName && (
+                      <span className="tag" style={{ marginLeft: 6 }}>{t.ownerName}</span>
+                    )}
+                  </span>
+                  <span className="comp-track-pct">{t.percent}%</span>
+                </div>
+                <div className="comp-bar">
+                  <div className="comp-bar-fill" style={{ width: `${t.percent}%` }} />
+                </div>
               </div>
-              <div className="comp-bar">
-                <div className="comp-bar-fill" style={{ width: `${t.percent}%` }} />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          {data.missing.length > 0 && (
-            <div className="comp-missing-block">
-              <div className="comp-missing-label">Faltando</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {data.missing.map((m) => (
-                  <span key={m} className="tag">falta {m}</span>
-                ))}
-              </div>
+          {/* Declarar instrumento que falta */}
+          <div className="completeness-declare">
+            <div className="completeness-declare-title">
+              Falta um instrumento? Declare o slot
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Declare instrument */}
-      <div className="card">
-        <div className="card-header">Declarar instrumento</div>
-        <div className="card-body">
-          <div className="row">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="preset">Instrumento</label>
-              <select
-                id="preset"
-                value={presetKey}
-                onChange={(e) => setPresetKey(e.target.value)}
-              >
+            <p className="sub" style={{ fontSize: "0.74rem", margin: "0 0 8px" }}>
+              Cria uma trilha vazia e sem dono — o convite para alguém assumir.
+            </p>
+            <div className="completeness-declare-row">
+              <select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
                 {presets.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
+                  <option key={p.key} value={p.key}>{p.label}</option>
                 ))}
               </select>
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="trackname">Nome (opcional)</label>
               <input
-                id="trackname"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="ex.: Baixo"
+                placeholder="Nome (opcional), ex.: Guitarra 4"
               />
+              <button type="button" onClick={declare} disabled={busy} className="completeness-declare-btn">
+                {busy ? "…" : "Declarar slot"}
+              </button>
             </div>
+            {error && <div className="form-error" style={{ marginTop: 6 }}>{error}</div>}
           </div>
-          <button
-            type="button"
-            onClick={declare}
-            disabled={busy}
-            className="secondary"
-            style={{ width: "100%", marginTop: 10 }}
-          >
-            {busy ? "Declarando…" : "Declarar slot (nasce vazio, sem dono)"}
-          </button>
-          {error && <div className="form-error">{error}</div>}
         </div>
-      </div>
+      )}
+
+      {/* Barra sempre visível */}
+      <button
+        type="button"
+        className="completeness-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="completeness-pct">{hasTracks ? `${data.percent}%` : "—"} completo</span>
+        <span className="completeness-summary">{summary}</span>
+        <span className="completeness-chevron">{open ? "▾" : "▴"}</span>
+      </button>
     </div>
   );
 }
