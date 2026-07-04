@@ -926,6 +926,20 @@ label {
   font-size: 0.82rem; color: var(--sub); margin: 0 0 28px;
 }
 .new-song-form { display: flex; flex-direction: column; gap: 4px; }
+.start-mode-group { display: flex; flex-direction: column; gap: 8px; }
+.start-mode-option {
+  display: block; width: 100%; text-align: left;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); cursor: pointer; font-family: inherit;
+  transition: border-color .15s, background .15s;
+}
+.start-mode-option:hover:not(:disabled) { border-color: var(--muted); }
+.start-mode-option:disabled { opacity: .5; cursor: not-allowed; }
+.start-mode-option.selected {
+  border-color: rgba(88,166,255,.6); background: rgba(88,166,255,.05);
+}
+.start-mode-title { font-size: 0.86rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.start-mode-desc { font-size: 0.76rem; color: var(--sub); line-height: 1.4; }
 .btn-new-primary {
   margin-top: 10px;
   padding: 10px 18px;

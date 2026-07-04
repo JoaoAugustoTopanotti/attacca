@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UPLOAD_ACCEPT } from "@/lib/format";
 
+type StartMode = "upload" | "blank" | "template";
+
 export default function NewSongPage() {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
+  const [mode, setMode] = useState<StartMode>("blank");
   const [fileName, setFileName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +33,12 @@ export default function NewSongPage() {
       return;
     }
 
+    const file = mode === "upload" ? fileRef.current?.files?.[0] : undefined;
+    if (mode === "upload" && !file) {
+      setError("Escolha um arquivo Guitar Pro ou MusicXML.");
+      return;
+    }
+
     setSubmitting(true);
     const slowTimer = setTimeout(() => setSlow(true), 10_000);
 
@@ -47,9 +56,8 @@ export default function NewSongPage() {
       if (!res.ok) throw new Error(data?.error ?? "Erro ao criar música.");
       const songId: string = data.id;
 
-      // 2. Upload file (optional)
-      const file = fileRef.current?.files?.[0];
-      if (file) {
+      // 2. Start the collaboration grid, according to the chosen mode.
+      if (mode === "upload" && file) {
         const form = new FormData();
         form.append("file", file);
         form.append("authorName", "");
@@ -63,9 +71,24 @@ export default function NewSongPage() {
           const upData = await upRes.json();
           throw new Error(upData?.error ?? "Erro no upload.");
         }
+        router.push(`/songs/${songId}`);
+        return;
       }
 
-      // 3. Go to song workspace
+      if (mode === "blank" || mode === "template") {
+        const scRes = await fetch(`/api/songs/${songId}/scaffold`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template: mode === "template" ? "gitsong" : "blank" }),
+        });
+        if (!scRes.ok) {
+          const scData = await scRes.json();
+          throw new Error(scData?.error ?? "Erro ao criar a grade.");
+        }
+        router.push(`/songs/${songId}/edit`);
+        return;
+      }
+
       router.push(`/songs/${songId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
@@ -114,31 +137,71 @@ export default function NewSongPage() {
         </div>
 
         <div className="field">
-          <label>Arquivo Guitar Pro ou MusicXML (opcional)</label>
-          <input
-            id="ns-file"
-            type="file"
-            ref={fileRef}
-            accept={UPLOAD_ACCEPT}
-            onChange={handleFileChange}
-            style={{
-              position: "absolute",
-              opacity: 0,
-              pointerEvents: "none",
-              width: 1,
-              height: 1,
-            }}
-          />
-          <label htmlFor="ns-file" className="upload-zone">
-            <div className="upload-zone-icon">🎸</div>
-            <div>
-              <span className="upload-zone-link">Escolher arquivo</span>{" "}
-              ou arraste aqui
-            </div>
-            <div className="upload-zone-hint">.gp · .gp5 · .gpx · .xml</div>
-          </label>
-          {fileName && <div className="upload-filename">{fileName}</div>}
+          <label>Como quer começar?</label>
+          <div className="start-mode-group">
+            <button
+              type="button"
+              className={`start-mode-option${mode === "blank" ? " selected" : ""}`}
+              onClick={() => setMode("blank")}
+              disabled={submitting}
+            >
+              <div className="start-mode-title">Criar do zero</div>
+              <div className="start-mode-desc">
+                Abre o editor visual com uma trilha de guitarra em branco.
+              </div>
+            </button>
+            <button
+              type="button"
+              className={`start-mode-option${mode === "template" ? " selected" : ""}`}
+              onClick={() => setMode("template")}
+              disabled={submitting}
+            >
+              <div className="start-mode-title">Usar template do GitSong</div>
+              <div className="start-mode-desc">
+                Começa com guitarra + baixo de exemplo já preenchidos.
+              </div>
+            </button>
+            <button
+              type="button"
+              className={`start-mode-option${mode === "upload" ? " selected" : ""}`}
+              onClick={() => setMode("upload")}
+              disabled={submitting}
+            >
+              <div className="start-mode-title">Enviar arquivo</div>
+              <div className="start-mode-desc">
+                Já tem a partitura pronta? Envie um Guitar Pro ou MusicXML.
+              </div>
+            </button>
+          </div>
         </div>
+
+        {mode === "upload" && (
+          <div className="field">
+            <input
+              id="ns-file"
+              type="file"
+              ref={fileRef}
+              accept={UPLOAD_ACCEPT}
+              onChange={handleFileChange}
+              style={{
+                position: "absolute",
+                opacity: 0,
+                pointerEvents: "none",
+                width: 1,
+                height: 1,
+              }}
+            />
+            <label htmlFor="ns-file" className="upload-zone">
+              <div className="upload-zone-icon">🎸</div>
+              <div>
+                <span className="upload-zone-link">Escolher arquivo</span>{" "}
+                ou arraste aqui
+              </div>
+              <div className="upload-zone-hint">.gp · .gp5 · .gpx · .xml</div>
+            </label>
+            {fileName && <div className="upload-filename">{fileName}</div>}
+          </div>
+        )}
 
         {error && <div className="form-error">{error}</div>}
         {slow && (

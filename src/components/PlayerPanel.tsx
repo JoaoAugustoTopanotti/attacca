@@ -30,7 +30,8 @@ export default function PlayerPanel({
         <div className="player-empty">
           <p>Nenhuma versão ainda.</p>
           <p className="sub">
-            Vá em <strong>Colaborar</strong> para enviar um arquivo Guitar Pro.
+            Vá em <strong>Colaborar</strong> para começar do zero, usar o
+            template do GitSong, ou enviar um arquivo Guitar Pro.
           </p>
         </div>
       ) : view === "live" && materialized ? (

@@ -122,6 +122,8 @@ export default function SongTabs({
           <CollabPanel
             songId={songId}
             refreshRevisions={refreshRevisions}
+            materialized={materialized}
+            onScaffolded={() => setMaterialized(true)}
           />
         )}
         {active === "propostas" && (

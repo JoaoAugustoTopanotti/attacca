@@ -2,17 +2,120 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import UploadForm from "@/components/UploadForm";
 import CompletenessPanel from "@/components/CompletenessPanel";
 
 export default function CollabPanel({
   songId,
   refreshRevisions,
+  materialized,
+  onScaffolded,
 }: {
   songId: string;
   refreshRevisions: (selectId?: string) => Promise<void>;
+  materialized: boolean;
+  onScaffolded: () => void;
 }) {
+  const router = useRouter();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [scaffolding, setScaffolding] = useState<"blank" | "gitsong" | null>(null);
+  const [scaffoldError, setScaffoldError] = useState<string | null>(null);
+
+  async function scaffold(template: "blank" | "gitsong") {
+    setScaffolding(template);
+    setScaffoldError(null);
+    try {
+      const res = await fetch(`/api/songs/${songId}/scaffold`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao criar a grade.");
+      onScaffolded();
+      router.push(`/songs/${songId}/edit`);
+    } catch (e) {
+      setScaffoldError(e instanceof Error ? e.message : "Erro inesperado.");
+      setScaffolding(null);
+    }
+  }
+
+  // Música ainda sem grade: oferece os três jeitos de começar, lado a lado.
+  // "Editar uma faixa" só faz sentido depois que a grade existe.
+  if (!materialized) {
+    return (
+      <div className="collab-panel">
+        <div className="collab-main no-scrollbar">
+          <div className="collab-actions">
+            <p className="section-label">Como quer começar?</p>
+
+            <button
+              type="button"
+              className="action-card action-card--primary"
+              onClick={() => scaffold("blank")}
+              disabled={scaffolding !== null}
+            >
+              <div className="action-body">
+                <div className="action-title">Criar do zero</div>
+                <div className="action-desc">
+                  Abre o editor visual com uma trilha de guitarra em branco,
+                  pronta pra você tablaturar.
+                </div>
+              </div>
+              <span className="action-arrow">{scaffolding === "blank" ? "…" : "→"}</span>
+            </button>
+
+            <button
+              type="button"
+              className="action-card"
+              onClick={() => scaffold("gitsong")}
+              disabled={scaffolding !== null}
+            >
+              <div className="action-body">
+                <div className="action-title">Usar o template do GitSong</div>
+                <div className="action-desc">
+                  Começa com guitarra + baixo de exemplo já preenchidos, pra
+                  você editar em cima.
+                </div>
+              </div>
+              <span className="action-arrow">{scaffolding === "gitsong" ? "…" : "→"}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`action-card action-card--toggle${uploadOpen ? " open" : ""}`}
+              onClick={() => setUploadOpen((p) => !p)}
+              disabled={scaffolding !== null}
+            >
+              <div className="action-body">
+                <div className="action-title">Enviar arquivo completo</div>
+                <div className="action-desc">
+                  Já tem a partitura pronta? Upload de um arquivo Guitar Pro.
+                </div>
+              </div>
+              <span className="action-arrow">{uploadOpen ? "▴" : "▾"}</span>
+            </button>
+
+            {uploadOpen && (
+              <div className="action-upload-area">
+                <UploadForm
+                  songId={songId}
+                  onUploaded={(id) => {
+                    refreshRevisions(id);
+                    onScaffolded();
+                    setUploadOpen(false);
+                  }}
+                />
+              </div>
+            )}
+
+            {scaffoldError && <div className="form-error">{scaffoldError}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="collab-panel">
