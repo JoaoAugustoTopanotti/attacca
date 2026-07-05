@@ -341,6 +341,21 @@ function parseBeatToken(
 
 // ── Clone profundo (imutabilidade) ─────────────────────────────────────────────
 
+function cloneBeat(b: EditorBeat): EditorBeat {
+  return {
+    duration: b.duration,
+    isRest: b.isRest,
+    suffix: b.suffix,
+    notes: b.notes.map((n) => ({ ...n, effects: [...n.effects] })),
+    // (note.suffix é copiado pelo spread acima)
+  };
+}
+
+/** Clone profundo de uma lista de beats — base do clipboard de copiar/colar. */
+export function cloneBeats(beats: EditorBeat[]): EditorBeat[] {
+  return beats.map(cloneBeat);
+}
+
 function cloneModel(model: EditorModel): EditorModel {
   return {
     header: model.header,
@@ -348,13 +363,7 @@ function cloneModel(model: EditorModel): EditorModel {
       wasEmpty: m.wasEmpty,
       prefix: m.prefix,
       tail: m.tail,
-      beats: m.beats.map((b) => ({
-        duration: b.duration,
-        isRest: b.isRest,
-        suffix: b.suffix,
-        notes: b.notes.map((n) => ({ ...n, effects: [...n.effects] })),
-      })),
-      // (note.suffix é copiado pelo spread acima)
+      beats: cloneBeats(m.beats),
     })),
   };
 }
@@ -768,6 +777,190 @@ export function deleteBeat(
   if (!measure || measure.beats.length <= 1) return model;
 
   measure.beats.splice(beatIndex, 1);
+  return next;
+}
+
+// ── Pontuado (dots) ────────────────────────────────────────────────────────────
+// No alphaTex o ponto de aumento é uma propriedade de BEAT: `d` (pontuado, ×1.5)
+// ou `dd` (duplo, ×1.75), dentro do grupo `{…}` após a duração. O parser do
+// alphaTab lê UM único grupo de propriedades por beat — por isso setBeatDots
+// mescla tudo num grupo só (mesma regra do serializeNote para notas).
+
+/**
+ * Tokens de nível superior do conteúdo de um grupo `{…}`: separa por espaço
+ * fora de aspas/parênteses, preservando cada token verbatim. Diferente de
+ * `bareWords`, NÃO descarta os parâmetros — serve para reescrever o grupo.
+ */
+function splitTopLevelTokens(inner: string): string[] {
+  const tokens: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let inStr = false;
+  for (const ch of inner) {
+    if (inStr) {
+      cur += ch;
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; cur += ch; continue; }
+    if (ch === "(") { depth++; cur += ch; continue; }
+    if (ch === ")") { depth = Math.max(0, depth - 1); cur += ch; continue; }
+    if (depth === 0 && /\s/.test(ch)) {
+      if (cur) { tokens.push(cur); cur = ""; }
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur) tokens.push(cur);
+  return tokens;
+}
+
+/** Nº de pontos de aumento do beat (0, 1 ou 2), lido das anotações `{d}`/`{dd}`. */
+export function beatDots(beat: EditorBeat): 0 | 1 | 2 {
+  if (!beat.suffix) return 0;
+  for (const g of splitBraceGroups(beat.suffix)) {
+    for (const t of splitTopLevelTokens(g.slice(1, -1))) {
+      const lt = t.toLowerCase();
+      if (lt === "dd") return 2;
+      if (lt === "d") return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Define o nº de pontos do beat, preservando as demais anotações (letra,
+ * dinâmica, quiáltera…). Reescreve o sufixo como UM único grupo `{…}` — o
+ * parser do alphaTab só aceita um grupo de propriedades por beat.
+ */
+export function setBeatDots(
+  model: EditorModel,
+  measureIndex: number,
+  beatIndex: number,
+  dots: 0 | 1 | 2,
+): EditorModel {
+  const next = cloneModel(model);
+  const beat = next.measures[measureIndex]?.beats[beatIndex];
+  if (!beat) return model;
+
+  const tokens: string[] = [];
+  for (const g of splitBraceGroups(beat.suffix ?? "")) {
+    for (const t of splitTopLevelTokens(g.slice(1, -1))) {
+      const lt = t.toLowerCase();
+      if (lt !== "d" && lt !== "dd") tokens.push(t);
+    }
+  }
+  if (dots === 1) tokens.push("d");
+  else if (dots === 2) tokens.push("dd");
+  beat.suffix = tokens.length ? `{${tokens.join(" ")}}` : undefined;
+  return next;
+}
+
+// ── Trecho: substituir/mover beats (clipboard e ajuste de tempo) ───────────────
+
+const EMPTY_PLACEHOLDER: EditorBeat = { duration: 1, notes: [], isRest: true };
+
+/**
+ * Substitui `deleteCount` beats a partir de `startBeat` pelos `newBeats`
+ * (clonados). Garante ≥1 beat no compasso (pausa inteira se esvaziar) e limpa
+ * `wasEmpty` quando entra conteúdo real.
+ */
+export function replaceBeatsInMeasure(
+  model: EditorModel,
+  measureIndex: number,
+  startBeat: number,
+  deleteCount: number,
+  newBeats: EditorBeat[],
+): EditorModel {
+  const next = cloneModel(model);
+  const measure = next.measures[measureIndex];
+  if (!measure || startBeat < 0 || startBeat > measure.beats.length) return model;
+
+  measure.beats.splice(startBeat, deleteCount, ...cloneBeats(newBeats));
+  if (measure.beats.length === 0) measure.beats.push({ ...EMPTY_PLACEHOLDER, notes: [] });
+  if (newBeats.length > 0) measure.wasEmpty = undefined;
+  return next;
+}
+
+/** Compasso "convencionalmente vazio": uma única pausa inteira sem anotações. */
+function isEmptyPlaceholder(measure: EditorMeasure): boolean {
+  return (
+    measure.beats.length === 1 &&
+    measure.beats[0].isRest &&
+    measure.beats[0].notes.length === 0 &&
+    measure.beats[0].duration === 1 &&
+    !measure.beats[0].suffix
+  );
+}
+
+/**
+ * Move um beat um passo no tempo (dir −1 = antes, +1 = depois). Dentro do
+ * compasso é troca com o vizinho (capacidade inalterada); na borda, o beat
+ * atravessa para o compasso vizinho (o chamador valida a capacidade do
+ * destino). Compasso de destino vazio (pausa inteira única) é SUBSTITUÍDO pelo
+ * beat, não somado — senão a pausa inteira estouraria a fórmula de compasso.
+ * Retorna null quando não há para onde mover (borda da música).
+ */
+export function moveBeat(
+  model: EditorModel,
+  measureIndex: number,
+  beatIndex: number,
+  dir: -1 | 1,
+): { model: EditorModel; measureIndex: number; beatIndex: number } | null {
+  const next = cloneModel(model);
+  const measure = next.measures[measureIndex];
+  const beat = measure?.beats[beatIndex];
+  if (!measure || !beat) return null;
+
+  const ni = beatIndex + dir;
+  if (ni >= 0 && ni < measure.beats.length) {
+    measure.beats[beatIndex] = measure.beats[ni];
+    measure.beats[ni] = beat;
+    return { model: next, measureIndex, beatIndex: ni };
+  }
+
+  const targetIndex = measureIndex + dir;
+  const target = next.measures[targetIndex];
+  if (!target) return null;
+
+  measure.beats.splice(beatIndex, 1);
+  if (measure.beats.length === 0) measure.beats.push({ ...EMPTY_PLACEHOLDER, notes: [] });
+
+  let targetBeatIndex: number;
+  if (isEmptyPlaceholder(target)) {
+    target.beats = [beat];
+    targetBeatIndex = 0;
+  } else if (dir === 1) {
+    target.beats.unshift(beat);
+    targetBeatIndex = 0;
+  } else {
+    target.beats.push(beat);
+    targetBeatIndex = target.beats.length - 1;
+  }
+  target.wasEmpty = undefined;
+  return { model: next, measureIndex: targetIndex, beatIndex: targetBeatIndex };
+}
+
+/**
+ * Move a nota de uma corda para outra no mesmo beat (mesma casa). Retorna o
+ * modelo original quando não há nota na corda de origem ou a de destino já
+ * está ocupada — o chamador distingue por identidade (`next === model`).
+ */
+export function moveNoteToString(
+  model: EditorModel,
+  measureIndex: number,
+  beatIndex: number,
+  fromString: number,
+  toString: number,
+): EditorModel {
+  const next = cloneModel(model);
+  const beat = next.measures[measureIndex]?.beats[beatIndex];
+  if (!beat) return model;
+  const note = beat.notes.find((n) => n.string === fromString);
+  if (!note) return model;
+  if (beat.notes.some((n) => n.string === toString)) return model;
+  note.string = toString;
+  beat.notes.sort((a, b) => a.string - b.string);
   return next;
 }
 

@@ -1253,6 +1253,19 @@ label {
   color: #f85149; border: 1px solid rgba(248,81,73,.45);
   background: rgba(248,81,73,.08);
 }
+.tab-editor-chip.info {
+  color: var(--accent); border: 1px solid rgba(88,166,255,.45);
+  background: rgba(88,166,255,.08);
+}
+
+/* Trecho selecionado (âncora↔cursor): um retângulo por beat do range */
+.tab-editor-sel-range {
+  position: absolute;
+  background: rgba(88,166,255,.13);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
 
 /* Overlay de seleção do editor: coluna do beat + caixa da corda selecionada */
 .tab-editor-sel-beat {
@@ -1288,6 +1301,22 @@ label {
   color: #f85149; border: 1px solid rgba(248,81,73,.5);
   background: rgba(30,10,10,.85);
 }
+
+/* Botão "+" ao final de cada compasso — insere um compasso vazio logo depois */
+.tab-editor-inline-add {
+  position: absolute;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; line-height: 1; font-family: inherit;
+  color: var(--sub); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 50%;
+  cursor: pointer; z-index: 6; padding: 0;
+  opacity: .55; transition: opacity .12s, color .12s, border-color .12s;
+}
+.tab-editor-inline-add:hover:not(:disabled) {
+  opacity: 1; color: var(--accent); border-color: rgba(88,166,255,.6);
+}
+.tab-editor-inline-add:disabled { cursor: not-allowed; opacity: .25; }
 
 /* Viewport: área scrollável onde o alphaTab renderiza.
    Scroll mantido, mas a barra é escondida (fica feia sobre a tablatura). */

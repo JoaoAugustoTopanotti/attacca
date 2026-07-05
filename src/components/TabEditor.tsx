@@ -10,18 +10,25 @@ import {
 } from "react";
 import {
   type BeatDuration,
+  type EditorBeat,
   type EditorCursor,
   type EditorModel,
   type NoteEffect,
+  beatDots,
   capacity64,
+  cloneBeats,
   deleteBeat,
   deleteNote,
   insertBeat,
   measureUsed64,
+  moveBeat,
+  moveNoteToString,
   noteHasBend,
   parseTrackTex,
+  replaceBeatsInMeasure,
   serializeForRender,
   serializeModel,
+  setBeatDots,
   setBeatDuration,
   setNote,
   setRest,
@@ -63,6 +70,32 @@ function stringName(s: number, count: number): string {
 // Janela (ms) para acumular dígitos numa casa de dois dígitos (ex.: 1 depois 2 = 12).
 const MULTI_DIGIT_WINDOW_MS = 900;
 const MAX_FRET = 24;
+
+// Passos de duração para as teclas +/− ("+" subdivide, convenção GP/Soundslice).
+const DUR_STEPS: BeatDuration[] = [1, 2, 4, 8, 16, 32, 64];
+
+// Clipboard de trechos no escopo do MÓDULO: sobrevive à remontagem do componente
+// (trocar de trilha usa key={trackOrder}) e permite copiar entre trilhas.
+let sharedClipboard: EditorBeat[][] | null = null;
+
+// Posição de um beat na grade (para ordenar seleções âncora↔cursor).
+type BeatPos = { measureIndex: number; beatIndex: number };
+function orderPos(a: BeatPos, b: BeatPos): [BeatPos, BeatPos] {
+  return a.measureIndex < b.measureIndex ||
+    (a.measureIndex === b.measureIndex && a.beatIndex <= b.beatIndex)
+    ? [a, b]
+    : [b, a];
+}
+
+/** Prende o cursor a uma posição válida do modelo (pós undo/colar/apagar). */
+function clampCursor(
+  m: EditorModel,
+  c: { measureIndex: number; beatIndex: number; string: number },
+): { measureIndex: number; beatIndex: number; string: number } {
+  const mi = Math.max(0, Math.min(c.measureIndex, m.measures.length - 1));
+  const bi = Math.max(0, Math.min(c.beatIndex, (m.measures[mi]?.beats.length ?? 1) - 1));
+  return { measureIndex: mi, beatIndex: bi, string: c.string };
+}
 
 // ── Geometria das linhas do tab (compartilhada: overlay + clique por corda) ────
 // Bounds vindos do alphaTab (tipagem estrutural mínima do que usamos).
@@ -184,13 +217,22 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const [renderEpoch, setRenderEpoch] = useState(0);
   // Aviso transitório (ação bloqueada: compasso cheio etc.)
   const [warn, setWarn] = useState<string | null>(null);
+  // Confirmação transitória (copiado/colado) — chip informativo, não erro.
+  const [flash, setFlash] = useState<string | null>(null);
+  // Âncora da seleção de trecho (Shift+setas / Shift+clique). Range = âncora↔cursor.
+  const [selAnchor, setSelAnchor] = useState<BeatPos | null>(null);
   // Overlay de seleção: coluna do beat + caixa da corda selecionada.
   const [beatRect, setBeatRect] = useState<Rect | null>(null);
   const [noteRect, setNoteRect] = useState<Rect | null>(null);
+  // Retângulos do trecho selecionado (um por beat do range âncora↔cursor).
+  const [selRects, setSelRects] = useState<Rect[]>([]);
   // Badges de compasso incompleto/estourado (posicionados sobre a tablatura).
   const [measureFlags, setMeasureFlags] = useState<
     { x: number; y: number; label: string; kind: "under" | "over" }[]
   >([]);
+  // Botão "+" ao final de cada compasso (inserir logo depois), mais intuitivo
+  // que ter que selecionar um beat e usar o botão da toolbar.
+  const [addSlots, setAddSlots] = useState<{ x: number; y: number; measureIndex: number }[]>([]);
 
   // Refs para evitar closures obsoletas nos event handlers do alphaTab
   const modelRef  = useRef<EditorModel>(model);
@@ -200,13 +242,21 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const apiRef = useRef<AlphaTabApi | null>(null);
   const prevRawModeRef = useRef(false);
   const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selAnchorRef = useRef<BeatPos | null>(null);
+  // Undo/redo: pilhas de modelos (edição é imutável, guardar referências é barato).
+  const historyRef = useRef<{ past: EditorModel[]; future: EditorModel[] }>({
+    past: [],
+    future: [],
+  });
   // Último dígito digitado (para casas de dois dígitos).
   const lastDigitRef = useRef<
     { time: number; measureIndex: number; beatIndex: number; string: number; value: number } | null
   >(null);
   // Posição do último mousedown, relativa ao surface (mesmo espaço dos bounds).
-  // Permite clicar em QUALQUER corda do beat, não só onde há nota.
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  // Permite clicar em QUALQUER corda do beat, não só onde há nota. `shift`
+  // registra Shift+clique para estender a seleção de trecho.
+  const lastPointerRef = useRef<{ x: number; y: number; shift: boolean } | null>(null);
   // Contexto de render + callbacks sempre atuais (handlers registrados uma vez).
   const trackHeaderRef = useRef(trackHeader);
   const measureMetaRef = useRef(measureMeta);
@@ -222,6 +272,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
   useEffect(() => { modelRef.current = model; }, [model]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
+  useEffect(() => { selAnchorRef.current = selAnchor; }, [selAnchor]);
 
   // Texto alphaTex renderizável (documento real de 1 trilha — ver serializeForRender).
   const renderTex = useCallback((m: EditorModel) => {
@@ -248,6 +299,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       const m = parseTrackTex(alphaTex);
       setModel(m);
       setCursor(null);
+      setSelAnchor(null);
+      historyRef.current = { past: [], future: [] };
       apiRef.current?.tex(renderTex(m));
     }
   }, [alphaTex, renderTex]);
@@ -339,6 +392,19 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             string = Math.max(1, Math.min(staffStrings, s));
           }
         }
+        // Shift+clique estende a seleção a partir do cursor anterior; clique
+        // normal recolhe qualquer seleção de trecho.
+        const prevCur = cursorRef.current;
+        if (ptr?.shift && prevCur) {
+          if (!selAnchorRef.current) {
+            setSelAnchor({
+              measureIndex: prevCur.measureIndex,
+              beatIndex: prevCur.beatIndex,
+            });
+          }
+        } else {
+          setSelAnchor(null);
+        }
         setCursor({ measureIndex, beatIndex, string });
         // Seek: reposiciona a música completa neste ponto (tocando ou pausado).
         const tick =
@@ -385,7 +451,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   }, []); // Apenas na montagem — pai usa key={trackOrder} para remontar ao trocar trilha
 
   // ── Aplicar edição ao alphaTab e notificar o pai ───────────────────────────
-  const applyModel = useCallback(
+  // applyModelRaw NÃO mexe no histórico (usado por undo/redo); applyModel é o
+  // caminho de toda edição do usuário e empilha o estado anterior para desfazer.
+  const applyModelRaw = useCallback(
     (newModel: EditorModel) => {
       const tex = serializeModel(newModel);
       lastEmittedRef.current = tex;
@@ -396,14 +464,31 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     [onChange, renderTex],
   );
 
-  // ── Aviso transitório ────────────────────────────────────────────────────────
+  const applyModel = useCallback(
+    (newModel: EditorModel) => {
+      const h = historyRef.current;
+      h.past.push(modelRef.current);
+      if (h.past.length > 200) h.past.shift();
+      h.future = [];
+      applyModelRaw(newModel);
+    },
+    [applyModelRaw],
+  );
+
+  // ── Avisos transitórios (warn = bloqueio, flash = confirmação) ──────────────
   const showWarn = useCallback((message: string) => {
     setWarn(message);
     if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
     warnTimerRef.current = setTimeout(() => setWarn(null), 2200);
   }, []);
+  const showFlash = useCallback((message: string) => {
+    setFlash(message);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setFlash(null), 2600);
+  }, []);
   useEffect(() => () => {
     if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
   }, []);
 
   // ── Capacidade do compasso (fórmula de compasso) ────────────────────────────
@@ -412,12 +497,396 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     return { num: meta?.tsNum ?? 4, den: meta?.tsDen ?? 4 };
   }, []);
 
+  // Regra de capacidade compartilhada: bloqueia apenas quando a mudança AUMENTA
+  // o compasso para além da fórmula (reduzir um compasso já estourado é sempre ok).
+  const wouldOverflow = useCallback(
+    (oldModel: EditorModel, newModel: EditorModel, measureIndex: number): boolean => {
+      const { num, den } = measureTs(measureIndex);
+      const cap = capacity64(num, den);
+      const oldUsed = measureUsed64(oldModel.measures[measureIndex]);
+      const newUsed = measureUsed64(newModel.measures[measureIndex]);
+      return newUsed > cap + CAP_EPS && newUsed >= oldUsed - CAP_EPS;
+    },
+    [measureTs],
+  );
+
+  // ── Duração ────────────────────────────────────────────────────────────────
+  const handleDurationChange = useCallback(
+    (d: BeatDuration) => {
+      setDuration(d);
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const measure = mod.measures[cur.measureIndex];
+      const beat = measure?.beats[cur.beatIndex];
+      if (!measure || !beat || beat.duration === d) return;
+      const trial = setBeatDuration(mod, cur.measureIndex, cur.beatIndex, d);
+      if (wouldOverflow(mod, trial, cur.measureIndex)) {
+        const { num, den } = measureTs(cur.measureIndex);
+        showWarn(`Não cabe no compasso (${num}/${den}) — encurte outro beat primeiro.`);
+        return;
+      }
+      applyModel(trial);
+    },
+    [applyModel, disabled, measureTs, showWarn, wouldOverflow],
+  );
+
+  // Teclas +/− : "+" subdivide (mais curta), "−" alonga — convenção GP/Soundslice.
+  const stepDuration = useCallback(
+    (dir: -1 | 1) => {
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      const d = cur ? mod.measures[cur.measureIndex]?.beats[cur.beatIndex]?.duration : undefined;
+      if (!d) return;
+      const idx = DUR_STEPS.indexOf(d) + dir;
+      if (idx < 0 || idx >= DUR_STEPS.length) return;
+      handleDurationChange(DUR_STEPS[idx]);
+    },
+    [handleDurationChange],
+  );
+
+  // ── Pontuado ("." simples / Ctrl+"." duplo / botões · ··) ───────────────────
+  const applyDots = useCallback(
+    (dots: 0 | 1 | 2) => {
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
+      if (!beat || beatDots(beat) === dots) return;
+      const trial = setBeatDots(mod, cur.measureIndex, cur.beatIndex, dots);
+      if (wouldOverflow(mod, trial, cur.measureIndex)) {
+        const { num, den } = measureTs(cur.measureIndex);
+        showWarn(`O ponto não cabe no compasso (${num}/${den}) — encurte um beat antes.`);
+        return;
+      }
+      applyModel(trial);
+    },
+    [applyModel, disabled, measureTs, showWarn, wouldOverflow],
+  );
+
+  // ── Seleção de trecho (âncora↔cursor) e clipboard ──────────────────────────
+  /** Range atual ordenado + beats clonados, agrupados por compasso. */
+  const getSelection = useCallback((): {
+    start: BeatPos;
+    end: BeatPos;
+    chunks: EditorBeat[][];
+  } | null => {
+    const cur = cursorRef.current;
+    if (!cur) return null;
+    const mod = modelRef.current;
+    const pos: BeatPos = { measureIndex: cur.measureIndex, beatIndex: cur.beatIndex };
+    const [start, end] = orderPos(selAnchorRef.current ?? pos, pos);
+    const chunks: EditorBeat[][] = [];
+    for (let mi = start.measureIndex; mi <= end.measureIndex; mi++) {
+      const beats = mod.measures[mi]?.beats ?? [];
+      const from = mi === start.measureIndex ? start.beatIndex : 0;
+      const to = mi === end.measureIndex ? end.beatIndex : beats.length - 1;
+      chunks.push(cloneBeats(beats.slice(from, to + 1)));
+    }
+    return { start, end, chunks };
+  }, []);
+
+  /** Remove os beats do range (Ctrl+X e Delete numa seleção). */
+  const deleteRange = useCallback((mod: EditorModel, start: BeatPos, end: BeatPos): EditorModel => {
+    let next = mod;
+    for (let mi = end.measureIndex; mi >= start.measureIndex; mi--) {
+      const beats = next.measures[mi]?.beats ?? [];
+      const from = mi === start.measureIndex ? start.beatIndex : 0;
+      const to = mi === end.measureIndex ? end.beatIndex : beats.length - 1;
+      next = replaceBeatsInMeasure(next, mi, from, to - from + 1, []);
+    }
+    return next;
+  }, []);
+
+  const doCopy = useCallback(
+    (cut: boolean) => {
+      const sel = getSelection();
+      const cur = cursorRef.current;
+      if (!sel || !cur) return;
+      sharedClipboard = sel.chunks;
+      const n = sel.chunks.reduce((s, c) => s + c.length, 0);
+      if (cut && !disabled) {
+        const next = deleteRange(modelRef.current, sel.start, sel.end);
+        applyModel(next);
+        setSelAnchor(null);
+        setCursor(clampCursor(next, { ...sel.start, string: cur.string }));
+        showFlash(n === 1 ? "1 beat recortado" : `${n} beats recortados`);
+      } else {
+        showFlash(
+          n === 1
+            ? "1 beat copiado — clique no destino e Ctrl+V"
+            : `${n} beats copiados — clique no destino e Ctrl+V`,
+        );
+      }
+    },
+    [applyModel, deleteRange, disabled, getSelection, showFlash],
+  );
+
+  // Colar: 1 compasso de origem → substitui a seleção (ou o beat do cursor);
+  // vários compassos → substitui compassos inteiros a partir do cursor.
+  const doPaste = useCallback(() => {
+    if (disabled) return;
+    const cur = cursorRef.current;
+    const mod = modelRef.current;
+    if (!cur) return;
+    const clip = sharedClipboard;
+    if (!clip || clip.length === 0) {
+      showWarn("Nada copiado ainda — selecione um trecho e Ctrl+C.");
+      return;
+    }
+
+    if (clip.length === 1) {
+      const anchor = selAnchorRef.current;
+      const mi = cur.measureIndex;
+      let from = cur.beatIndex;
+      let delCount = 1;
+      if (anchor && anchor.measureIndex === mi) {
+        from = Math.min(anchor.beatIndex, cur.beatIndex);
+        delCount = Math.abs(anchor.beatIndex - cur.beatIndex) + 1;
+      }
+      const trial = replaceBeatsInMeasure(mod, mi, from, delCount, clip[0]);
+      if (trial === mod) return;
+      if (wouldOverflow(mod, trial, mi)) {
+        const { num, den } = measureTs(mi);
+        showWarn(
+          `Não cabe no compasso ${mi + 1} (${num}/${den}) — selecione o trecho a substituir ou apague beats antes.`,
+        );
+        return;
+      }
+      applyModel(trial);
+      setSelAnchor(clip[0].length > 1 ? { measureIndex: mi, beatIndex: from } : null);
+      setCursor({ measureIndex: mi, beatIndex: from + Math.max(0, clip[0].length - 1), string: cur.string });
+      return;
+    }
+
+    const startMi = cur.measureIndex;
+    if (startMi + clip.length > mod.measures.length) {
+      showWarn(`Não cabem ${clip.length} compassos a partir do ${startMi + 1} — adicione compassos antes de colar.`);
+      return;
+    }
+    let trial = mod;
+    for (let k = 0; k < clip.length; k++) {
+      trial = replaceBeatsInMeasure(trial, startMi + k, 0, trial.measures[startMi + k].beats.length, clip[k]);
+    }
+    for (let k = 0; k < clip.length; k++) {
+      if (wouldOverflow(mod, trial, startMi + k)) {
+        const { num, den } = measureTs(startMi + k);
+        showWarn(`A colagem não cabe no compasso ${startMi + k + 1} (${num}/${den}).`);
+        return;
+      }
+    }
+    applyModel(trial);
+    setSelAnchor({ measureIndex: startMi, beatIndex: 0 });
+    setCursor({
+      measureIndex: startMi + clip.length - 1,
+      beatIndex: Math.max(0, clip[clip.length - 1].length - 1),
+      string: cur.string,
+    });
+  }, [applyModel, disabled, measureTs, showWarn, wouldOverflow]);
+
+  // Ctrl+D — repete a seleção logo depois dela mesma (o "R" do MuseScore/Flat;
+  // aqui em Ctrl+D porque "r" já é pausa, convenção Guitar Pro).
+  const doRepeat = useCallback(() => {
+    if (disabled) return;
+    const sel = getSelection();
+    const cur = cursorRef.current;
+    const mod = modelRef.current;
+    if (!sel || !cur) return;
+    const { start, end, chunks } = sel;
+    const endMeasure = mod.measures[end.measureIndex];
+    if (!endMeasure) return;
+    const wholeMeasures = start.beatIndex === 0 && end.beatIndex === endMeasure.beats.length - 1;
+
+    // Trecho parcial dentro de um compasso: insere a cópia logo após a seleção.
+    if (chunks.length === 1 && !wholeMeasures) {
+      const mi = start.measureIndex;
+      const trial = replaceBeatsInMeasure(mod, mi, end.beatIndex + 1, 0, chunks[0]);
+      if (trial === mod) return;
+      if (wouldOverflow(mod, trial, mi)) {
+        const { num, den } = measureTs(mi);
+        showWarn(`A repetição não cabe no compasso ${mi + 1} (${num}/${den}).`);
+        return;
+      }
+      applyModel(trial);
+      setSelAnchor({ measureIndex: mi, beatIndex: end.beatIndex + 1 });
+      setCursor({ measureIndex: mi, beatIndex: end.beatIndex + chunks[0].length, string: cur.string });
+      return;
+    }
+
+    if (!wholeMeasures) {
+      showWarn("Para repetir um trecho de vários compassos, selecione os compassos inteiros.");
+      return;
+    }
+    const targetStart = end.measureIndex + 1;
+    if (targetStart + chunks.length > mod.measures.length) {
+      showWarn(`Sem compassos suficientes depois do ${end.measureIndex + 1} — adicione compassos antes de repetir.`);
+      return;
+    }
+    let trial = mod;
+    for (let k = 0; k < chunks.length; k++) {
+      trial = replaceBeatsInMeasure(trial, targetStart + k, 0, trial.measures[targetStart + k].beats.length, chunks[k]);
+    }
+    for (let k = 0; k < chunks.length; k++) {
+      if (wouldOverflow(mod, trial, targetStart + k)) {
+        const { num, den } = measureTs(targetStart + k);
+        showWarn(`A repetição não cabe no compasso ${targetStart + k + 1} (${num}/${den}).`);
+        return;
+      }
+    }
+    applyModel(trial);
+    setSelAnchor({ measureIndex: targetStart, beatIndex: 0 });
+    setCursor({
+      measureIndex: targetStart + chunks.length - 1,
+      beatIndex: Math.max(0, chunks[chunks.length - 1].length - 1),
+      string: cur.string,
+    });
+  }, [applyModel, disabled, getSelection, measureTs, showWarn, wouldOverflow]);
+
+  // ── Undo / redo ─────────────────────────────────────────────────────────────
+  const doUndo = useCallback(() => {
+    const h = historyRef.current;
+    const prev = h.past.pop();
+    if (!prev) {
+      showFlash("Nada para desfazer");
+      return;
+    }
+    h.future.push(modelRef.current);
+    applyModelRaw(prev);
+    setSelAnchor(null);
+    const cur = cursorRef.current;
+    if (cur) setCursor(clampCursor(prev, cur));
+  }, [applyModelRaw, showFlash]);
+
+  const doRedo = useCallback(() => {
+    const h = historyRef.current;
+    const nextModel = h.future.pop();
+    if (!nextModel) return;
+    h.past.push(modelRef.current);
+    applyModelRaw(nextModel);
+    setSelAnchor(null);
+    const cur = cursorRef.current;
+    if (cur) setCursor(clampCursor(nextModel, cur));
+  }, [applyModelRaw]);
+
+  // ── Mover beat no tempo (Alt+←/→) ───────────────────────────────────────────
+  const doMoveBeat = useCallback(
+    (dir: -1 | 1) => {
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const res = moveBeat(mod, cur.measureIndex, cur.beatIndex, dir);
+      if (!res) return;
+      if (res.measureIndex !== cur.measureIndex && wouldOverflow(mod, res.model, res.measureIndex)) {
+        const { num, den } = measureTs(res.measureIndex);
+        showWarn(`O beat não cabe no compasso ${res.measureIndex + 1} (${num}/${den}).`);
+        return;
+      }
+      applyModel(res.model);
+      setSelAnchor(null);
+      setCursor({ measureIndex: res.measureIndex, beatIndex: res.beatIndex, string: cur.string });
+    },
+    [applyModel, disabled, measureTs, showWarn, wouldOverflow],
+  );
+
+  // ── Mover nota entre cordas (Shift+↑/↓, mesma casa) ─────────────────────────
+  const doMoveNoteString = useCallback(
+    (dir: -1 | 1) => {
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const target = cur.string + dir;
+      if (target < 1 || target > stringCountRef.current) return;
+      const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
+      if (!beat?.notes.some((n) => n.string === cur.string)) {
+        showWarn(`Sem nota na corda ${cur.string} para mover — use ↑↓ sem Shift para trocar de corda.`);
+        return;
+      }
+      const next = moveNoteToString(mod, cur.measureIndex, cur.beatIndex, cur.string, target);
+      if (next === mod) {
+        showWarn("Já existe nota na corda de destino.");
+        return;
+      }
+      applyModel(next);
+      setCursor({ ...cur, string: target });
+    },
+    [applyModel, disabled, showWarn],
+  );
+
   // ── Handler de teclado ─────────────────────────────────────────────────────
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (disabled) return;
       const cur = cursorRef.current;
       const mod = modelRef.current;
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Antes de estender a seleção com Shift, garante a âncora no cursor atual.
+      const ensureAnchor = () => {
+        if (!selAnchorRef.current && cur) {
+          setSelAnchor({ measureIndex: cur.measureIndex, beatIndex: cur.beatIndex });
+        }
+      };
+
+      // ── Atalhos com Ctrl/Cmd ──
+      if (ctrl && !e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case "c": e.preventDefault(); doCopy(false); return;
+          case "x": e.preventDefault(); doCopy(true); return;
+          case "v": e.preventDefault(); doPaste(); return;
+          case "d": e.preventDefault(); doRepeat(); return;
+          case "z": e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return;
+          case "y": e.preventDefault(); doRedo(); return;
+          case ".": {
+            e.preventDefault();
+            const beat = cur ? mod.measures[cur.measureIndex]?.beats[cur.beatIndex] : null;
+            if (beat) applyDots(beatDots(beat) === 2 ? 0 : 2);
+            return;
+          }
+          case "arrowright":
+          case "arrowleft": {
+            // Navegação por compasso (Ctrl+Shift estende a seleção junto).
+            e.preventDefault();
+            if (!cur) return;
+            if (e.shiftKey) ensureAnchor();
+            else setSelAnchor(null);
+            const dir = e.key === "ArrowRight" ? 1 : -1;
+            const mi = Math.max(0, Math.min(mod.measures.length - 1, cur.measureIndex + dir));
+            setCursor({ measureIndex: mi, beatIndex: 0, string: cur.string });
+            return;
+          }
+          case "home": {
+            e.preventDefault();
+            if (!cur) return;
+            setSelAnchor(null);
+            setCursor({ measureIndex: 0, beatIndex: 0, string: cur.string });
+            return;
+          }
+          case "end": {
+            e.preventDefault();
+            if (!cur) return;
+            setSelAnchor(null);
+            const mi = mod.measures.length - 1;
+            setCursor({
+              measureIndex: mi,
+              beatIndex: Math.max(0, (mod.measures[mi]?.beats.length ?? 1) - 1),
+              string: cur.string,
+            });
+            return;
+          }
+        }
+        return; // demais Ctrl+… ficam com o navegador
+      }
+
+      // ── Alt+←/→: mover o beat no tempo ──
+      if (e.altKey && !ctrl) {
+        if (e.key === "ArrowRight") { e.preventDefault(); doMoveBeat(1); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); doMoveBeat(-1); }
+        return;
+      }
 
       // Dígito 0–9 → define a casa da nota selecionada.
       // Dois dígitos seguidos (ex.: 1 depois 2 → 12) se digitados rápido na mesma
@@ -454,6 +923,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         case "ArrowRight": {
           e.preventDefault();
           if (!cur) return;
+          if (e.shiftKey) ensureAnchor();
+          else setSelAnchor(null);
           const measure = mod.measures[cur.measureIndex];
           if (!measure) return;
           if (cur.beatIndex < measure.beats.length - 1) {
@@ -466,6 +937,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         case "ArrowLeft": {
           e.preventDefault();
           if (!cur) return;
+          if (e.shiftKey) ensureAnchor();
+          else setSelAnchor(null);
           if (cur.beatIndex > 0) {
             setCursor({ ...cur, beatIndex: cur.beatIndex - 1 });
           } else if (cur.measureIndex > 0) {
@@ -480,14 +953,52 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         }
         case "ArrowUp": {
           e.preventDefault();
+          if (e.shiftKey) { doMoveNoteString(-1); return; }
           if (!cur || cur.string <= 1) return;
           setCursor({ ...cur, string: cur.string - 1 });
           break;
         }
         case "ArrowDown": {
           e.preventDefault();
+          if (e.shiftKey) { doMoveNoteString(1); return; }
           if (!cur || cur.string >= trackStringCount) return;
           setCursor({ ...cur, string: cur.string + 1 });
+          break;
+        }
+        case "Home": {
+          e.preventDefault();
+          if (!cur) return;
+          setSelAnchor(null);
+          setCursor({ ...cur, beatIndex: 0 });
+          break;
+        }
+        case "End": {
+          e.preventDefault();
+          if (!cur) return;
+          setSelAnchor(null);
+          const measure = mod.measures[cur.measureIndex];
+          setCursor({ ...cur, beatIndex: Math.max(0, (measure?.beats.length ?? 1) - 1) });
+          break;
+        }
+        case ".": {
+          e.preventDefault();
+          const beat = cur ? mod.measures[cur.measureIndex]?.beats[cur.beatIndex] : null;
+          if (beat) applyDots(beatDots(beat) === 1 ? 0 : 1);
+          break;
+        }
+        case "+":
+        case "=": {
+          e.preventDefault();
+          stepDuration(1);
+          break;
+        }
+        case "-": {
+          e.preventDefault();
+          stepDuration(-1);
+          break;
+        }
+        case "Escape": {
+          setSelAnchor(null);
           break;
         }
         case "r": {
@@ -532,6 +1043,22 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         case "Delete": {
           e.preventDefault();
           if (!cur) return;
+          // Com seleção de trecho: apaga o range inteiro.
+          const anchor = selAnchorRef.current;
+          if (
+            anchor &&
+            (anchor.measureIndex !== cur.measureIndex || anchor.beatIndex !== cur.beatIndex)
+          ) {
+            const [start, end] = orderPos(anchor, {
+              measureIndex: cur.measureIndex,
+              beatIndex: cur.beatIndex,
+            });
+            const next = deleteRange(mod, start, end);
+            applyModel(next);
+            setSelAnchor(null);
+            setCursor(clampCursor(next, { ...start, string: cur.string }));
+            return;
+          }
           const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
           if (!beat) return;
           if (beat.notes.some((n) => n.string === cur.string)) {
@@ -555,31 +1082,12 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         }
       }
     },
-    [applyModel, disabled, trackStringCount, measureTs, showWarn],
+    [
+      applyDots, applyModel, deleteRange, disabled, doCopy, doMoveBeat,
+      doMoveNoteString, doPaste, doRedo, doRepeat, doUndo, measureTs,
+      showWarn, stepDuration, trackStringCount,
+    ],
   );
-
-  // ── Duração ────────────────────────────────────────────────────────────────
-  function handleDurationChange(d: BeatDuration) {
-    setDuration(d);
-    if (disabled) return;
-    const cur = cursorRef.current;
-    const mod = modelRef.current;
-    if (!cur) return;
-    const measure = mod.measures[cur.measureIndex];
-    const beat = measure?.beats[cur.beatIndex];
-    if (!measure || !beat || beat.duration === d) return;
-    // Noção de compasso: bloqueia se a mudança estourar a fórmula de compasso
-    // (permite sempre REDUZIR o total, mesmo num compasso já estourado).
-    const { num, den } = measureTs(cur.measureIndex);
-    const cap = capacity64(num, den);
-    const used = measureUsed64(measure);
-    const newUsed = used - 64 / beat.duration + 64 / d;
-    if (newUsed > cap + CAP_EPS && newUsed >= used - CAP_EPS) {
-      showWarn(`Não cabe no compasso (${num}/${den}) — encurte outro beat primeiro.`);
-      return;
-    }
-    applyModel(setBeatDuration(mod, cur.measureIndex, cur.beatIndex, d));
-  }
 
   // ── Seleção de corda ───────────────────────────────────────────────────────
   function handleStringSelect(string: number) {
@@ -648,6 +1156,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const displayDuration: BeatDuration = cursor
     ? (model.measures[cursor.measureIndex]?.beats[cursor.beatIndex]?.duration ?? duration)
     : duration;
+  const dotState: 0 | 1 | 2 = selectedBeat ? beatDots(selectedBeat) : 0;
 
   // ── Estado de preenchimento do compasso selecionado ────────────────────────
   const fill = (() => {
@@ -715,6 +1224,46 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
   }, [cursor, apiReady, raw, renderEpoch, model, trackStringCount]);
 
+  // ── Overlay do trecho selecionado (âncora↔cursor) ───────────────────────────
+  useEffect(() => {
+    if (!apiReady || raw || !cursor || !selAnchor) {
+      setSelRects([]);
+      return;
+    }
+    const api = apiRef.current;
+    const lookup = api?.boundsLookup;
+    const bars = api?.score?.tracks?.[0]?.staves?.[0]?.bars;
+    if (!lookup || !bars) {
+      setSelRects([]);
+      return;
+    }
+    const offX = surfaceRef.current?.offsetLeft ?? 0;
+    const offY = surfaceRef.current?.offsetTop ?? 0;
+    const [start, end] = orderPos(selAnchor, {
+      measureIndex: cursor.measureIndex,
+      beatIndex: cursor.beatIndex,
+    });
+    const rects: Rect[] = [];
+    for (let mi = start.measureIndex; mi <= end.measureIndex; mi++) {
+      const nBeats = model.measures[mi]?.beats.length ?? 0;
+      const from = mi === start.measureIndex ? start.beatIndex : 0;
+      const to = mi === end.measureIndex ? end.beatIndex : nBeats - 1;
+      for (let bi = from; bi <= to; bi++) {
+        const beat = bars[mi]?.voices?.[0]?.beats?.[bi];
+        const bb = beat ? lookup.findBeat(beat) : null;
+        if (!bb) continue;
+        const barVB = bb.barBounds.visualBounds;
+        rects.push({
+          x: offX + bb.visualBounds.x - 2,
+          y: offY + barVB.y,
+          w: bb.visualBounds.w + 4,
+          h: barVB.h,
+        });
+      }
+    }
+    setSelRects(rects);
+  }, [cursor, selAnchor, apiReady, raw, renderEpoch, model]);
+
   // ── Badges de compasso incompleto/estourado ─────────────────────────────────
   // O editor bloqueia estourar, mas um compasso pode ficar MENOR que a fórmula
   // durante a edição (ou vir estourado de importação/modo texto). Marca cada um
@@ -772,6 +1321,36 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     setMeasureFlags(flags);
   }, [apiReady, raw, renderEpoch, model, measureMeta]);
 
+  // ── Botão "+" ao final de cada compasso ─────────────────────────────────────
+  useEffect(() => {
+    if (!apiReady || raw || !canEditStructure) {
+      setAddSlots([]);
+      return;
+    }
+    const api = apiRef.current;
+    const lookup = api?.boundsLookup;
+    const bars = api?.score?.tracks?.[0]?.staves?.[0]?.bars;
+    if (!lookup || !bars) {
+      setAddSlots([]);
+      return;
+    }
+    const offX = surfaceRef.current?.offsetLeft ?? 0;
+    const offY = surfaceRef.current?.offsetTop ?? 0;
+    const slots: { x: number; y: number; measureIndex: number }[] = [];
+    model.measures.forEach((_, i) => {
+      const beat = bars[i]?.voices?.[0]?.beats?.[0];
+      const bb = beat ? lookup.findBeat(beat) : null;
+      if (!bb) return;
+      const barVB = bb.barBounds.visualBounds;
+      slots.push({
+        x: offX + barVB.x + barVB.w - 8,
+        y: offY + barVB.y + barVB.h / 2 - 8,
+        measureIndex: i,
+      });
+    });
+    setAddSlots(slots);
+  }, [apiReady, raw, canEditStructure, renderEpoch, model]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="tab-editor" style={{ position: "relative" }}>
@@ -817,6 +1396,24 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 {d.label}
               </button>
             ))}
+            <button
+              type="button"
+              className={`tab-editor-btn${dotState === 1 ? " active" : ""}`}
+              title="Pontuada: +50% da duração (tecla .)"
+              onClick={() => applyDots(dotState === 1 ? 0 : 1)}
+              disabled={disabled || !cursor || !selectedBeat}
+            >
+              ·
+            </button>
+            <button
+              type="button"
+              className={`tab-editor-btn${dotState === 2 ? " active" : ""}`}
+              title="Duplamente pontuada: +75% da duração (Ctrl+.)"
+              onClick={() => applyDots(dotState === 2 ? 0 : 2)}
+              disabled={disabled || !cursor || !selectedBeat}
+            >
+              ··
+            </button>
           </div>
 
           <div className="tab-editor-toolbar-sep" />
@@ -865,6 +1462,40 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             ))}
           </div>
 
+          <div className="tab-editor-toolbar-sep" />
+
+          {/* Trecho: copiar/colar/repetir a seleção (Shift+setas ou Shift+clique) */}
+          <span className="tab-editor-toolbar-label">Trecho</span>
+          <div className="tab-editor-toolbar-group">
+            <button
+              type="button"
+              className="tab-editor-btn"
+              title="Copiar a seleção (Ctrl+C) — selecione com Shift+setas ou Shift+clique"
+              onClick={() => doCopy(false)}
+              disabled={!cursor}
+            >
+              Copiar
+            </button>
+            <button
+              type="button"
+              className="tab-editor-btn"
+              title="Colar no beat selecionado (Ctrl+V)"
+              onClick={doPaste}
+              disabled={disabled || !cursor}
+            >
+              Colar
+            </button>
+            <button
+              type="button"
+              className="tab-editor-btn"
+              title="Repetir a seleção logo depois dela mesma (Ctrl+D) — ideal para riffs"
+              onClick={doRepeat}
+              disabled={disabled || !cursor}
+            >
+              Repetir
+            </button>
+          </div>
+
           {canEditStructure && (
             <>
               <div className="tab-editor-toolbar-sep" />
@@ -901,6 +1532,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
               {" · "}Beat{" "}<strong>{cursor.beatIndex + 1}</strong>
               {" · "}<strong title={DURATIONS.find((d) => d.value === displayDuration)?.title}>
                 1/{displayDuration}
+                {dotState === 1 ? "·" : dotState === 2 ? "··" : ""}
               </strong>
               {fill && (
                 <>
@@ -915,14 +1547,23 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           )}
 
           {warn && <span className="tab-editor-chip warn">{warn}</span>}
+          {!warn && flash && <span className="tab-editor-chip info">{flash}</span>}
 
           <div className="tab-editor-kbd-hints">
             <span><kbd className="tab-editor-key">0–9</kbd> casa</span>
             <span><kbd className="tab-editor-key">← →</kbd> beat</span>
             <span><kbd className="tab-editor-key">↑ ↓</kbd> corda</span>
+            <span><kbd className="tab-editor-key">.</kbd> pontuado</span>
+            <span><kbd className="tab-editor-key">+ −</kbd> duração</span>
+            <span><kbd className="tab-editor-key">Shift+← →</kbd> selecionar</span>
+            <span><kbd className="tab-editor-key">Ctrl+C/V</kbd> copiar/colar</span>
+            <span><kbd className="tab-editor-key">Ctrl+D</kbd> repetir</span>
+            <span><kbd className="tab-editor-key">Alt+← →</kbd> mover beat</span>
+            <span><kbd className="tab-editor-key">Shift+↑ ↓</kbd> mover nota</span>
             <span><kbd className="tab-editor-key">r</kbd> pausa</span>
             <span><kbd className="tab-editor-key">i</kbd> inserir</span>
             <span><kbd className="tab-editor-key">Del</kbd> apagar</span>
+            <span><kbd className="tab-editor-key">Ctrl+Z</kbd> desfazer</span>
           </div>
         </div>
       )}
@@ -937,7 +1578,13 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           // Posição relativa ao surface (mesmo espaço dos bounds do alphaTab) —
           // usada pelo beatMouseDown para saber QUAL CORDA foi clicada.
           const r = surfaceRef.current?.getBoundingClientRect();
-          if (r) lastPointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+          if (r) {
+            lastPointerRef.current = {
+              x: e.clientX - r.left,
+              y: e.clientY - r.top,
+              shift: e.shiftKey,
+            };
+          }
         }}
         aria-label="Editor de tablatura. Clique num número para selecionar e use o teclado para editar."
         style={{ visibility: raw ? "hidden" : "visible" }}
@@ -946,6 +1593,16 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           <div className="player-loading">Carregando editor…</div>
         )}
         <div ref={surfaceRef} className="player-surface" />
+
+        {/* Trecho selecionado (âncora↔cursor): um retângulo por beat */}
+        {!raw &&
+          selRects.map((r, i) => (
+            <div
+              key={i}
+              className="tab-editor-sel-range"
+              style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
+            />
+          ))}
 
         {/* Overlay de seleção: coluna do beat + caixa da corda selecionada */}
         {!raw && beatRect && (
@@ -971,6 +1628,23 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             >
               {f.label}
             </span>
+          ))}
+
+        {/* Botão "+" ao final de cada compasso — inserir um vazio logo depois */}
+        {!raw &&
+          canEditStructure &&
+          addSlots.map((s) => (
+            <button
+              key={s.measureIndex}
+              type="button"
+              className="tab-editor-inline-add"
+              title={`Inserir um compasso depois do ${s.measureIndex + 1}`}
+              style={{ left: s.x, top: s.y }}
+              disabled={disabled}
+              onClick={() => onAddMeasure?.(s.measureIndex)}
+            >
+              +
+            </button>
           ))}
       </div>
 

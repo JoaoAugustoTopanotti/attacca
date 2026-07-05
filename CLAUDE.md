@@ -132,6 +132,8 @@ O raciocínio que levou à decisão (mantido como contexto):
   (zipado) é **rejeitado** (falta unzip server-side — futuro).
 - Código **simples e legível**; preferir o óbvio ao esperto; mudanças pequenas e
   incrementais.
+- **Commits em inglês, diretos** (título curto, sem parágrafo longo explicando o
+  raciocínio — isso fica na conversa/CLAUDE.md, não na mensagem de commit).
 
 ### Fallbacks de integração alphaTab + Next (se o plugin der problema)
 - **Plano B**: copiar `font/` e `soundfont/` do `node_modules/@coderline/alphatab/dist`
@@ -244,13 +246,18 @@ O raciocínio que levou à decisão (mantido como contexto):
 - **Player mostra a verdade viva** — `SongWorkspace`: música materializada → o player
   toca o **remontado-das-células** (`/assembled`, guitarra+baixo+…), não o snapshot de
   upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico toca snapshots.
-- **Histórico = passos do revezamento (snapshots)** — `Revision.kind="snapshot"` agora é
-  **usado**: toda mudança que entra na grade viva (dono **aceita** uma proposta, ou dono
-  **salva** direto) grava um snapshot via `snapshotGrid` (`src/lib/materialize.ts`) —
-  congela o alphaTex remontado, credita o autor ("Baixo — 4 compassos (proposta de Maria)"),
-  aparece no `RevisionList` como **"mudança"** e é **tocável** (rota `/revisions/[id]/file`
-  serve o alphaTex). Snapshot **não** tem botão Reverter (a grade viva é a verdade; Reverter
-  só nos uploads `kind="import"`). `SongWorkspace` refaz o fetch do histórico ao montar.
+- **Histórico = só o HANDOFF entre pessoas (snapshots), revisão pós-teste** — `Revision.
+  kind="snapshot"` via `snapshotGrid` (`src/lib/materialize.ts`) congela o alphaTex
+  remontado, credita o autor, aparece no `RevisionList` como **"mudança"** e é **tocável**
+  (rota `/revisions/[id]/file`). ⚠️ **Só dispara em `acceptTrackProposals`** (proposta de
+  OUTRA pessoa aceita pelo dono) — **não** mais no save direto do dono nem em
+  add/remover compasso (`src/lib/measures.ts`). Motivo: compor uma música do zero é
+  save-a-save e compasso-a-compasso; cada um gerando snapshot enchia o Histórico de
+  "mudanças" que não eram passo de revezamento nenhum, só o dono iterando sozinho no
+  próprio rascunho (aconteceu de verdade — reportado numa sessão de composição real).
+  O Player "ao vivo" já sempre mostra o estado atual da grade; Histórico agora é
+  puramente "quem entregou o quê pra quem", não um log de todo save. Snapshot **não** tem
+  botão Reverter (a grade viva é a verdade; Reverter só nos uploads `kind="import"`).
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.
@@ -280,10 +287,34 @@ O raciocínio que levou à decisão (mantido como contexto):
   toca o que se vê**: edição não salva → `POST /tracks/[order]/preview` monta o doc com
   a trilha local aplicada e recarrega o player headless. **Compassos**: dono
   adiciona/remove coluna inteira da grade (`/api/songs/[id]/measures`,
-  `src/lib/measures.ts`; snapshot no histórico; remoção bloqueada se o compasso carrega
-  structPrefix). **Percussão** (`Track.isPercussion`) → modo texto forçado (notação
+  `src/lib/measures.ts`; sem snapshot — estrutural, não é passo de revezamento; remoção
+  bloqueada se o compasso carrega structPrefix). Adicionar/remover salva primeiro a edição
+  pendente da trilha (nunca descarta) — compor do zero é save-a-save e compasso-a-compasso,
+  e a versão antiga ("descarta suas edições não salvas") tornava isso impraticável; um
+  botão "+" também aparece direto na tablatura, ao final de cada compasso. **Percussão**
+  (`Track.isPercussion`) → modo texto forçado (notação
   `"Kick (hit)".8` não cabe no modelo visual). POST de submissão continua igual
   (compassos por `|`; célula vazia round-tripa como "").
+- **Edição dinâmica no editor (2026-07-04, pós-teste de composição)** — atalhos seguem
+  as convenções do nicho (pesquisa GP8/Soundslice/MuseScore/Flat/TuxGuitar):
+  **pontuado** `.`/`Ctrl+.` (botões `·`/`··` na toolbar; `beatDots`/`setBeatDots` —
+  ⚠️ o parser alphaTex aceita **UM** grupo `{}` de propriedades por beat, então o toggle
+  mescla `d`/`dd` com as anotações opacas num grupo só, sem confundir `d` dentro de
+  aspas/parênteses); **seleção de trecho** âncora↔cursor (Shift+setas / Shift+clique /
+  `Ctrl+Shift+←→` por compasso, overlay `.tab-editor-sel-range`); **clipboard**
+  Ctrl+C/X/V + botões (escopo de MÓDULO — sobrevive à troca de trilha e copia entre
+  trilhas; colar de 1 compasso substitui a seleção/beat do cursor, de N compassos
+  substitui compassos inteiros a partir do cursor); **Ctrl+D repete a seleção** logo
+  adiante (o "R" do MuseScore/Flat; `r` já era pausa) — riff de compassos inteiros cai
+  nos compassos seguintes; **Alt+←→ move o beat no tempo** (troca com o vizinho; na
+  borda atravessa o compasso, substituindo a pausa-inteira de compasso vazio);
+  **Shift+↑↓ move a nota de corda** (mesma casa, estilo TuxGuitar; bloqueia corda
+  ocupada); **`+`/`−` duração** (`+` subdivide, convenção GP/Soundslice);
+  **Ctrl+←→/Home/End/Ctrl+Home/End navegação**; **Ctrl+Z/Y undo/redo** (pilha de
+  modelos em memória, zerada em mudança externa). Toda mutação nova respeita a regra
+  de capacidade (`wouldOverflow`: só bloqueia o que AUMENTA além da fórmula). Lib
+  coberta por teste manual em Node (23 casos, scratchpad). Delete numa seleção apaga
+  o range; Esc desfaz a seleção.
 - **Auto-materialização no upload (feito)** — o POST `/revisions` deriva o canônico e,
   se a música **ainda não tem grade**, materializa na hora; upload que não converte ou
   não monta a grade é **barrado** (422, revisão desfeita). Re-upload em música JÁ
