@@ -1,9 +1,9 @@
 // Structural measure operations (add/remove a column of the trilha×compasso
-// grid). These touch EVERY track (a new measure = one new empty cell per track),
-// so they are gated to the song owner and recorded as history snapshots.
+// grid). These touch EVERY track (a new measure = one new empty cell per
+// track), so they are gated to the song owner. Structural, no content — not
+// a step of the relay, so they don't create a history snapshot.
 
 import { prisma } from "@/lib/prisma";
-import { snapshotGrid } from "@/lib/materialize";
 import type { Actor } from "@/lib/cells";
 
 async function loadOwnedSong(songId: string, actor: Actor) {
@@ -63,11 +63,8 @@ export async function addMeasure(songId: string, afterOrder: number, actor: Acto
     });
   });
 
-  await snapshotGrid(
-    songId,
-    actor.displayName,
-    `Compasso ${ref.order + 2} adicionado`,
-  );
+  // Estrutural, sem conteúdo — não é um passo do revezamento, não vai pro
+  // Histórico (senão compor do zero, compasso a compasso, enche a lista).
   return { order: ref.order + 1 };
 }
 
@@ -107,6 +104,5 @@ export async function deleteMeasure(songId: string, order: number, actor: Actor)
     }
   });
 
-  await snapshotGrid(songId, actor.displayName, `Compasso ${order + 1} removido`);
   return { removed: order };
 }

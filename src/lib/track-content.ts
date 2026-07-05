@@ -157,14 +157,10 @@ export async function submitTrackContent(
     changed++;
   }
 
-  // Owner edits land in the live grid immediately → record a history snapshot.
-  if (isOwner && changed > 0) {
-    await snapshotGrid(
-      songId,
-      actor.displayName,
-      `${track.name} — ${pluralBars(changed)}`,
-    );
-  }
+  // Histórico só registra o handoff entre pessoas (proposta de outro aceita —
+  // ver acceptTrackProposals), não cada save do próprio dono: senão compor do
+  // zero (várias saves + compassos adicionados) enche o Histórico de "mudanças"
+  // que não são passos de revezamento nenhum, só o dono editando sozinho.
 
   return { changed, accepted: isOwner };
 }

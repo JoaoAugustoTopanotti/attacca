@@ -155,18 +155,23 @@ export default function TrackEditor({
   }
 
   // ── Salvar (dono) / Propor (colaborador) ────────────────────────────────────
+  async function saveContent(): Promise<{ changed: number; accepted: boolean }> {
+    const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alphaTex: text }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error ?? "Falha.");
+    return json;
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
     setInfo(null);
     try {
-      const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}/content`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alphaTex: text }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Falha.");
+      const json = await saveContent();
 
       if (json.changed === 0) {
         setInfo("Sem mudanças em relação à versão atual — nada a enviar.");
@@ -195,20 +200,17 @@ export default function TrackEditor({
   }
 
   // ── Estrutura: adicionar/remover compasso (dono; afeta todas as trilhas) ────
+  // Compor do zero é feito compasso a compasso — obrigar a salvar manualmente
+  // antes de cada "+" tornava isso impraticável. Em vez de descartar a edição
+  // pendente, salva-a primeiro (só o dono chega aqui, canEditStructure) e só
+  // então mexe na grade; nada se perde.
   async function addMeasureAfter(afterIndex: number) {
     if (busy) return;
-    if (
-      dirty &&
-      !window.confirm(
-        "Adicionar um compasso recarrega a trilha e DESCARTA suas edições não salvas. Continuar?",
-      )
-    ) {
-      return;
-    }
     setBusy(true);
     setError(null);
     setInfo(null);
     try {
+      if (dirty) await saveContent();
       const res = await fetch(`/api/songs/${songId}/measures`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -229,10 +231,9 @@ export default function TrackEditor({
 
   async function removeMeasure(index: number) {
     if (busy) return;
-    const extra = dirty ? " Suas edições não salvas também serão descartadas." : "";
     if (
       !window.confirm(
-        `Remover o compasso ${index + 1} de TODAS as trilhas? As contribuições desse compasso serão apagadas.${extra}`,
+        `Remover o compasso ${index + 1} de TODAS as trilhas? As contribuições desse compasso serão apagadas.`,
       )
     ) {
       return;
@@ -241,6 +242,7 @@ export default function TrackEditor({
     setError(null);
     setInfo(null);
     try {
+      if (dirty) await saveContent();
       const res = await fetch(
         `/api/songs/${songId}/measures?order=${index}`,
         { method: "DELETE" },
