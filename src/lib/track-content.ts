@@ -5,6 +5,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex, snapshotGrid } from "@/lib/materialize";
+import {
+  watchSong,
+  notifyProposalReceived,
+  notifyProposalReviewed,
+  notifyTrackDelivered,
+} from "@/lib/notifications";
 import type { Actor } from "@/lib/cells";
 
 const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
@@ -162,6 +168,23 @@ export async function submitTrackContent(
   // zero (várias saves + compassos adicionados) enche o Histórico de "mudanças"
   // que não são passos de revezamento nenhum, só o dono editando sozinho.
 
+  // Fecha o ciclo assíncrono: quem trabalha numa música passa a segui-la, e uma
+  // proposta avisa o dono na hora (não depende de ele recarregar a aba).
+  if (changed > 0) {
+    await watchSong(actor.id, songId);
+    if (!isOwner) {
+      await notifyProposalReceived({
+        ownerId: song?.ownerId ?? null,
+        songId,
+        songTitle: song?.title ?? track.name,
+        trackName: track.name,
+        count: changed,
+        proposerId: actor.id,
+        proposerName: actor.displayName,
+      });
+    }
+  }
+
   return { changed, accepted: isOwner };
 }
 
@@ -293,7 +316,7 @@ export async function acceptTrackProposals(
   authorId: string,
   actor: Actor,
 ) {
-  await loadOwnedSong(songId, actor);
+  const song = await loadOwnedSong(songId, actor);
   const track = await prisma.track.findFirst({ where: { songId, order: trackOrder } });
   if (!track) throw new Error("Trilha não encontrada.");
 
@@ -331,6 +354,29 @@ export async function acceptTrackProposals(
     `${track.name} — ${pluralBars(props.length)} (proposta de ${props[0].authorName})`,
   );
 
+  // Close the loop: the proposer learns it was accepted; the song's followers
+  // learn the track was delivered (the mural moved).
+  const songTitle = song?.title ?? track.name;
+  await notifyProposalReviewed({
+    authorId,
+    reviewerId: actor.id,
+    reviewerName: actor.displayName,
+    accepted: true,
+    songId,
+    songTitle,
+    trackName: track.name,
+    count: props.length,
+  });
+  await notifyTrackDelivered({
+    songId,
+    songTitle,
+    trackName: track.name,
+    count: props.length,
+    delivererId: authorId,
+    delivererName: props[0].authorName,
+    reviewerId: actor.id,
+  });
+
   return { accepted: props.length };
 }
 
@@ -341,12 +387,26 @@ export async function rejectTrackProposals(
   authorId: string,
   actor: Actor,
 ) {
-  await loadOwnedSong(songId, actor);
+  const song = await loadOwnedSong(songId, actor);
   const track = await prisma.track.findFirst({ where: { songId, order: trackOrder } });
   if (!track) throw new Error("Trilha não encontrada.");
   const result = await prisma.cellContribution.updateMany({
     where: { status: "proposed", authorId, cell: { trackId: track.id } },
     data: { status: "rejected" },
   });
+
+  // Tell the proposer their proposal was declined — no more silent limbo.
+  if (result.count > 0) {
+    await notifyProposalReviewed({
+      authorId,
+      reviewerId: actor.id,
+      reviewerName: actor.displayName,
+      accepted: false,
+      songId,
+      songTitle: song?.title ?? track.name,
+      trackName: track.name,
+      count: result.count,
+    });
+  }
   return { rejected: result.count };
 }

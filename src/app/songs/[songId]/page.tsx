@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SongTabs from "@/components/SongTabs";
 import ShareButton from "@/components/ShareButton";
+import FollowButton from "@/components/FollowButton";
 import type { RevisionDTO } from "@/lib/song-types";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,10 @@ export default async function SongPage({
             <span className="breadcrumb-sep">/</span>
             <span>{song.title}</span>
           </nav>
-          <ShareButton songId={song.id} />
+          <div className="breadcrumb-actions">
+            <FollowButton songId={song.id} />
+            <ShareButton songId={song.id} />
+          </div>
         </div>
 
         {/* Title alone, prominent */}

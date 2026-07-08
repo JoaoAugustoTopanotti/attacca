@@ -269,6 +269,31 @@ O raciocínio que levou à decisão (mantido como contexto):
   Rotas `/api/songs/[id]/tracks` (declarar + presets) e `/completeness`. UI: **home = mural**
   (% + "falta X" por música) + painel por música (barras por trilha + declarar + materializar).
   Slot vazio **assembla válido** (só pausas) — verificado.
+- **Ciclo assíncrono / notificações (2026-07-05) — fecha o revezamento sozinho** —
+  `src/lib/notifications.ts` + modelos `Notification` e `SongWatch` (migração aditiva
+  `20260705000000_notifications`). O buraco era existencial: o produto vende
+  "alguém continua enquanto você não está e você volta depois", mas o dono só descobria
+  uma proposta se **recarregasse a aba** — no assíncrono real (dias entre passos) a
+  proposta apodrecia (o mesmo "beco sem saída" que o produto existe pra resolver).
+  **Notificação in-app** (sem e-mail/push — bate com o cookie-identity; e-mail vem com
+  o upgrade de magic link). Três eventos: (1) **proposta → dono** (`submitTrackContent`
+  não-dono → `notifyProposalReceived` no `song.ownerId`); (2) **aceite/recusa →
+  proponente** (`accept/rejectTrackProposals` → `notifyProposalReviewed`); (3) **mural**:
+  **entrega** (`acceptTrackProposals` → `notifyTrackDelivered` aos seguidores) e **novo
+  slot** (`declareTrack` → `notifySlotDeclared`, "agora falta baixo"). ⚠️ "Reivindicar"
+  não existe mais (removido); o sinal vivo do mural é a **entrega**. `SongWatch` = **seguir**
+  uma música (o lado da DEMANDA — o aprendiz que viu "falta baixo"): auto-seguir ao
+  interagir (propor/declarar) + botão **"Seguir"** (`FollowButton`, ao lado do compartilhar)
+  para lurkers. Fan-out exclui o próprio ator (e, na entrega, o proponente — que já recebe
+  "aceita"). Tudo **best-effort**: os writers engolem o próprio erro (uma notificação nunca
+  quebra o aceite/declare). Rotas: `GET /api/notifications` (+`unread`), `POST
+  /notifications/read` (`{ids?}` ou todas), `GET/POST/DELETE /api/songs/[id]/watch`. UI:
+  **sino** (`NotificationBell`) no header (polling 30s, badge de não-lidas, dropdown,
+  clicar leva à música + aba certa via **hash** — `#propostas`/`#colaborar`, lido em
+  `SongTabs`). ⚠️ **Após mudar o schema, reiniciar `npm run dev`** — o client Prisma em
+  memória do dev fica velho e as rotas identificadas dão 500 até o restart (rota compila,
+  mas o client antigo não tem os modelos). Verificado ponta-a-ponta no Neon (5 eventos,
+  fan-out com exclusões, follow idempotente, cascade delete).
 - **Editor visual de tablatura (M5, implementado)** — `src/components/TabEditor.tsx` +
   `src/lib/alphatex-editor.ts` (parser/serializer do dialeto do `AlphaTexExporter`:
   duração inline `casa.corda.dur`, gramática `nota{fxNota}.dur{fxBeat}`, UM bloco `{}`

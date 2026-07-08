@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { declareTrack, INSTRUMENT_PRESETS } from "@/lib/tracks";
+import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
@@ -22,10 +23,12 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "presetKey é obrigatório." }, { status: 400 });
   }
   try {
+    const user = await getCurrentUser();
     const track = await declareTrack(
       songId,
       body.presetKey,
       typeof body.name === "string" ? body.name : undefined,
+      user,
     );
     return NextResponse.json(track, { status: 201 });
   } catch (e) {

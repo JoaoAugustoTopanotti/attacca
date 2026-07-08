@@ -246,6 +246,81 @@ label {
 }
 .share-btn:hover { color: var(--text); border-color: var(--muted); }
 
+.breadcrumb-actions { display: flex; align-items: center; gap: 8px; }
+.follow-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.75rem; color: var(--sub); cursor: pointer;
+  font-family: inherit;
+}
+.follow-btn:hover { color: var(--text); border-color: var(--muted); }
+.follow-btn.following {
+  color: var(--accent); border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.08);
+}
+.follow-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Notifications (bell + dropdown) ─────────────────────────────── */
+.notif { position: relative; }
+.notif-bell {
+  position: relative;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: 20px; width: 34px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.95rem; cursor: pointer; padding: 0;
+}
+.notif-bell:hover { border-color: var(--muted); }
+.notif-badge {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--danger); color: #fff;
+  border-radius: 8px; font-size: 0.62rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.notif-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 340px; max-height: 420px; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+}
+.notif-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 0.82rem; font-weight: 600;
+}
+.notif-markall {
+  background: transparent; border: none; color: var(--accent);
+  font-size: 0.72rem; cursor: pointer; padding: 0; font-family: inherit;
+}
+.notif-markall:hover { text-decoration: underline; }
+.notif-empty { padding: 18px 14px; color: var(--sub); font-size: 0.8rem; margin: 0; }
+.notif-list { list-style: none; margin: 0; padding: 0; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 11px 14px; background: transparent; border: none;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+  font-family: inherit; color: var(--text);
+}
+.notif-item:hover { background: var(--panel-2); }
+.notif-item.unread { background: rgba(88, 166, 255, 0.06); }
+.notif-icon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%;
+  font-size: 0.72rem; color: var(--sub); background: var(--panel-2);
+}
+.notif-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.notif-msg { font-size: 0.8rem; line-height: 1.25; }
+.notif-sub { font-size: 0.68rem; color: var(--muted); }
+.notif-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0; margin-top: 5px;
+}
+
 /* ── Song tabs ───────────────────────────────────────────────────── */
 .song-tabs {
   display: flex; border-bottom: 1px solid var(--border);

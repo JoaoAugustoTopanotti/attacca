@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import IdentityWidget from "@/components/IdentityWidget";
+import NotificationBell from "@/components/NotificationBell";
 
 export const metadata: Metadata = {
   title: "GitSong",
@@ -24,6 +25,7 @@ export default function RootLayout({
             GitSong
           </Link>
           <div className="header-spacer" />
+          <NotificationBell />
           <IdentityWidget />
         </header>
         <main className="container">{children}</main>

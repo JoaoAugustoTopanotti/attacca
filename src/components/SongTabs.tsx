@@ -37,6 +37,26 @@ export default function SongTabs({
       .catch(() => {});
   }, []);
 
+  // Deep-link a tab from the URL hash (a notification lands you right on it,
+  // e.g. #propostas for the owner reviewing a proposal). Also react to later
+  // hash changes on the same page.
+  useEffect(() => {
+    const TAB_IDS: Tab[] = [
+      "player",
+      "colaborar",
+      "propostas",
+      "historico",
+      "contribuidores",
+    ];
+    const apply = () => {
+      const h = window.location.hash.replace(/^#/, "") as Tab;
+      if (TAB_IDS.includes(h)) setActive(h);
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+
   useEffect(() => {
     fetch(`/api/songs/${songId}/completeness`)
       .then((r) => r.json())

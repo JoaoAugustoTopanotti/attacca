@@ -32,6 +32,11 @@ model Song {
   measures       Measure[]
   cells          Cell[]
 
+  // Async loop: people who follow the song (the mural's demand side) + the
+  // notifications tied to it.
+  watches       SongWatch[]
+  notifications Notification[]
+
   @@index([ownerId])
 }
 
@@ -188,4 +193,54 @@ model User {
   ownedSongs    Song[]
   ownedTracks   Track[]
   contributions CellContribution[]
+  watches       SongWatch[]
+  notifications Notification[]
+}
+
+// ---------------------------------------------------------------------------
+// Async loop — closing the relay so it doesn't depend on luck (reload). No
+// email/push yet (matches the cookie-identity model; email arrives with the
+// magic-link upgrade). In-app notifications + a lightweight "follow".
+// ---------------------------------------------------------------------------
+
+/// A person follows a song — the mural's demand side ("falta baixo, me avisem
+/// quando entregarem"). Auto-created on meaningful interaction (proposing,
+/// contributing) and via an explicit "Seguir" button for pure lurkers.
+model SongWatch {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, songId])
+  @@index([songId])
+}
+
+/// One in-app notification for a user. Denormalizes songTitle/actorName so it
+/// renders cheaply and survives even if the source is later reworked.
+model Notification {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  /// "proposal_received" | "proposal_accepted" | "proposal_rejected"
+  /// | "track_progress" | "slot_declared"
+  type String
+
+  song      Song    @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songId    String
+  songTitle String // denormalized display
+  actorName String // who caused it (proposer / reviewer / declarer)
+  trackName String? // affected track, when relevant
+  count     Int? // e.g. bars in a proposal
+  message   String // rendered pt-BR line
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }

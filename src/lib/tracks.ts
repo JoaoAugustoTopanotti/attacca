@@ -8,6 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { watchSong, notifySlotDeclared } from "@/lib/notifications";
 
 export type InstrumentPreset = {
   key: string;
@@ -43,6 +44,7 @@ export async function declareTrack(
   songId: string,
   presetKey: string,
   name?: string,
+  actor?: { id: string; displayName: string } | null,
 ) {
   const preset = INSTRUMENT_PRESETS.find((p) => p.key === presetKey);
   if (!preset) throw new Error("Instrumento desconhecido.");
@@ -88,6 +90,22 @@ export async function declareTrack(
     }),
     prisma.cell.createMany({ data: cellRows }),
   ]);
+
+  // A newly declared gap is the mural's call to action — tell the followers
+  // ("agora falta baixo"). The declarer starts following so they hear when it
+  // gets delivered.
+  if (actor) await watchSong(actor.id, songId);
+  const song = await prisma.song.findUnique({
+    where: { id: songId },
+    select: { title: true },
+  });
+  await notifySlotDeclared({
+    songId,
+    songTitle: song?.title ?? label,
+    trackName: label,
+    actorId: actor?.id ?? null,
+    actorName: actor?.displayName ?? "alguém",
+  });
 
   return { id: trackId, order, name: label };
 }
