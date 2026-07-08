@@ -121,9 +121,14 @@ O raciocínio que levou à decisão (mantido como contexto):
 - **Deploy: Render + Neon** (gratuito). Render hospeda o app Node (`render.yaml`); Neon
   (neon.tech) fornece o Postgres serverless (free tier, sem pausa). `startCommand` no
   `render.yaml` = `npx prisma migrate deploy && npm start` (migrações automáticas a cada
-  deploy). Variáveis `DATABASE_URL` e `GS_COOKIE_SECRET` ficam no dashboard do Render
-  (nunca no repo). HTTPS provido pelo Render. Migração consolidada em
+  deploy). Variáveis no dashboard do Render (nunca no repo): `DATABASE_URL`,
+  `GS_AUTH_SECRET` (assina o JWT de sessão — ADR 0004; cai para `GS_COOKIE_SECRET` se
+  ausente), `RESEND_API_KEY` + `EMAIL_FROM` (envio de e-mail real — magic link +
+  notificação), `APP_URL` (URL pública, p/ montar os links absolutos dos e-mails). HTTPS
+  provido pelo Render. Migração consolidada em
   `prisma/migrations/20260618000000_postgres_baseline/migration.sql`.
+- **Auth: `jose`** (JWT HS256) para a sessão; e-mail via **Resend** (HTTP `fetch`, sem SDK)
+  ou **modo dev** (console). Ver ADR 0004 e a seção de identidade no modelo de dados.
 - **Arquivos enviados no disco**, em `storage/` (gitignored, fora de `/public`). Servidos
   por API route que faz stream dos bytes; o player carrega via `fetch` → `ArrayBuffer` →
   `api.load()` (ou `api.tex()` para AlphaTex).
@@ -180,10 +185,32 @@ O raciocínio que levou à decisão (mantido como contexto):
   `/api/cells/[id]/accept` e `/reject`. **Tela de revisão** embutida no `/edit`: clicar numa
   entrada do histórico → ver o fragmento + **pré-visualizar no player** (override via
   `GET /assembled?cell=&contribution=`) → aceitar/recusar.
-- **Identidade leve (ADR 0003)** — `src/lib/identity.ts` + `/api/me`. Pessoa = **cookie
-  assinado** (HMAC, `GS_COOKIE_SECRET`) → `User` (`displayName`). `getCurrentUser()` lê o
-  cookie. Widget no header (prompt "quem é você?" / "você é X"). **Não é auth** (sem senha/
-  e-mail); identidade por-navegador. Upgrade = magic link.
+- **Identidade DURÁVEL — magic link + sessão JWT (ADR 0004, 2026-07-05, aposenta o cookie
+  do ADR 0003)** — `src/lib/identity.ts` + `src/lib/email.ts` + `/api/auth/*` + `/api/me`.
+  O cookie-como-identidade era frágil (limpar cookie / trocar de aparelho = vira anônimo, e
+  a **autoria por pedaço** — diferencial — se perde). Agora **âncora = e-mail verificado**
+  (`User.email @unique`, `emailVerified`): **login passwordless por magic link** (token de
+  uso único, só o **hash** guardado em `LoginToken`, TTL 30 min) → **sessão JWT** (`jose`
+  HS256, exp 30d, cookie httpOnly `gs_session`). Perder o cookie **não** perde a identidade
+  (reautentica pelo e-mail, mesmo `User`). Rotas: `POST /api/auth/request` ({email,name?} →
+  emite+envia link; lê o cookie legado p/ **claimUserId**), `GET /api/auth/verify?token=`
+  (consome → seta JWT → **redirect** `/?welcome=1` | `/?auth_error=`), `POST /api/auth/logout`.
+  `getCurrentUser()` **manteve a assinatura** (lê JWT) → as 18 rotas não mudaram. **Ponte de
+  migração transitória:** no verify, se o `gs_uid` legado existir, o e-mail é **anexado à
+  conta existente** (não duplica) — 1ºs usuários mantêm autoria (`readLegacyCookieUserId`, o
+  único resquício do cookie antigo, removível depois). **E-mail = canal de "sua vez":**
+  `createNotification` também **manda e-mail** nos eventos diretos (proposta recebida/aceita/
+  recusada) se o alvo tem e-mail verificado; fan-out de seguidores fica só in-app.
+  **E-mail provider-agnóstico** (`src/lib/email.ts`): `RESEND_API_KEY` → Resend via `fetch`;
+  sem chave → **modo dev** (loga o link + devolve `devUrl` no form). Widget (`IdentityWidget`)
+  reescrito: entrar por e-mail → "confira seu e-mail" (link dev clicável) → pill com menu +
+  **Sair**. Segredos: `GS_AUTH_SECRET` (cai p/ `GS_COOKIE_SECRET`), `RESEND_API_KEY`/
+  `EMAIL_FROM`, `APP_URL` (URL absoluta atrás de proxy) — nada obrigatório em dev.
+  ⚠️ **Após a migração, reiniciar `next dev`** (client Prisma em memória fica velho: rotas
+  que tocam `LoginToken`/`email` dão 500 até o restart). Provado ponta-a-ponta no Neon
+  (signup, uso único, JWT, login de retorno sem duplicar, ponte legado, expiração, inválido).
+  **Fora de escopo ainda:** senha, OAuth, revogação server-side de sessão, rate-limit,
+  perfis/rename.
 - **Autoridade = MODELO MAINTAINER (revisão da ADR-0003, pós-teste real)** — o **dono da
   música é o criador** (`Song.ownerId`, setado ao criar). **O dono aceita; qualquer um
   identificado PROPÕE** (PR aberto). `assertCanAccept` checa `song.ownerId` (não a trilha);

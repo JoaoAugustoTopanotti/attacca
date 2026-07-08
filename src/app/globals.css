@@ -68,6 +68,33 @@ a:hover { text-decoration: underline; }
 .identity-form button {
   padding: 4px 10px; font-size: 0.8rem;
 }
+.identity-form--auth input[type="email"] { width: 150px; }
+
+/* Identity dropdown / auth states */
+.identity { position: relative; display: flex; align-items: center; gap: 8px; }
+.identity-pill--btn { cursor: pointer; background: transparent; color: var(--text); }
+.identity-pill--btn:hover { border-color: var(--muted); }
+.identity-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 220px; padding: 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+}
+.identity-menu-email {
+  font-size: 0.78rem; color: var(--sub); word-break: break-all;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.identity-menu-hint { font-size: 0.72rem; color: var(--muted); margin: 0 0 8px; line-height: 1.35; }
+.identity-menu-logout {
+  width: 100%; padding: 6px; font-size: 0.8rem;
+  background: transparent; color: var(--text); border: 1px solid var(--border);
+}
+.identity-menu-logout:hover { border-color: var(--danger); color: var(--danger); }
+.identity-sent { font-size: 0.8rem; color: var(--sub); gap: 10px; }
+.identity-sent-text strong { color: var(--text); }
+.identity-devlink { font-size: 0.78rem; color: var(--accent); }
+.identity-error { font-size: 0.74rem; color: var(--danger); }
 
 /* ── Container ───────────────────────────────────────────────────── */
 .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }

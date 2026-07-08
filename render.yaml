@@ -11,4 +11,12 @@ services:
       - key: DATABASE_URL
         sync: false   # preencher no dashboard: URL Neon (postgresql://...neon.tech/...?sslmode=require)
       - key: GS_COOKIE_SECRET
-        sync: false   # preencher no dashboard: string aleatória (32+ bytes)
+        sync: false   # legado (ponte de migração + fallback do JWT); string aleatória
+      - key: GS_AUTH_SECRET
+        sync: false   # assina o JWT de sessão (ADR 0004); string aleatória 32+ bytes
+      - key: APP_URL
+        sync: false   # URL pública do serviço (p/ links absolutos nos e-mails)
+      - key: RESEND_API_KEY
+        sync: false   # envio de e-mail real (magic link + notificação "sua vez")
+      - key: EMAIL_FROM
+        sync: false   # remetente verificado no Resend, ex.: "GitSong <no-reply@seu-dominio>"

@@ -184,17 +184,39 @@ model CellContribution {
 // Identity — "real enough" (ADR 0003). Lightweight, cookie-backed; no auth.
 // ---------------------------------------------------------------------------
 
-/// A person, distinguished by a signed cookie. Swap for real auth later.
+/// A person. Identity is anchored to a verified EMAIL (durable, cross-device) —
+/// authorship survives a cookie clear or a device switch. Auth is passwordless
+/// (magic link) with a JWT session cookie; there is no password. `email` is
+/// nullable only to carry legacy cookie-only users until they claim an email.
 model User {
-  id          String   @id @default(cuid())
-  displayName String
-  createdAt   DateTime @default(now())
+  id            String    @id @default(cuid())
+  displayName   String
+  email         String?   @unique
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
 
   ownedSongs    Song[]
   ownedTracks   Track[]
   contributions CellContribution[]
   watches       SongWatch[]
   notifications Notification[]
+}
+
+/// A single-use magic-link token (passwordless sign-in). We store only the
+/// SHA-256 hash — the raw token lives solely in the emailed URL. Short-lived and
+/// consumed on first use. `claimUserId` upgrades a legacy cookie user in place
+/// (attaches the email to their existing account) so their authorship is kept.
+model LoginToken {
+  id          String    @id @default(cuid())
+  email       String
+  tokenHash   String    @unique
+  displayName String? // proposed name when creating a brand-new account
+  claimUserId String? // legacy user to attach the email to (transitional)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
 }
 
 // ---------------------------------------------------------------------------
