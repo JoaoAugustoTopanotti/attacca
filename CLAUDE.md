@@ -202,10 +202,23 @@ O raciocínio que levou à decisão (mantido como contexto):
   `createNotification` também **manda e-mail** nos eventos diretos (proposta recebida/aceita/
   recusada) se o alvo tem e-mail verificado; fan-out de seguidores fica só in-app.
   **E-mail provider-agnóstico** (`src/lib/email.ts`): `RESEND_API_KEY` → Resend via `fetch`;
-  sem chave → **modo dev** (loga o link + devolve `devUrl` no form). Widget (`IdentityWidget`)
-  reescrito: entrar por e-mail → "confira seu e-mail" (link dev clicável) → pill com menu +
-  **Sair**. Segredos: `GS_AUTH_SECRET` (cai p/ `GS_COOKIE_SECRET`), `RESEND_API_KEY`/
-  `EMAIL_FROM`, `APP_URL` (URL absoluta atrás de proxy) — nada obrigatório em dev.
+  sem chave → **modo dev** (loga o link + devolve `devUrl` no form). Segredos:
+  `GS_AUTH_SECRET` (cai p/ `GS_COOKIE_SECRET`), `RESEND_API_KEY`/`EMAIL_FROM`, `APP_URL`
+  (URL absoluta atrás de proxy) — nada obrigatório em dev.
+- **Google sign-in + modal estilo ChatGPT (2026-07-10, ADR 0004 atualizada)** —
+  `src/lib/google.ts` + `/api/auth/google` + `/callback` + `/api/auth/providers`.
+  **Google só AUTENTICA; a âncora continua o e-mail**: magic link e Google passam pelo
+  **mesmo** `resolveUserForEmail()` (extraído de `consumeLoginToken`), então entrar com
+  Google num e-mail já usado **cai na mesma conta** (provado; não duplica nem sobrescreve o
+  nome). OIDC **authorization code + PKCE (S256)**, `state`/`code_verifier` em cookies
+  httpOnly de 10 min, `id_token` verificado contra o **JWKS do Google** (`jose`: assinatura
+  + `iss` + `aud`); **`email_verified !== true` é recusado**. **Sem `next-auth`** (traria uma
+  2ª noção de sessão; hand-roll de ~100 linhas casa com o nosso JWT e não mexe em
+  `getCurrentUser`). Sem `GOOGLE_CLIENT_ID`/`SECRET` → `providers` devolve `{google:false}` e
+  o modal **esconde o botão** (degrada para magic link). UI: `IdentityWidget` "Entrar" abre
+  **`AuthModal`** (portal): Google → divisor "ou" → e-mail → "confira seu e-mail"; Esc/
+  backdrop/✕ fecham; `?auth_error=` reabre o modal com a razão. Redirect URI exato:
+  `${APP_URL}/api/auth/google/callback`.
   ⚠️ **Após a migração, reiniciar `next dev`** (client Prisma em memória fica velho: rotas
   que tocam `LoginToken`/`email` dão 500 até o restart). Provado ponta-a-ponta no Neon
   (signup, uso único, JWT, login de retorno sem duplicar, ponte legado, expiração, inválido).

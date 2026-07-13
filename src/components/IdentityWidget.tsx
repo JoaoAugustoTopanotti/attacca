@@ -2,13 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import AuthModal from "@/components/AuthModal";
 
 type Me = { id: string; displayName: string; email: string | null } | null;
-type Mode = "idle" | "form" | "sent";
 
 const AUTH_ERRORS: Record<string, string> = {
   invalid: "Link inválido. Peça um novo.",
   expired: "O link expirou. Peça um novo.",
+  google_unconfigured: "Login com Google não está configurado neste servidor.",
+  google_denied: "Você cancelou o login com Google.",
+  google_state: "Sessão de login expirou. Tente de novo.",
+  google_failed: "Não foi possível entrar com o Google. Tente de novo.",
 };
 
 export default function IdentityWidget() {
@@ -16,13 +20,8 @@ export default function IdentityWidget() {
   const [me, setMe] = useState<Me>(null);
   const [loaded, setLoaded] = useState(false);
 
-  const [mode, setMode] = useState<Mode>("idle");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [devUrl, setDevUrl] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -34,14 +33,14 @@ export default function IdentityWidget() {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Surface a failed magic link (verify redirects here with ?auth_error=…), then
-  // clean the URL so it doesn't stick around.
+  // A failed sign-in redirects here with ?auth_error=… — reopen the modal with
+  // the reason, then clean the URL so it doesn't stick around on refresh.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("auth_error");
     if (code) {
-      setError(AUTH_ERRORS[code] ?? "Não foi possível entrar. Tente de novo.");
-      setMode("form");
+      setAuthError(AUTH_ERRORS[code] ?? "Não foi possível entrar. Tente de novo.");
+      setModalOpen(true);
     }
     if (code || params.get("welcome")) {
       params.delete("auth_error");
@@ -60,37 +59,16 @@ export default function IdentityWidget() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
 
-  async function requestLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/auth/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), displayName: name.trim() || undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Falha ao enviar o link.");
-      setSentTo(email.trim());
-      setDevUrl(data.devUrl ?? null);
-      setMode("sent");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setMe(null);
     setMenuOpen(false);
-    setMode("idle");
-    setEmail("");
-    setName("");
     router.refresh();
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setAuthError(null);
   }
 
   if (!loaded) return null;
@@ -106,12 +84,19 @@ export default function IdentityWidget() {
           aria-expanded={menuOpen}
         >
           <span className="identity-avatar">{me.displayName[0]?.toUpperCase() ?? "?"}</span>
-          {me.displayName}
+          <span className="identity-name">{me.displayName}</span>
+          <span className="identity-caret" aria-hidden />
         </button>
         {menuOpen && (
           <div className="identity-menu">
-            <div className="identity-menu-email">
-              {me.email ?? "sem e-mail (conta antiga)"}
+            <div className="identity-menu-profile">
+              <span className="identity-avatar identity-avatar--lg">
+                {me.displayName[0]?.toUpperCase() ?? "?"}
+              </span>
+              <div className="identity-menu-copy">
+                <strong>{me.displayName}</strong>
+                <span>{me.email ?? "conta local"}</span>
+              </div>
             </div>
             {!me.email && (
               <p className="identity-menu-hint">
@@ -128,57 +113,17 @@ export default function IdentityWidget() {
     );
   }
 
-  // ── Link sent ────────────────────────────────────────────────────────────
-  if (mode === "sent") {
-    return (
-      <div className="identity identity-sent">
-        <span className="identity-sent-text">
-          Link enviado para <strong>{sentTo}</strong>. Confira seu e-mail.
-        </span>
-        {devUrl && (
-          <a className="identity-devlink" href={devUrl}>
-            abrir link (dev)
-          </a>
-        )}
-        <button type="button" className="secondary" onClick={() => setMode("form")}>
-          trocar
-        </button>
-      </div>
-    );
-  }
-
-  // ── Not logged in ──────────────────────────────────────────────────────────
-  if (mode === "form") {
-    return (
-      <form onSubmit={requestLink} className="identity-form identity-form--auth">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="seu@email.com"
-          autoFocus
-          required
-        />
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="seu nome (opcional)"
-        />
-        <button type="submit" disabled={busy} className="secondary">
-          {busy ? "…" : "Enviar link"}
-        </button>
-        {error && <span className="identity-error">{error}</span>}
-      </form>
-    );
-  }
-
+  // ── Signed out ───────────────────────────────────────────────────────────
   return (
     <div className="identity">
-      {error && <span className="identity-error">{error}</span>}
-      <button type="button" className="secondary" onClick={() => setMode("form")}>
+      <button
+        type="button"
+        className="identity-login-btn"
+        onClick={() => setModalOpen(true)}
+      >
         Entrar
       </button>
+      {modalOpen && <AuthModal onClose={closeModal} initialError={authError} />}
     </div>
   );
 }

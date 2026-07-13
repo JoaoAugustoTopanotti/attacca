@@ -57,3 +57,35 @@ que dependem dela **não mudaram** — a troca ficou contida em `src/lib/identit
 Prova de ponta a ponta no Neon: signup, uso único do token, round-trip do JWT, login de
 retorno sem duplicar, **ponte legado (anexa e-mail à conta existente)**, expiração e token
 inválido. Typecheck limpo; rotas HTTP compilando (400 de e-mail inválido antes do DB).
+
+---
+
+## Atualização (2026-07-10) — Google sign-in + modal estilo ChatGPT
+
+**Decisão:** adicionar **Google** como provedor social, **sem** trocar a âncora de
+identidade nem adotar `next-auth`.
+
+- **Google só AUTENTICA; o e-mail continua sendo a âncora.** Toda entrada (magic link ou
+  Google) passa por **`resolveUserForEmail()`** — extraído de `consumeLoginToken` para ser
+  o **único** lugar onde um e-mail verificado vira `User`. Consequência provada em teste:
+  entrar com Google num e-mail que já entrou por magic link **cai na mesma conta** (não
+  duplica, não sobrescreve o `displayName`). A ponte de conta legada vale para os dois.
+- **Fluxo:** OIDC **authorization code + PKCE (S256)**, `state` e `code_verifier` em
+  cookies httpOnly de 10 min. O `id_token` é verificado contra o **JWKS do Google**
+  (assinatura + `iss` + `aud`, via `jose`). **Recusamos `email_verified !== true`** — senão
+  alguém poderia reivindicar uma conta cujo endereço não controla.
+- **Sem `next-auth`:** manteria duas noções de sessão (a dele e o nosso JWT). Hand-roll de
+  ~100 linhas (`src/lib/google.ts`) casa com o resto do código e não muda `getCurrentUser`.
+- **Degrada com elegância:** sem `GOOGLE_CLIENT_ID`/`SECRET`, `GET /api/auth/providers`
+  devolve `{google:false}` e o modal **esconde o botão**, sobrando o magic link.
+- **UI:** `Entrar` abre um **modal** (`AuthModal`, via portal): "Continuar com Google" →
+  divisor "ou" → e-mail (magic link) → estado "confira seu e-mail". Fecha no Esc/backdrop/✕.
+  Erros do redirect (`?auth_error=google_denied|google_state|…`) reabrem o modal com a razão.
+- **Rotas:** `GET /api/auth/google` (inicia), `GET /api/auth/google/callback` (troca o code,
+  verifica, abre sessão), `GET /api/auth/providers`.
+- **Segredos:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Redirect URI exato:
+  `${APP_URL}/api/auth/google/callback`.
+
+**Verified:** magic link sem regressão, **convergência Google↔magic-link no mesmo `User`**,
+signup só-Google, ponte legada, `challenge === S256(verifier)`, e `providers` refletindo o
+env. Rotas redirecionam com `auth_error=google_unconfigured` quando não configurado.
