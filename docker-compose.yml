@@ -1,0 +1,34 @@
+# Banco de DESENVOLVIMENTO local (Postgres em Docker).
+# Isola o dev do banco de produção (Neon): mexer aqui nunca toca a produção.
+#
+# Uso:
+#   docker compose up -d      # liga o banco (fica rodando em segundo plano)
+#   docker compose down       # desliga (os dados ficam guardados no volume)
+#   docker compose down -v     # desliga E APAGA os dados (recomeçar do zero)
+#
+# A string de conexão correspondente (vai no .env):
+#   DATABASE_URL="postgresql://gitsong:gitsong@localhost:55432/gitsong_dev"
+
+services:
+  db:
+    image: postgres:16
+    container_name: gitsong-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gitsong
+      POSTGRES_PASSWORD: gitsong
+      POSTGRES_DB: gitsong_dev
+    ports:
+      # host:container — 55432 no host pra não colidir com os Postgres nativos
+      # do Windows (16 e 17) que já ocupam 5432/5433 nesta máquina.
+      - "55432:5432"
+    volumes:
+      - gitsong_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitsong -d gitsong_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  gitsong_dev_pgdata:
