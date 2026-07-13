@@ -20,3 +20,7 @@ services:
         sync: false   # envio de e-mail real (magic link + notificação "sua vez")
       - key: EMAIL_FROM
         sync: false   # remetente verificado no Resend, ex.: "GitSong <no-reply@seu-dominio>"
+      - key: GOOGLE_CLIENT_ID
+        sync: false   # OAuth client (Google Cloud Console); vazio = esconde o botão Google
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false   # redirect URI: ${APP_URL}/api/auth/google/callback

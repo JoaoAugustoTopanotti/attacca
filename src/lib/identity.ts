@@ -100,6 +100,43 @@ export async function issueLoginToken(args: {
 }
 
 /**
+ * The single place a verified email becomes a User — shared by every sign-in
+ * method (magic link, Google). Email is the identity anchor:
+ *   1. email already known  → that account (verify it on first sign-in)
+ *   2. legacy cookie user   → attach the email in place (keeps authorship)
+ *   3. otherwise            → create a new account
+ */
+export async function resolveUserForEmail(args: {
+  email: string;
+  displayName?: string | null;
+  claimUserId?: string | null;
+}): Promise<CurrentUser> {
+  const { email } = args;
+  const now = new Date();
+  const proposed = args.displayName?.trim();
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    if (existing.emailVerified) return existing;
+    return prisma.user.update({ where: { id: existing.id }, data: { emailVerified: now } });
+  }
+
+  if (args.claimUserId) {
+    const legacy = await prisma.user.findUnique({ where: { id: args.claimUserId } });
+    if (legacy && !legacy.email) {
+      return prisma.user.update({
+        where: { id: legacy.id },
+        data: { email, emailVerified: now, displayName: proposed || legacy.displayName },
+      });
+    }
+  }
+
+  return prisma.user.create({
+    data: { email, emailVerified: now, displayName: proposed || deriveName(email) },
+  });
+}
+
+/**
  * Consume a magic-link token: validate → resolve/create the User (verifying the
  * email) → mark it used. Returns the user on success, or an error code.
  */
@@ -110,42 +147,16 @@ export async function consumeLoginToken(
   if (!token || token.consumedAt) return { error: "invalid" };
   if (token.expiresAt.getTime() < Date.now()) return { error: "expired" };
 
-  const email = token.email;
-  const now = new Date();
-
-  let user = await prisma.user.findUnique({ where: { email } });
-  if (user) {
-    // Existing email account — confirm verification on first magic-link login.
-    if (!user.emailVerified) {
-      user = await prisma.user.update({ where: { id: user.id }, data: { emailVerified: now } });
-    }
-  } else if (token.claimUserId) {
-    // Legacy cookie user claiming an email → attach in place (keep authorship).
-    const legacy = await prisma.user.findUnique({ where: { id: token.claimUserId } });
-    if (legacy && !legacy.email) {
-      user = await prisma.user.update({
-        where: { id: legacy.id },
-        data: {
-          email,
-          emailVerified: now,
-          displayName: token.displayName?.trim() || legacy.displayName,
-        },
-      });
-    } else {
-      user = await prisma.user.create({
-        data: { email, emailVerified: now, displayName: token.displayName?.trim() || deriveName(email) },
-      });
-    }
-  } else {
-    user = await prisma.user.create({
-      data: { email, emailVerified: now, displayName: token.displayName?.trim() || deriveName(email) },
-    });
-  }
+  const user = await resolveUserForEmail({
+    email: token.email,
+    displayName: token.displayName,
+    claimUserId: token.claimUserId,
+  });
 
   // Burn this token and any other outstanding ones for the email.
   await prisma.loginToken.updateMany({
-    where: { email, consumedAt: null },
-    data: { consumedAt: now },
+    where: { email: token.email, consumedAt: null },
+    data: { consumedAt: new Date() },
   });
 
   return { user };
