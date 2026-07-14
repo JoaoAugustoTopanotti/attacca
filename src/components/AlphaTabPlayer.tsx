@@ -9,6 +9,11 @@ import {
   useState,
 } from "react";
 import { instrumentLabel } from "@/lib/instruments";
+import {
+  PREFS_EVENT,
+  readPlayerPrefs,
+  type PlayerPrefs,
+} from "@/lib/player-prefs";
 
 type AlphaTabModule = typeof import("@coderline/alphatab");
 type AlphaTabApi = InstanceType<AlphaTabModule["AlphaTabApi"]>;
@@ -35,6 +40,14 @@ export type AlphaTabPlayerHandle = {
 };
 
 type Status = "loading" | "ready" | "error";
+
+/** Preferências que valem sem re-renderizar a partitura (áudio puro). */
+function applyPlaybackPrefs(api: AlphaTabApi, prefs: PlayerPrefs) {
+  api.masterVolume = prefs.volume;
+  api.playbackSpeed = prefs.speed;
+  api.metronomeVolume = prefs.metronome ? 1 : 0;
+  api.countInVolume = prefs.countIn ? 1 : 0;
+}
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -89,6 +102,7 @@ const AlphaTabPlayer = forwardRef<
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
+  const alphaTabRef = useRef<AlphaTabModule | null>(null);
   const scoreRef = useRef<Score | null>(null);
   const scrubbingRef = useRef(false);
   // Callback de tick sempre atual (o handler do alphaTab é registrado uma vez).
@@ -143,16 +157,18 @@ const AlphaTabPlayer = forwardRef<
   useEffect(() => {
     let api: AlphaTabApi | null = null;
     let disposed = false;
+    const prefs = readPlayerPrefs();
 
     (async () => {
       const alphaTab = await import("@coderline/alphatab");
       if (disposed || !surfaceRef.current) return;
+      alphaTabRef.current = alphaTab;
 
       api = new alphaTab.AlphaTabApi(surfaceRef.current, {
         core: { fontDirectory: "/font/" },
         display: {
-          staveProfile: "Tab",
-          scale: 1.1,
+          staveProfile: prefs.staveProfile,
+          scale: prefs.scale,
           resources: {
             mainGlyphColor: "#e8eaed",
             secondaryGlyphColor: "#aab2c0",
@@ -238,6 +254,8 @@ const AlphaTabPlayer = forwardRef<
         setErrorMessage(message);
       });
 
+      applyPlaybackPrefs(api, prefs);
+
       apiRef.current = api;
       setApiReady(true);
     })();
@@ -245,9 +263,38 @@ const AlphaTabPlayer = forwardRef<
     return () => {
       disposed = true;
       apiRef.current = null;
+      alphaTabRef.current = null;
       scoreRef.current = null;
       api?.destroy();
     };
+  }, []);
+
+  // Preferências mudaram na tela de configurações → aplicar no player já montado
+  // (sem recarregar a partitura). Volume/velocidade são propriedades vivas; a
+  // escala e o perfil de pauta exigem re-render.
+  useEffect(() => {
+    function onPrefs(event: Event) {
+      const api = apiRef.current;
+      const alphaTab = alphaTabRef.current;
+      if (!api || !alphaTab) return;
+      const prefs = (event as CustomEvent<PlayerPrefs>).detail;
+
+      applyPlaybackPrefs(api, prefs);
+
+      const display = api.settings.display;
+      const wantedProfile =
+        prefs.staveProfile === "ScoreTab"
+          ? alphaTab.StaveProfile.ScoreTab
+          : alphaTab.StaveProfile.Tab;
+      if (display.scale !== prefs.scale || display.staveProfile !== wantedProfile) {
+        display.scale = prefs.scale;
+        display.staveProfile = wantedProfile;
+        api.updateSettings();
+        api.render();
+      }
+    }
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
   useEffect(() => {
