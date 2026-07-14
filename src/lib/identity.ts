@@ -78,13 +78,15 @@ function deriveName(email: string): string {
 
 /**
  * Issue a single-use magic-link token for an email. Returns the RAW token (goes
- * only into the emailed URL) — we persist just its hash. `claimUserId` lets a
- * legacy cookie user attach this email to their existing account.
+ * only into the emailed URL) — we persist just its hash. `claimUserId` attaches
+ * this email to an EXISTING account (legacy cookie bridge, or an email change
+ * from the settings page); `redirectTo` is where the link lands once consumed.
  */
 export async function issueLoginToken(args: {
   email: string;
   displayName?: string | null;
   claimUserId?: string | null;
+  redirectTo?: string | null;
 }): Promise<string> {
   const raw = randomBytes(32).toString("base64url");
   await prisma.loginToken.create({
@@ -93,6 +95,7 @@ export async function issueLoginToken(args: {
       tokenHash: hashToken(raw),
       displayName: args.displayName ?? null,
       claimUserId: args.claimUserId ?? null,
+      redirectTo: args.redirectTo ?? null,
       expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
     },
   });
@@ -103,8 +106,14 @@ export async function issueLoginToken(args: {
  * The single place a verified email becomes a User — shared by every sign-in
  * method (magic link, Google). Email is the identity anchor:
  *   1. email already known  → that account (verify it on first sign-in)
- *   2. legacy cookie user   → attach the email in place (keeps authorship)
+ *   2. claimUserId          → attach the email to that account IN PLACE (keeps
+ *                             authorship): the legacy cookie bridge, and the
+ *                             "trocar e-mail" flow in the settings page
  *   3. otherwise            → create a new account
+ *
+ * Note that (1) wins over (2): if the email already belongs to another account,
+ * proving control of it signs you into THAT account rather than moving it. The
+ * email-change route rejects a taken address up front so this stays an edge.
  */
 export async function resolveUserForEmail(args: {
   email: string;
@@ -122,11 +131,11 @@ export async function resolveUserForEmail(args: {
   }
 
   if (args.claimUserId) {
-    const legacy = await prisma.user.findUnique({ where: { id: args.claimUserId } });
-    if (legacy && !legacy.email) {
+    const target = await prisma.user.findUnique({ where: { id: args.claimUserId } });
+    if (target) {
       return prisma.user.update({
-        where: { id: legacy.id },
-        data: { email, emailVerified: now, displayName: proposed || legacy.displayName },
+        where: { id: target.id },
+        data: { email, emailVerified: now, displayName: proposed || target.displayName },
       });
     }
   }
@@ -142,7 +151,9 @@ export async function resolveUserForEmail(args: {
  */
 export async function consumeLoginToken(
   raw: string,
-): Promise<{ user: CurrentUser } | { error: "invalid" | "expired" }> {
+): Promise<
+  { user: CurrentUser; redirectTo: string | null } | { error: "invalid" | "expired" }
+> {
   const token = await prisma.loginToken.findUnique({ where: { tokenHash: hashToken(raw) } });
   if (!token || token.consumedAt) return { error: "invalid" };
   if (token.expiresAt.getTime() < Date.now()) return { error: "expired" };
@@ -159,7 +170,7 @@ export async function consumeLoginToken(
     data: { consumedAt: new Date() },
   });
 
-  return { user };
+  return { user, redirectTo: token.redirectTo };
 }
 
 // ── Legacy migration bridge (transitional) ────────────────────────────────────

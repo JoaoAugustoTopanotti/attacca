@@ -195,6 +195,11 @@ model User {
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
 
+  /// Instruments this person plays (INSTRUMENT_PRESETS keys). Declared in the
+  /// settings page; the incompleteness wall uses it to surface the songs that
+  /// need YOUR instrument — the pull that answers the density risk.
+  instruments String[] @default([])
+
   ownedSongs    Song[]
   ownedTracks   Track[]
   contributions CellContribution[]
@@ -204,14 +209,17 @@ model User {
 
 /// A single-use magic-link token (passwordless sign-in). We store only the
 /// SHA-256 hash — the raw token lives solely in the emailed URL. Short-lived and
-/// consumed on first use. `claimUserId` upgrades a legacy cookie user in place
-/// (attaches the email to their existing account) so their authorship is kept.
+/// consumed on first use. `claimUserId` attaches the email to an EXISTING account
+/// in place — used both by the legacy cookie bridge and by "trocar e-mail" in the
+/// settings page — so authorship is never forked into a second identity.
 model LoginToken {
   id          String    @id @default(cuid())
   email       String
   tokenHash   String    @unique
   displayName String? // proposed name when creating a brand-new account
-  claimUserId String? // legacy user to attach the email to (transitional)
+  claimUserId String? // existing user to attach this email to
+  /// Where to land after consuming the link (e.g. /settings for an email change).
+  redirectTo  String?
   expiresAt   DateTime
   consumedAt  DateTime?
   createdAt   DateTime  @default(now())

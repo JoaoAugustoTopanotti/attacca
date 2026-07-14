@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { issueLoginToken, readLegacyCookieUserId, appBaseUrl } from "@/lib/identity";
 import { sendMagicLink, emailConfigured } from "@/lib/email";
+import { prisma } from "@/lib/prisma";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,8 +20,14 @@ export async function POST(request: Request) {
 
   // If the browser still holds the legacy identity cookie, let this email attach
   // to that existing account (preserving its authorship) instead of forking a
-  // duplicate identity.
-  const claimUserId = await readLegacyCookieUserId();
+  // duplicate identity. Only for an account that has NO email yet — claiming now
+  // means "attach in place", and moving someone's email must be an explicit act
+  // (POST /api/me/email), never a side effect of an old cookie.
+  const legacyId = await readLegacyCookieUserId();
+  const legacy = legacyId
+    ? await prisma.user.findUnique({ where: { id: legacyId }, select: { id: true, email: true } })
+    : null;
+  const claimUserId = legacy && !legacy.email ? legacy.id : null;
 
   const raw = await issueLoginToken({ email, displayName, claimUserId });
   const url = `${appBaseUrl(request)}/api/auth/verify?token=${encodeURIComponent(raw)}`;
