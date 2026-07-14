@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthModal from "@/components/AuthModal";
+import { ME_EVENT } from "@/lib/identity-events";
 
 type Me = { id: string; displayName: string; email: string | null } | null;
 
@@ -31,6 +33,16 @@ export default function IdentityWidget() {
       .then((r) => r.json())
       .then((u) => setMe(u))
       .finally(() => setLoaded(true));
+  }, []);
+
+  // Salvou o perfil nas configurações → o nome/e-mail aqui em cima muda junto,
+  // sem F5 (este fetch acima só roda na montagem).
+  useEffect(() => {
+    function onMeChanged(event: Event) {
+      setMe((event as CustomEvent<Me>).detail);
+    }
+    window.addEventListener(ME_EVENT, onMeChanged);
+    return () => window.removeEventListener(ME_EVENT, onMeChanged);
   }, []);
 
   // A failed sign-in redirects here with ?auth_error=… — reopen the modal with
@@ -104,6 +116,13 @@ export default function IdentityWidget() {
                 para tornar sua identidade portável.
               </p>
             )}
+            <Link
+              href="/settings"
+              className="identity-menu-link"
+              onClick={() => setMenuOpen(false)}
+            >
+              Configurações
+            </Link>
             <button type="button" className="identity-menu-logout" onClick={logout}>
               Sair
             </button>

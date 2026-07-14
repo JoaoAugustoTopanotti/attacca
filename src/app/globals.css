@@ -1726,3 +1726,87 @@ label {
   .identity-sent { flex-wrap: wrap; }
   .identity-small-action { margin-left: auto; }
 }
+
+/* ── Settings ────────────────────────────────────────────────────── */
+.settings { max-width: 680px; margin: 0 auto; padding-bottom: 40px; }
+.settings-title { margin: 4px 0 18px; }
+.settings-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px; margin-bottom: 14px;
+}
+.settings-card h2 { margin: 0 0 6px; }
+.settings-card h3 {
+  font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em;
+}
+.settings-hint { margin: 0 0 14px; line-height: 1.5; }
+.settings-field { display: block; margin-bottom: 12px; }
+.settings-field > span {
+  display: block; font-size: 0.8rem; color: var(--sub); margin-bottom: 5px;
+}
+.settings-field > span em { color: var(--text); font-style: normal; }
+.settings-field--range input[type="range"] { width: 100%; accent-color: var(--accent); }
+.settings-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.875rem; color: var(--text); margin-bottom: 8px;
+}
+.settings-check input { width: auto; accent-color: var(--accent); }
+.settings-actions {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px;
+}
+.settings-ok    { font-size: 0.8rem; color: #3fb950; }
+.settings-error { font-size: 0.8rem; color: var(--danger); }
+.settings-banner {
+  background: rgba(63, 185, 80, .08); border: 1px solid rgba(63, 185, 80, .35);
+  border-radius: 6px; padding: 8px 10px; margin: 0 0 12px;
+}
+.settings-current {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; margin-bottom: 12px;
+}
+.settings-badge {
+  font-size: 0.7rem; color: #3fb950;
+  border: 1px solid rgba(63, 185, 80, .4); border-radius: 999px; padding: 1px 7px;
+}
+.settings-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.settings-chip {
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 13px; font-size: 0.82rem; font-weight: 400;
+}
+.settings-chip:hover { border-color: var(--muted); color: var(--text); }
+.settings-chip.on {
+  background: rgba(88, 166, 255, .12); border-color: var(--accent); color: var(--text);
+}
+.settings-group { margin-bottom: 16px; }
+.settings-group:last-child { margin-bottom: 0; }
+.settings-list { list-style: none; margin: 0; padding: 0; }
+.settings-list li {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.875rem;
+}
+.settings-list li:last-child { border-bottom: none; }
+.settings-unfollow {
+  margin-left: auto; background: transparent; color: var(--sub);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 3px 9px; font-size: 0.75rem; font-weight: 400;
+}
+.settings-unfollow:hover { color: var(--danger); border-color: rgba(248, 81, 73, .5); }
+
+/* Menu de identidade → configurações */
+.identity-menu-link {
+  display: block; width: 100%; text-align: center;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 10px; font-size: 0.8rem; margin-bottom: 6px;
+}
+.identity-menu-link:hover { border-color: var(--muted); text-decoration: none; }
+
+/* Mural: "essa música espera justamente o seu instrumento" */
+.collab-you {
+  margin-left: 8px; font-size: 0.68rem; font-weight: 500;
+  color: var(--accent); background: rgba(88, 166, 255, .12);
+  border: 1px solid rgba(88, 166, 255, .35); border-radius: 999px;
+  padding: 1px 8px; white-space: nowrap; vertical-align: middle;
+}
