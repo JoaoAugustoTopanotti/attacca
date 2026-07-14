@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { watchSong, notifySlotDeclared } from "@/lib/notifications";
+import { instrumentLabel } from "@/lib/instruments";
 
 export type InstrumentPreset = {
   key: string;
@@ -27,6 +28,16 @@ export const INSTRUMENT_PRESETS: InstrumentPreset[] = [
   { key: "vocals", label: "Vocal", program: 52, tuning: null, isPercussion: false },
   { key: "drums", label: "Bateria", program: 0, tuning: null, isPercussion: true },
 ];
+
+/**
+ * The GM family a preset belongs to ("Baixo", "Guitarra/Violão", …). Matching an
+ * imported track to a declared instrument has to go through the family, not the
+ * exact program: a guitar in a .gp file is often 29 (overdriven), not our 25.
+ */
+export function presetFamily(key: string): string | null {
+  const preset = INSTRUMENT_PRESETS.find((p) => p.key === key);
+  return preset ? instrumentLabel(preset.program, preset.isPercussion) : null;
+}
 
 function buildHeaderFragment(name: string, p: InstrumentPreset): string {
   const safe = name.replace(/"/g, "");
@@ -114,6 +125,9 @@ export type TrackCompleteness = {
   id: string;
   name: string;
   ownerName: string | null;
+  /** GM family ("Baixo", "Bateria/Percussão"…) — matches against the instruments
+   *  a person declared in their settings. */
+  family: string;
   done: number;
   total: number;
   percent: number;
@@ -148,6 +162,7 @@ export async function songCompleteness(songId: string): Promise<SongCompleteness
         id: t.id,
         name: t.name,
         ownerName: t.ownerName,
+        family: instrumentLabel(t.instrument ?? 0, t.isPercussion),
         done,
         total,
         percent: total ? Math.round((done / total) * 100) : 0,

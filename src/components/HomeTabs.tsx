@@ -10,6 +10,8 @@ type Song = {
   percent: number;
   missing: string[];
   tracks: number; // number of declared tracks
+  /** Uma trilha vazia é de um instrumento que a pessoa declarou tocar. */
+  needsYou: boolean;
 };
 
 export default function HomeTabs({
@@ -92,7 +94,12 @@ export default function HomeTabs({
                   />
                 </span>
                 <span className="collab-meta">
-                  <span className="collab-name">{song.title}</span>
+                  <span className="collab-name">
+                    {song.title}
+                    {song.needsYou && (
+                      <span className="collab-you">precisa do seu instrumento</span>
+                    )}
+                  </span>
                   {song.artist && <span className="collab-band">{song.artist}</span>}
                   {song.missing.length > 0 && (
                     <span className="collab-needs">
