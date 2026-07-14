@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { materializeSongGrid } from "../src/lib/materialize";
 
 const prisma = new PrismaClient();
 
@@ -98,7 +99,19 @@ async function main() {
       });
       console.log(`✓ Seeded "${song.title}"`);
     } else {
-      console.log(`— "${song.title}" já existe, pulando.`);
+      console.log(`— "${song.title}" já existe, pulando a revisão.`);
+    }
+
+    // Uma música sem grade de células é um beco sem saída: a aba Colaborar cai
+    // no onboarding "como quer começar?" em vez de deixar editar as trilhas que
+    // já existem. O upload materializa sozinho; o seed escreve direto no banco,
+    // então precisa materializar aqui também.
+    const hasGrid = (await prisma.measure.count({ where: { songId: record.id } })) > 0;
+    if (!hasGrid) {
+      const res = await materializeSongGrid(record.id);
+      console.log(
+        `  ↳ grade: ${res.tracks} trilha(s), ${res.measures} compasso(s), ${res.cells} célula(s)`,
+      );
     }
   }
 }
