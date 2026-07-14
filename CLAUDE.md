@@ -224,6 +224,35 @@ O raciocínio que levou à decisão (mantido como contexto):
   (signup, uso único, JWT, login de retorno sem duplicar, ponte legado, expiração, inválido).
   **Fora de escopo ainda:** senha, OAuth, revogação server-side de sessão, rate-limit,
   perfis/rename.
+- **Configurações do usuário (2026-07-14)** — `src/lib/profile.ts` + `/settings` +
+  `SettingsClient`. Quatro seções: (1) **Perfil** — renomear (`PATCH /api/me`). ⚠️ Renomear
+  **reescreve os caches denormalizados** `CellContribution.authorName` e `Track.ownerName`
+  (o link real é `authorId`/`ownerId`; os nomes só seguem) — sem isso o nome antigo ficaria
+  congelado nas contribuições passadas e **uma pessoa leria como duas**, corroendo a autoria
+  por pedaço, que é o diferencial. (2) **E-mail** — trocar a âncora de identidade
+  (`POST /api/me/email`): emite magic link **para o endereço novo**; nada muda até ele ser
+  aberto. Reusa `claimUserId` (agora "anexar e-mail a uma conta existente **in place**",
+  não só a ponte do cookie legado) + `LoginToken.redirectTo` (volta pro `/settings`);
+  `/api/auth/request` passou a só reivindicar conta legada **sem e-mail** (mover o e-mail de
+  alguém tem que ser ato explícito, nunca efeito colateral de cookie velho). E-mail já usado
+  por outra conta → 409. **Mesmo `User.id` no fim** (autoria intacta). (3) **Instrumentos que
+  eu toco** (`User.instruments String[]`, chaves de `INSTRUMENT_PRESETS`) — não é enfeite: o
+  mural da home marca **"precisa do seu instrumento"** e **ordena na frente** as músicas com
+  trilha vazia (0%) do instrumento declarado (match por **família GM** via `presetFamily` —
+  guitarra num `.gp` costuma vir program 29, não 25; `TrackCompleteness.family`). "Falta
+  baixo" só vira convite quando chega em **quem toca baixo** — é a alavanca contra o risco de
+  **densidade**. (4) **Minha conta** (`GET /api/me/overview`) — esperando por você / propostas
+  em aberto / minhas músicas / seguindo (com deixar de seguir): o **inbox do revezamento**.
+  **Preferências de reprodução** (`src/lib/player-prefs.ts`) ficam em **localStorage**, não no
+  banco (descrevem um aparelho, não uma identidade): notação (só tab × partitura+tab), zoom,
+  velocidade, volume, metrônomo, contagem. O `AlphaTabPlayer` lê ao montar e escuta
+  `PREFS_EVENT` → aplica **na hora** (volume/velocidade são vivos; escala/pauta pedem
+  `updateSettings()` + `render()`). Migração `20260714000000_user_settings`.
+  **Fora de escopo (decidir depois):** preferências de **notificação** por evento/canal — hoje
+  todo evento direto manda e-mail sem opt-out, e o e-mail é justamente o canal que sustenta o
+  revezamento (se virar spam, morre o fio); **sair de todos os aparelhos** (exige
+  `sessionVersion` no JWT) e **excluir conta** (apagar quebraria o histórico imutável — o
+  caminho é anonimizar).
 - **Autoridade = MODELO MAINTAINER (revisão da ADR-0003, pós-teste real)** — o **dono da
   música é o criador** (`Song.ownerId`, setado ao criar). **O dono aceita; qualquer um
   identificado PROPÕE** (PR aberto). `assertCanAccept` checa `song.ownerId` (não a trilha);
