@@ -1316,11 +1316,11 @@ label {
   display: flex; flex-direction: column; overflow: hidden;
 }
 
-/* Breadcrumb + title row */
+/* Breadcrumb + title row — sem divisória: título e barra de controles leem
+   como um bloco só. */
 .edit-top {
   flex-shrink: 0;
   padding: 13px 24px 10px;
-  border-bottom: 1px solid var(--border);
 }
 .edit-title { font-size: 1.1rem; font-weight: 700; margin: 4px 0 0; }
 
@@ -1330,13 +1330,34 @@ label {
   display: flex; flex-direction: column; overflow: hidden;
 }
 
-/* Controls bar: play · track select · role badge · save button */
+/* Controls bar: play · track select · role badge · save button. */
 .edit-controls {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 10px;
   padding: 0 24px; height: 50px;
-  background: var(--panel-2); border-bottom: 1px solid var(--border);
+  background: var(--bg); border-bottom: 1px solid var(--border);
 }
+/* Play menor e no padrão da tela: fundo escuro, contorno + seta vermelhão.
+   Ícone é SVG (centragem óptica exata; o glifo ▶ ficava torto). */
+.edit-controls .playpause-btn {
+  width: 30px; height: 30px;
+  background: var(--bg); color: var(--accent);
+  border: 1px solid var(--accent); box-shadow: none;
+}
+.edit-controls .playpause-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  opacity: 1;
+}
+.edit-controls .playpause-btn:disabled {
+  background: var(--bg);
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.edit-controls .playpause-btn svg {
+  display: block; width: 13px; height: 13px; flex: 0 0 auto;
+}
+.edit-controls .playpause-btn svg polygon,
+.edit-controls .playpause-btn svg rect { fill: var(--accent); }
 
 /* Role badge inside controls bar */
 .edit-role-badge {

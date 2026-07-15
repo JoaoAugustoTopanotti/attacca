@@ -271,7 +271,17 @@ export default function TrackEditor({
           disabled={!playerReady}
           title={isPlaying ? "Pausar" : dirty ? "Tocar (com suas edições)" : "Tocar"}
         >
-          {isPlaying ? "⏸" : "▶"}
+          {isPlaying ? (
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
+              <rect x="6" y="5" width="4" height="14" rx="1" fill="#e5432b" />
+              <rect x="14" y="5" width="4" height="14" rx="1" fill="#e5432b" />
+            </svg>
+          ) : (
+            // Triângulo simples, deslocado ~1px à direita p/ centro óptico.
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
+              <polygon points="8,5 20,12 8,19" fill="#e5432b" />
+            </svg>
+          )}
         </button>
 
         <div className="track-select-wrap">
