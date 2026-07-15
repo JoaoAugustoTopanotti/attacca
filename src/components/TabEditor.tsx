@@ -35,6 +35,7 @@ import {
   toggleBend,
   toggleEffect,
 } from "@/lib/alphatex-editor";
+import { alphaTabResources, readTheme } from "@/lib/theme";
 
 // ── Tipos alphaTab (importados dinamicamente) ──────────────────────────────────
 type AlphaTabModule = typeof import("@coderline/alphatab");
@@ -335,14 +336,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         display: {
           staveProfile: "Tab",
           scale: 1.0,
-          resources: {
-            mainGlyphColor:      "#e8eaed",
-            secondaryGlyphColor: "#aab2c0",
-            scoreInfoColor:      "#ffffff",
-            staffLineColor:      "#39414f",
-            barSeparatorColor:   "#39414f",
-            barNumberColor:      "#8c93a3",
-          },
+          // Cores da tablatura seguem o tema attacca (o alphaTab não herda CSS).
+          resources: alphaTabResources(readTheme()),
         },
         player: {
           enablePlayer:          true,

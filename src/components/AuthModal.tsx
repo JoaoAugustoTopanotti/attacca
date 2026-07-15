@@ -102,7 +102,7 @@ export default function AuthModal({ onClose, initialError }: Props) {
         </button>
 
         <div className="auth-brand" aria-hidden>
-          ♪
+          attacca
         </div>
 
         {sentTo ? (
@@ -135,7 +135,7 @@ export default function AuthModal({ onClose, initialError }: Props) {
           // ── Sign in ────────────────────────────────────────────────────
           <>
             <h2 id="auth-title" className="auth-title">
-              Entrar no GitSong
+              Entrar no attacca
             </h2>
             <p className="auth-sub">
               Sua identidade fica ligada ao e-mail — sua autoria te acompanha em

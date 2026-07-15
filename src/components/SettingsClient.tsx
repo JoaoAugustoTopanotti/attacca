@@ -11,6 +11,7 @@ import {
 } from "@/lib/player-prefs";
 import type { AccountOverview } from "@/lib/profile";
 import { emitMeChanged, type MeSnapshot } from "@/lib/identity-events";
+import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 
 type Preset = { key: string; label: string };
 
@@ -41,6 +42,7 @@ export default function SettingsClient({
         savedInstruments={me.instruments}
         onSaved={onSaved}
       />
+      <AppearanceSection />
       <PlaybackSection />
       <AccountSection />
     </div>
@@ -293,6 +295,37 @@ function InstrumentsSection({
         {feedback && <span className="settings-ok">{feedback}</span>}
         {error && <span className="settings-error">{error}</span>}
       </div>
+    </section>
+  );
+}
+
+// ── Aparência (localStorage) ────────────────────────────────────────────────
+
+function AppearanceSection() {
+  const [theme, setTheme] = useState<Theme | null>(null);
+
+  // Só depois da montagem: localStorage não existe no servidor.
+  useEffect(() => setTheme(readTheme()), []);
+
+  function change(next: Theme) {
+    setTheme(applyTheme(next));
+  }
+
+  if (!theme) return null;
+
+  return (
+    <section className="settings-card">
+      <h2>Aparência</h2>
+      <p className="sub settings-hint">
+        Vale para este navegador. O tema escuro é o padrão do attacca.
+      </p>
+      <label className="settings-field">
+        <span>Tema</span>
+        <select value={theme} onChange={(e) => change(e.target.value as Theme)}>
+          <option value="dark">Escuro (padrão)</option>
+          <option value="light">Claro</option>
+        </select>
+      </label>
     </section>
   );
 }

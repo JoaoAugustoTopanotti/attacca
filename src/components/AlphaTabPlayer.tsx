@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { instrumentLabel } from "@/lib/instruments";
+import { alphaTabResources, readTheme } from "@/lib/theme";
 import {
   PREFS_EVENT,
   readPlayerPrefs,
@@ -169,14 +170,9 @@ const AlphaTabPlayer = forwardRef<
         display: {
           staveProfile: prefs.staveProfile,
           scale: prefs.scale,
-          resources: {
-            mainGlyphColor: "#e8eaed",
-            secondaryGlyphColor: "#aab2c0",
-            scoreInfoColor: "#ffffff",
-            staffLineColor: "#39414f",
-            barSeparatorColor: "#39414f",
-            barNumberColor: "#8c93a3",
-          },
+          // A tablatura é desenhada pelo alphaTab (não herda o CSS): as cores
+          // vêm do tema attacca lido na montagem.
+          resources: alphaTabResources(readTheme()),
         },
         player: {
           enablePlayer: true,
