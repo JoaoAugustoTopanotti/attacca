@@ -1,4 +1,4 @@
-# GitSong — Contexto das conversas (handoff)
+# attacca — Contexto das conversas (handoff)
 
 > Resumo vivo da colaboração entre o João e o Claude. Serve para **retomar o fio**
 > numa nova conversa sem perder contexto. O `CLAUDE.md` guarda a parte técnica
@@ -8,7 +8,8 @@
 ---
 
 ## Em uma frase
-GitSong é um "GitHub para tablatura": transcrições musicais colaborativas, onde
+attacca (ex-GitSong, rebranding 2026-07-15) é um "GitHub para tablatura":
+transcrições musicais colaborativas, onde
 várias pessoas completam uma música por instrumento/trilha, com histórico de versões
 e um player estilo Songsterr (notação/tab + playback com cursor).
 
@@ -91,6 +92,19 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-07-15** — Sessão 1 (rebranding GitSong → attacca): o projeto chegou ao ponto
+  de ficar "apresentável"; João trouxe a direção de marca fechada (nome `attacca`
+  minúsculo, slogan "Alguém começa. Você continua.", cor=significado com vermelhão
+  #E5432B como "a sua vez", 3 fontes, barra de progresso em blocos como assinatura,
+  honestidade > polimento) + mockups HTML (`docs/brand/`). Feito: rename em código/
+  docs/configs (mantidos de propósito: `GS_*` env vars, cookies `gs_*`, ADRs antigas);
+  redesign da camada de tokens no `globals.css` (dark = default, tema claro em
+  `[data-theme="light"]`, toggle em Configurações → Aparência, `src/lib/theme.ts` +
+  script anti-flash no layout); fontes via `next/font` (Space Grotesk/Inter/JetBrains
+  Mono); header fino com wordmark; home = mural attacca (blockbar, "falta: X" em
+  vermelhão, microcopy minúscula, rodapé com o ethos); players alphaTab com cores por
+  tema (`alphaTabResources`). Interface 100% PT-BR. Detalhe completo da marca na nova
+  seção "Marca" do CLAUDE.md.
 - **2026-06-28** — Sessão 1 (editor visual de tablatura — M5): substituído o `<textarea>`
   de AlphaTex bruto na tela `/songs/[id]/edit` por um **editor visual** (`TabEditor`).
   Criados: `src/lib/alphatex-editor.ts` (módulo puro: tipos `EditorNote/Beat/Measure/Model/

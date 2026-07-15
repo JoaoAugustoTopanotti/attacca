@@ -1,8 +1,39 @@
-# GitSong — memória do projeto
+# attacca — memória do projeto
 
 > Memória do projeto entre sessões: **o que** construímos, **por quê**, e **quais
 > decisões de arquitetura** destravam o futuro. Mantenha atualizado conforme o projeto
 > evolui. (O `CONTEXTO.md` é o complemento narrativo — log de sessões e handoff.)
+
+## Marca (rebranding 2026-07-15 — era "GitSong")
+- **Nome: `attacca`, sempre em minúsculas** (termo musical: seguir ao próximo movimento
+  sem pausa — a continuidade mora no nome; o significado é nota de rodapé, não a
+  fundação visual). Slogan: **"Alguém começa. Você continua."** Norte do design:
+  *"transcrição incompleta é um convite para contribuir"*.
+- **Filosofia**: a marca não promete mais do que o produto entrega (nada de landing
+  SaaS com números inflados); a identidade é de **interação** (o progresso é o elemento
+  recorrente), não um logotipo; a home É o produto; números pequenos mostrados com
+  orgulho; humilde ≠ feio. **Wordmark simples** — o tratamento do último "a"
+  (vazado/metade/colorido) foi **rejeitado**; sem símbolo elaborado por enquanto.
+- **Sistema visual** (`globals.css`, tokens em `:root`): **dark é o default**
+  (carvão #141311/#191713, texto #EDE9E2); tema **claro** opcional (paper #FCFBF8,
+  tinta #141414) via `[data-theme="light"]` — toggle em Configurações → Aparência
+  (`src/lib/theme.ts`, localStorage `attacca:theme`, script anti-flash no layout).
+  **Cor = significado**: tinta = pronto; **vermelhão #E5432B** = "a sua vez"/a lacuna
+  (usado com parcimônia — o que falta, CTAs de continuar, tab ativa, cursor do player);
+  cinza = ainda não começou. Fontes via `next/font`: **Space Grotesk** (títulos/wordmark),
+  **Inter** (texto), **JetBrains Mono** (dados/rótulos/microcopy). **Assinatura visual =
+  barra de progresso em blocos** (`.blockbar`, ██████░░░░ com a "borda viva" em
+  vermelhão) — presente no mural. Estética: hairlines, zero gradiente, cara de
+  ferramenta. Voz/microcopy: minúscula, direta, o botão diz o que acontece
+  ("Continuar →", "falta: Baixo", "ninguém começou — seja a primeira mão").
+  Os players alphaTab **não herdam CSS**: cores da tablatura vêm de
+  `alphaTabResources(readTheme())` (AlphaTabPlayer + TabEditor).
+- **Mockups de referência**: `docs/brand/` (home = o definitivo; site = landing
+  conceitual rejeitada como direção, mantida pelos tokens do tema escuro).
+- **Não renomeado de propósito**: env vars `GS_AUTH_SECRET`/`GS_COOKIE_SECRET`, cookie
+  `gs_session`/`gs_uid` (quebraria sessões e o deploy no Render), ADRs históricas e o
+  log antigo do CONTEXTO (registro histórico). Pastas/repo GitHub: renomear é ato
+  manual do João.
 
 ## Princípio guia (não esquecer)
 **Pequeno, nichado, provado de ponta a ponta.** Não competir por SEO com catálogos de
@@ -452,8 +483,10 @@ npm run dev                                    # http://localhost:4000  (webpack
 > `NODE_OPTIONS=--use-system-ca` (Node usa o trust store do Windows).
 
 ### Deploy (Render + Neon — gratuito)
-1. Criar conta em **neon.tech** → novo projeto → banco `gitsong` → copiar `DATABASE_URL`
-2. Criar conta em **render.com** → New Web Service → conectar repo GitSong
+1. Criar conta em **neon.tech** → novo projeto → banco (o existente chama `gitsong`,
+   criado antes do rebranding — renomear é opcional) → copiar `DATABASE_URL`
+2. Criar conta em **render.com** → New Web Service → conectar o repo (ainda `GitSong`
+   no GitHub até o João renomear; `render.yaml` já diz `name: attacca`)
 3. No Render, Environment: `DATABASE_URL` (URL Neon) + `GS_COOKIE_SECRET` (string aleatória)
    - PowerShell para gerar o secret:
      `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`

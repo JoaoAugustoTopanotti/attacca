@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>attacca</title>
+<meta name="description" content="Community tabs, finished together. Continue where someone stopped.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141414'/%3E%3Crect x='3' y='4' width='10' height='2.2' rx='1.1' fill='%23FCFBF8'/%3E%3Crect x='3' y='7.2' width='6.4' height='2.2' rx='1.1' fill='%23FCFBF8'/%3E%3Crect x='9.8' y='7.2' width='2.2' height='2.2' rx='1.1' fill='%23E5432B'/%3E%3Crect x='3' y='10.4' width='10' height='2.2' rx='1.1' fill='none' stroke='%23FCFBF8' stroke-width='1' stroke-dasharray='2 1.6' opacity='.6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141414; --paper:#FCFBF8; --mut:#6E6862; --line:#E8E3DA; --cell:#E4DFD6; --red:#E5432B;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Space Grotesk",system-ui,sans-serif;
+  --body:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:2px}
+.wrap{max-width:760px;margin:0 auto;padding:0 22px}
+
+/* top bar — thin, no chrome */
+.top{display:flex;align-items:center;gap:14px;padding:20px 0 18px;border-bottom:1px solid var(--line)}
+.brand{font-family:var(--disp);font-weight:600;font-size:20px;letter-spacing:-.02em;color:var(--ink)}
+.top .spacer{flex:1}
+.newtab{font-family:var(--mono);font-size:12.5px;color:var(--mut);border:1px solid var(--line);border-radius:7px;
+  padding:6px 11px}
+.newtab:hover{color:var(--ink);border-color:var(--ink)}
+
+/* intro — just the promise + search, no marketing */
+.intro{padding:34px 0 22px}
+.slogan{font-family:var(--disp);font-weight:500;font-size:20px;letter-spacing:-.015em;margin:0}
+.slogan .b{color:var(--red)}
+.sub{font-family:var(--mono);font-size:12.5px;color:var(--mut);margin:9px 0 0;letter-spacing:.01em}
+.search{margin-top:20px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;
+  padding:11px 14px;background:#fff}
+.search svg{flex:none;opacity:.5}
+.search input{border:0;outline:0;font-family:var(--mono);font-size:13.5px;color:var(--ink);background:transparent;width:100%}
+.search input::placeholder{color:#A7A199}
+
+/* meta + filters — honest counts, small numbers shown proudly */
+.meta{display:flex;align-items:center;gap:16px;margin-top:22px;flex-wrap:wrap}
+.count{font-family:var(--mono);font-size:12.5px;color:var(--mut)}
+.count b{color:var(--ink);font-weight:600}
+.filters{margin-left:auto;display:flex;gap:4px}
+.filters a{font-family:var(--mono);font-size:12px;color:var(--mut);padding:5px 10px;border-radius:7px}
+.filters a.on{background:var(--ink);color:var(--paper)}
+.filters a:not(.on):hover{color:var(--ink)}
+
+/* the list IS the page */
+.list{margin-top:8px}
+.row{display:block;padding:18px 0;border-bottom:1px solid var(--line)}
+.row:hover{background:#fff}
+.row:hover .act.go{text-decoration:underline}
+.row-main{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.title{font-family:var(--disp);font-weight:500;font-size:16.5px;letter-spacing:-.005em}
+.artist{font-family:var(--mono);font-size:12px;color:var(--mut);margin-left:2px}
+.act{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--mut);white-space:nowrap}
+.act.go{color:var(--red)}
+.row-prog{display:flex;align-items:center;gap:14px;margin-top:11px;flex-wrap:wrap}
+
+/* color = state. ink=done, red=the live edge (your turn), gray=not yet */
+.bar{display:inline-flex;gap:3px;flex:none}
+.bar .c{width:9px;height:16px;border-radius:2px;background:var(--cell)}
+.bar .c.done{background:var(--ink)}
+.bar .c.edge{background:var(--red)}
+.pct{font-family:var(--mono);font-size:12.5px;font-weight:600;min-width:40px}
+.pct.zero{color:var(--mut);font-weight:500}
+.pct.done-note{color:var(--mut);font-weight:500}
+.miss{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.miss .mi{color:var(--red)}
+.miss.done-note{color:var(--mut)}
+.note{font-family:var(--mono);font-size:12px;color:#A7A199;margin-left:auto;text-align:right}
+
+/* footer — three quiet lines, no marketing */
+.foot{padding:40px 0 46px;margin-top:8px}
+.foot .eth{font-family:var(--disp);font-weight:500;font-size:15.5px;letter-spacing:-.01em;color:var(--ink);margin:0}
+.foot .fn{font-family:var(--mono);font-size:12px;color:var(--mut);margin:10px 0 0;line-height:1.9}
+.foot .fn .dim{color:#A7A199}
+
+@media(max-width:560px){
+  .note{display:none}
+  .row-prog{gap:10px}
+  .filters{margin-left:0;width:100%}
+  .bar .c{width:8px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <span class="brand">attacca</span>
+    <span class="spacer"></span>
+    <a class="newtab" href="#">+ new tab</a>
+  </div>
+
+  <div class="intro">
+    <p class="slogan">Someone starts. <span class="b">You continue.</span></p>
+    <p class="sub">Community tabs, finished one track at a time.</p>
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" placeholder="Search tabs, artists…" aria-label="Search tabs">
+    </label>
+  </div>
+
+  <div class="meta">
+    <span class="count"><b>12</b> tabs · <b>8</b> waiting for a hand</span>
+    <span class="filters">
+      <a class="on" href="#">Needs work</a>
+      <a href="#">All</a>
+      <a href="#">Recently finished</a>
+    </span>
+  </div>
+
+  <div class="list">
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Master of Puppets</span> <span class="artist">Metallica</span></span>
+        <span class="act go">Continue →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c edge"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span></span>
+        <span class="pct">60%</span>
+        <span class="miss">missing: <span class="mi">Drums</span></span>
+        <span class="note">started by @rafa · last track @emma</span>
+      </span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Paranoid Android</span> <span class="artist">Radiohead</span></span>
+        <span class="act go">Continue →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c edge"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span></span>
+        <span class="pct">18%</span>
+        <span class="miss">missing: <span class="mi">Bass</span> · <span class="mi">Drums</span> · <span class="mi">Vocals</span></span>
+        <span class="note">started by @rafa · needs 3 tracks</span>
+      </span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Ode to Joy</span> <span class="artist">Beethoven</span></span>
+        <span class="act go">Continue →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c edge"></span><span class="c"></span><span class="c"></span><span class="c"></span></span>
+        <span class="pct">74%</span>
+        <span class="miss">missing: <span class="mi">Vocals</span></span>
+        <span class="note">3 contributors</span>
+      </span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Blackbird</span> <span class="artist">The Beatles</span></span>
+        <span class="act go">Start →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c edge"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span><span class="c"></span></span>
+        <span class="pct zero">0%</span>
+        <span class="miss">nobody started yet</span>
+        <span class="note">nobody started yet — be first</span>
+      </span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Greensleeves</span> <span class="artist">Traditional</span></span>
+        <span class="act ">Play →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span></span>
+        <span class="pct done-note">100%</span>
+        <span class="miss done-note">✓ complete</span>
+        <span class="note">finished by @lucas</span>
+      </span>
+    </a>
+    <a class="row" href="#">
+      <span class="row-main">
+        <span class="row-id"><span class="title">Come as You Are</span> <span class="artist">Nirvana</span></span>
+        <span class="act ">Play →</span>
+      </span>
+      <span class="row-prog">
+        <span class="bar"><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span><span class="c done"></span></span>
+        <span class="pct done-note">100%</span>
+        <span class="miss done-note">✓ complete</span>
+        <span class="note">finished by @pedro</span>
+      </span>
+    </a>
+  </div>
+
+  <div class="foot">
+    <p class="eth">Incomplete tabs are an invitation to contribute.</p>
+    <p class="fn">
+      attacca <span class="dim">(it., music)</span> — go on to the next without pause.<br>
+      <span class="dim">a small tool. the tabs are made by the community.</span>
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

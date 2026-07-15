@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>attacca — community music transcription</title>
+<meta name="description" content="Community music transcriptions, finished together — one track at a time. Someone starts. You continue.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0F0F0F; --paper:#FBFAF7; --paper2:#F4F1EA; --verm:#E5432B;
+  --lane:#E9E4DA; --line:#E7E1D7; --mut:#6E6862; --char:#141311; --char-line:#2A2823;
+  --disp:"Space Grotesk",system-ui,sans-serif;
+  --body:"Inter",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2.5px solid var(--verm);outline-offset:3px;border-radius:3px}
+.wm{display:block;color:var(--ink)}
+.wm use{fill:currentColor}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+.container{max-width:1160px;margin:0 auto;padding:0 28px}
+
+/* ---------- nav ---------- */
+.nav{position:sticky;top:0;z-index:50;background:rgba(251,250,247,.82);backdrop-filter:saturate(140%) blur(10px);
+  border-bottom:1px solid var(--line)}
+.nav-in{max-width:1160px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;gap:22px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .wm{width:132px;height:auto}
+.pill{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);
+  border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:26px}
+.nav-links a{font-size:14.5px;color:var(--mut);transition:color .15s}
+.nav-links a:hover{color:var(--ink)}
+.btn{font-family:var(--body);font-size:14px;font-weight:500;border-radius:10px;padding:9px 16px;
+  border:1px solid var(--ink);cursor:pointer;transition:transform .12s ease, background .15s, color .15s;display:inline-block}
+.btn-solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn-solid:hover{transform:translateY(-1px)}
+.btn-verm{background:var(--verm);color:#fff;border-color:var(--verm)}
+.btn-verm:hover{transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--ink)}
+.btn-ghost:hover{background:var(--paper2)}
+.nav .btn{padding:8px 14px}
+
+/* ---------- hero ---------- */
+.hero{padding:82px 0 70px;border-bottom:1px solid var(--line)}
+.hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:64px;align-items:center}
+.hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(42px,6.4vw,74px);line-height:.98;
+  letter-spacing:-.028em;margin:18px 0 0}
+.hero h1 .cont{color:var(--verm)}
+.hero .sub{font-size:18.5px;color:#39352F;max-width:44ch;margin:22px 0 0;line-height:1.5}
+.hero .cta-row{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+.hero .btn{padding:12px 20px;font-size:15px}
+.hero-note{margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.02em}
+.hero-note b{color:var(--ink);font-weight:600}
+
+/* ---------- song card (the signature) ---------- */
+.song-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 26px 22px;
+  box-shadow:0 1px 0 rgba(15,15,15,.02),0 30px 60px -40px rgba(15,15,15,.28)}
+.sc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px}
+.sc-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--verm)}
+.sc-title{font-family:var(--disp);font-weight:600;font-size:23px;letter-spacing:-.01em;margin-top:7px}
+.sc-artist{font-family:var(--mono);font-size:12.5px;color:var(--mut);margin-top:2px}
+.sc-pct{font-family:var(--disp);font-weight:600;font-size:30px;letter-spacing:-.02em}
+.sc-pct small{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--mut);display:block;text-align:right;letter-spacing:.08em;margin-top:-2px}
+
+.track{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:16px;margin:13px 0}
+.tlabel{font-family:var(--mono);font-size:12px;color:#4A453F;letter-spacing:.01em}
+.bar{position:relative;height:15px}
+.lane{position:absolute;inset:0;background:var(--lane);border-radius:8px}
+.fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink);border-radius:8px}
+.fill.partial::after{content:"";position:absolute;right:-2px;top:-3px;bottom:-3px;width:4px;border-radius:3px;background:var(--verm)}
+.bar.open{border:1.8px dashed rgba(15,15,15,.32);border-radius:8px}
+.tpct{font-family:var(--mono);font-size:11.5px;color:var(--mut);min-width:44px;text-align:right;letter-spacing:.03em}
+.tcont{font-family:var(--mono);font-size:11.5px;color:var(--verm);font-weight:600;min-width:78px;text-align:right}
+.sc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.sc-foot .who{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.sc-foot .who b{color:var(--ink);font-weight:600}
+
+/* ---------- section frame ---------- */
+.section{padding:78px 0;border-bottom:1px solid var(--line)}
+.section.alt{background:var(--paper2)}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:34px;flex-wrap:wrap}
+.sec-head h2{font-family:var(--disp);font-weight:600;font-size:clamp(26px,3.4vw,36px);letter-spacing:-.02em;margin:8px 0 0}
+.sec-head p{color:var(--mut);max-width:52ch;margin:6px 0 0;font-size:15px}
+
+/* ---------- library ---------- */
+.lib{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.lib-row{display:grid;grid-template-columns:34px minmax(150px,1.3fr) minmax(90px,.8fr) 170px 52px 60px 92px;
+  align-items:center;gap:16px;padding:16px 22px;border-bottom:1px solid var(--line);transition:background .14s}
+.lib-row:last-child{border-bottom:0}
+.lib-row:hover{background:var(--paper2)}
+.lib-idx{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.lib-title{font-family:var(--disp);font-weight:500;font-size:16.5px;letter-spacing:-.005em}
+.lib-artist{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.lib-bar{position:relative;height:10px}
+.lib-bar .lane{border-radius:6px}
+.lib-bar .fill{border-radius:6px}
+.lib-bar .fill.partial::after{top:-3px;bottom:-3px;width:3.5px}
+.lib-tracks{font-family:var(--mono);font-size:12px;color:#4A453F;text-align:center}
+.lib-pct{font-family:var(--disp);font-weight:600;font-size:15px;text-align:right;letter-spacing:-.01em}
+.lib-pct.zero{color:var(--mut);font-weight:500}
+.lib-act{font-family:var(--mono);font-size:12px;font-weight:600;text-align:right;color:var(--ink)}
+.lib-act.go{color:var(--verm)}
+
+/* ---------- how it works ---------- */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.step{padding:28px 26px;border-right:1px solid var(--line)}
+.step:last-child{border-right:0}
+.step .n{font-family:var(--mono);font-size:12px;color:var(--verm);letter-spacing:.1em}
+.step h3{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:-.01em;margin:14px 0 8px}
+.step p{font-size:14.5px;color:#453F39;margin:0}
+.step .code{font-family:var(--mono);font-size:12px;color:var(--mut);margin-top:16px;background:var(--paper2);
+  border:1px solid var(--line);border-radius:8px;padding:9px 11px;line-height:1.7}
+.step .code .add{color:var(--verm)}
+.step .code .kept{color:var(--ink)}
+
+/* ---------- dark song-page preview ---------- */
+.stage{background:var(--char);color:#EDE9E2;padding:80px 0}
+.stage .container{max-width:1000px}
+.stage .eyebrow{color:#8B857B}
+.stage h2{font-family:var(--disp);font-weight:600;color:#F5F2EC;font-size:clamp(24px,3vw,32px);letter-spacing:-.02em;margin:8px 0 30px}
+.win{background:#191713;border:1px solid var(--char-line);border-radius:16px;overflow:hidden}
+.win-bar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--char-line)}
+.win-bar .crumb{font-family:var(--mono);font-size:12px;color:#8B857B}
+.win-bar .crumb b{color:#EDE9E2;font-weight:500}
+.win-bar .share{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:#8B857B}
+.tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--char-line);flex-wrap:wrap}
+.tab{font-family:var(--mono);font-size:12.5px;color:#8B857B;padding:14px 14px;position:relative}
+.tab.on{color:#F5F2EC}
+.tab.on::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;background:var(--verm);border-radius:2px}
+.win-body{display:grid;grid-template-columns:1.35fr .9fr;gap:0}
+@media(max-width:760px){.win-body{grid-template-columns:1fr}}
+.win-left{padding:26px 26px;border-right:1px solid var(--char-line)}
+.win-left .song{font-family:var(--disp);font-weight:600;font-size:22px;color:#F5F2EC;letter-spacing:-.01em}
+.win-left .by{font-family:var(--mono);font-size:12px;color:#8B857B;margin:3px 0 22px}
+.win .track .lane{background:#26241F}
+.win .track .fill{background:#EDE9E2}
+.win .tlabel{color:#B9B3A9}
+.win .tpct{color:#8B857B}
+.win .bar.open{border-color:rgba(237,233,226,.28)}
+.win-right{padding:26px 24px}
+.wr-h{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8B857B;margin-bottom:14px}
+.prop{border:1px solid var(--char-line);border-radius:12px;padding:15px 16px;margin-bottom:14px}
+.prop .pt{font-family:var(--mono);font-size:13px;color:#F5F2EC}
+.prop .pt .plus{color:var(--verm)}
+.prop .pm{font-family:var(--mono);font-size:11.5px;color:#8B857B;margin-top:5px}
+.prop .prev{margin-top:12px;height:9px;position:relative}
+.prop .prev .lane{background:#26241F;border-radius:6px}
+.prop .prev .fill{background:#EDE9E2;border-radius:6px}
+.prop .prow{display:flex;justify-content:space-between;align-items:center;margin-top:13px}
+.prop .review{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--verm)}
+.contribs{display:flex;align-items:center;gap:8px;margin-top:8px}
+.ava{width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:11px;font-weight:600;color:#191713;border:1.5px solid #191713;margin-left:-8px}
+.ava:first-child{margin-left:0}
+.chist{font-family:var(--mono);font-size:12px;color:#B9B3A9;line-height:2;margin-top:4px}
+.chist .dot{color:var(--verm)}
+
+/* ---------- footer ---------- */
+.foot{background:var(--paper);padding:70px 0 46px}
+.foot-wm{width:min(680px,86%);margin:0 auto;color:var(--ink);opacity:.96}
+.foot-line{text-align:center;font-family:var(--disp);font-weight:500;font-size:clamp(18px,2.4vw,23px);
+  letter-spacing:-.01em;margin:34px auto 0;max-width:30ch}
+.foot-mean{text-align:center;font-family:var(--mono);font-size:12px;color:var(--mut);margin-top:18px;letter-spacing:.02em}
+.foot-bar{max-width:1160px;margin:44px auto 0;padding:20px 28px 0;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.foot-bar .l{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.foot-bar .r{display:flex;gap:20px}
+.foot-bar .r a{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.foot-bar .r a:hover{color:var(--ink)}
+
+/* ---------- responsive ---------- */
+@media(max-width:900px){
+  .hero-grid{grid-template-columns:1fr;gap:44px}
+  .steps{grid-template-columns:1fr}
+  .step{border-right:0;border-bottom:1px solid var(--line)}
+  .step:last-child{border-bottom:0}
+}
+@media(max-width:820px){
+  .nav-links a:not(.btn){display:none}
+  .lib-row{grid-template-columns:26px 1fr 92px 62px;gap:12px;padding:15px 16px}
+  .lib-artist,.lib-bar,.lib-tracks{display:none}
+}
+@media(max-width:520px){
+  .container,.nav-in{padding-left:18px;padding-right:18px}
+  .brand .pill{display:none}
+  .hero{padding:54px 0 48px}
+}
+
+/* motion */
+.fill{transition:width 1.05s cubic-bezier(.22,.68,.24,1)}
+@keyframes softpulse{0%,100%{opacity:.55}50%{opacity:1}}
+.tcont[data-pulse]{animation:softpulse 2.4s ease-in-out 1 .3s}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .fill{transition:none!important}
+  .tcont[data-pulse]{animation:none}
+  .btn:hover,.lib-row:hover{transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- wordmark vector (font-independent), reused via <use> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="wm" viewBox="-16 0 3919 790">
+<g transform="translate(0 716) scale(1 -1)" fill="currentColor">
+<path transform="translate(0,0)" d="M229 -14Q176 -14 134.5 4.0Q93 22 68.5 57.0Q44 92 44 142Q44 193 68.5 226.5Q93 260 135.5 277.0Q178 294 232 294H382V326Q382 369 356.0 395.0Q330 421 276 421Q223 421 195.0 396.0Q167 371 158 331L62 362Q74 402 100.5 434.5Q127 467 171.0 487.0Q215 507 277 507Q373 507 428.0 458.0Q483 409 483 319V116Q483 86 511 86H553V0H476Q441 0 419.0 18.0Q397 36 397 67V70H382Q374 55 358.0 35.0Q342 15 311.0 0.5Q280 -14 229 -14ZM244 71Q306 71 344.0 106.5Q382 142 382 204V214H238Q197 214 172.0 196.5Q147 179 147 145Q147 111 173.0 91.0Q199 71 244 71Z"/>
+<path transform="translate(583,0)" d="M261 0Q216 0 189.5 27.0Q163 54 163 99V406H27V493H163V656H266V493H413V406H266V117Q266 87 294 87H397V0Z"/>
+<path transform="translate(1047,0)" d="M261 0Q216 0 189.5 27.0Q163 54 163 99V406H27V493H163V656H266V493H413V406H266V117Q266 87 294 87H397V0Z"/>
+<path transform="translate(1511,0)" d="M229 -14Q176 -14 134.5 4.0Q93 22 68.5 57.0Q44 92 44 142Q44 193 68.5 226.5Q93 260 135.5 277.0Q178 294 232 294H382V326Q382 369 356.0 395.0Q330 421 276 421Q223 421 195.0 396.0Q167 371 158 331L62 362Q74 402 100.5 434.5Q127 467 171.0 487.0Q215 507 277 507Q373 507 428.0 458.0Q483 409 483 319V116Q483 86 511 86H553V0H476Q441 0 419.0 18.0Q397 36 397 67V70H382Q374 55 358.0 35.0Q342 15 311.0 0.5Q280 -14 229 -14ZM244 71Q306 71 344.0 106.5Q382 142 382 204V214H238Q197 214 172.0 196.5Q147 179 147 145Q147 111 173.0 91.0Q199 71 244 71Z"/>
+<path transform="translate(2094,0)" d="M305 -14Q234 -14 176.5 16.0Q119 46 85.5 103.0Q52 160 52 240V253Q52 333 85.5 389.5Q119 446 176.5 476.5Q234 507 305 507Q376 507 426.0 481.0Q476 455 506.5 412.0Q537 369 546 317L446 296Q441 329 425.0 356.0Q409 383 380.0 399.0Q351 415 307 415Q264 415 229.5 395.5Q195 376 175.0 339.5Q155 303 155 251V242Q155 190 175.0 153.0Q195 116 229.5 97.0Q264 78 307 78Q372 78 406.0 111.5Q440 145 449 197L549 174Q537 123 506.5 80.0Q476 37 426.0 11.5Q376 -14 305 -14Z"/>
+<path transform="translate(2692,0)" d="M305 -14Q234 -14 176.5 16.0Q119 46 85.5 103.0Q52 160 52 240V253Q52 333 85.5 389.5Q119 446 176.5 476.5Q234 507 305 507Q376 507 426.0 481.0Q476 455 506.5 412.0Q537 369 546 317L446 296Q441 329 425.0 356.0Q409 383 380.0 399.0Q351 415 307 415Q264 415 229.5 395.5Q195 376 175.0 339.5Q155 303 155 251V242Q155 190 175.0 153.0Q195 116 229.5 97.0Q264 78 307 78Q372 78 406.0 111.5Q440 145 449 197L549 174Q537 123 506.5 80.0Q476 37 426.0 11.5Q376 -14 305 -14Z"/>
+<path transform="translate(3290,0)" d="M229 -14Q176 -14 134.5 4.0Q93 22 68.5 57.0Q44 92 44 142Q44 193 68.5 226.5Q93 260 135.5 277.0Q178 294 232 294H382V326Q382 369 356.0 395.0Q330 421 276 421Q223 421 195.0 396.0Q167 371 158 331L62 362Q74 402 100.5 434.5Q127 467 171.0 487.0Q215 507 277 507Q373 507 428.0 458.0Q483 409 483 319V116Q483 86 511 86H553V0H476Q441 0 419.0 18.0Q397 36 397 67V70H382Q374 55 358.0 35.0Q342 15 311.0 0.5Q280 -14 229 -14ZM244 71Q306 71 344.0 106.5Q382 142 382 204V214H238Q197 214 172.0 196.5Q147 179 147 145Q147 111 173.0 91.0Q199 71 244 71Z"/>
+</g>
+</symbol>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top" aria-label="attacca home">
+      <svg class="wm" viewBox="-16 0 3919 790" role="img" aria-label="attacca"><use href="#wm"/></svg>
+      <span class="pill">concept</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#library">Library</a>
+      <a href="#how">How it works</a>
+      <a href="#about">About</a>
+      <a class="btn btn-verm" href="#library">Start a transcription</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow">Community music transcription</span>
+          <h1>Someone starts.<br><span class="cont">You continue.</span></h1>
+          <p class="sub">Tablature is never finished by one person. On attacca, a community completes each transcription
+            the way code gets built — one track at a time, with every contributor kept in the credits.</p>
+          <div class="cta-row">
+            <a class="btn btn-solid" href="#library">Browse the library</a>
+            <a class="btn btn-ghost" href="#how">See how it works</a>
+          </div>
+          <p class="hero-note">Open tabs right now: <b>1,240</b> &nbsp;·&nbsp; waiting for a track: <b>380</b></p>
+        </div>
+
+        <!-- signature: a real transcription mid-relay -->
+        <div class="song-card" aria-label="Transcription in progress: Master of Puppets by Metallica">
+          <div class="sc-head">
+            <div>
+              <div class="sc-tag">In progress</div>
+              <div class="sc-title">Master of Puppets</div>
+              <div class="sc-artist">Metallica</div>
+            </div>
+            <div class="sc-pct">60%<small>3 of 4 tracks</small></div>
+          </div>
+
+          <div class="tracks">
+            <div class="track">
+              <span class="tlabel">Rhythm</span>
+              <div class="bar"><span class="lane"></span><span class="fill" data-fill="100"></span></div>
+              <span class="tpct">done</span>
+            </div>
+            <div class="track">
+              <span class="tlabel">Lead</span>
+              <div class="bar"><span class="lane"></span><span class="fill" data-fill="100"></span></div>
+              <span class="tpct">done</span>
+            </div>
+            <div class="track">
+              <span class="tlabel">Bass</span>
+              <div class="bar"><span class="lane"></span><span class="fill partial" data-fill="42"></span></div>
+              <span class="tpct">42%</span>
+            </div>
+            <div class="track">
+              <span class="tlabel">Drums</span>
+              <div class="bar open"></div>
+              <a class="tcont" href="#stage" data-pulse>Continue →</a>
+            </div>
+          </div>
+
+          <div class="sc-foot">
+            <span class="who">Started by <b>@rafa</b> · last track by <b>@emma</b></span>
+            <span class="who">4 contributors</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIBRARY -->
+  <section class="section" id="library">
+    <div class="container">
+      <div class="sec-head">
+        <div>
+          <span class="eyebrow">The library</span>
+          <h2>Every tab is a state, not a file</h2>
+        </div>
+        <p>Solid means done. The vermilion mark is the live edge — where the next person picks up. A dashed row is an open invitation.</p>
+      </div>
+
+      <div class="lib">
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">01</span>
+          <span class="lib-title">Come as You Are</span>
+          <span class="lib-artist">Nirvana</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill" data-fill="100"></span></span>
+          <span class="lib-tracks">4/4</span>
+          <span class="lib-pct">100%</span>
+          <span class="lib-act">Play →</span>
+        </a>
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">02</span>
+          <span class="lib-title">Ode to Joy</span>
+          <span class="lib-artist">Beethoven</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill partial" data-fill="74"></span></span>
+          <span class="lib-tracks">3/4</span>
+          <span class="lib-pct">74%</span>
+          <span class="lib-act go">Continue →</span>
+        </a>
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">03</span>
+          <span class="lib-title">Master of Puppets</span>
+          <span class="lib-artist">Metallica</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill partial" data-fill="60"></span></span>
+          <span class="lib-tracks">2/4</span>
+          <span class="lib-pct">60%</span>
+          <span class="lib-act go">Continue →</span>
+        </a>
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">04</span>
+          <span class="lib-title">Greensleeves</span>
+          <span class="lib-artist">Traditional</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill" data-fill="100"></span></span>
+          <span class="lib-tracks">4/4</span>
+          <span class="lib-pct">100%</span>
+          <span class="lib-act">Play →</span>
+        </a>
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">05</span>
+          <span class="lib-title">Paranoid Android</span>
+          <span class="lib-artist">Radiohead</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill partial" data-fill="18"></span></span>
+          <span class="lib-tracks">1/4</span>
+          <span class="lib-pct">18%</span>
+          <span class="lib-act go">Continue →</span>
+        </a>
+        <a class="lib-row" href="#stage">
+          <span class="lib-idx">06</span>
+          <span class="lib-title">Blackbird</span>
+          <span class="lib-artist">The Beatles</span>
+          <span class="lib-bar"><span class="lane"></span><span class="fill" data-fill="0"></span></span>
+          <span class="lib-tracks">0/4</span>
+          <span class="lib-pct zero">—</span>
+          <span class="lib-act go">Start →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section alt" id="how">
+    <div class="container">
+      <div class="sec-head">
+        <div>
+          <span class="eyebrow">The relay</span>
+          <h2>Built like a repo, played like a song</h2>
+        </div>
+        <p>attacca borrows the parts of Git that matter for music: propose a change, keep the history, credit everyone.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="n">01 — Start</div>
+          <h3>Someone lays the first track</h3>
+          <p>A new transcription needs only one line to begin. The rest of the instruments start empty — on purpose.</p>
+          <div class="code">Blackbird — new tab<br><span class="kept">+ Guitar</span> &nbsp;by @rafa</div>
+        </div>
+        <div class="step">
+          <div class="n">02 — Continue</div>
+          <h3>You add a track as a proposal</h3>
+          <p>Pick an empty or rough part, transcribe it, and open a proposal. Nothing you build overwrites someone else’s work.</p>
+          <div class="code">Proposal · <span class="add">+ Bass</span><br>on Master of Puppets &nbsp;by @emma</div>
+        </div>
+        <div class="step">
+          <div class="n">03 — Merge</div>
+          <h3>It’s merged, credit stays</h3>
+          <p>Maintainers accept the proposal, the track fills in, and your name is kept in the contributors — for good.</p>
+          <div class="code">merged ✓ &nbsp;<span class="kept">authorship kept</span><br>2 → 3 tracks complete</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DARK SONG-PAGE PREVIEW -->
+  <section class="stage" id="stage">
+    <div class="container">
+      <span class="eyebrow">Inside a transcription</span>
+      <h2>The song page</h2>
+
+      <div class="win">
+        <div class="win-bar">
+          <span class="crumb">← Library / <b>Master of Puppets</b></span>
+          <span class="share">↗ Share</span>
+        </div>
+        <div class="tabs">
+          <span class="tab">Player</span>
+          <span class="tab on">Collaborate</span>
+          <span class="tab">Proposals <span style="color:var(--verm)">2</span></span>
+          <span class="tab">History</span>
+          <span class="tab">Contributors</span>
+        </div>
+        <div class="win-body">
+          <div class="win-left">
+            <div class="song">Master of Puppets</div>
+            <div class="by">Metallica · 60% complete</div>
+            <div class="tracks">
+              <div class="track"><span class="tlabel">Rhythm</span><div class="bar"><span class="lane"></span><span class="fill" data-fill="100"></span></div><span class="tpct">done</span></div>
+              <div class="track"><span class="tlabel">Lead</span><div class="bar"><span class="lane"></span><span class="fill" data-fill="100"></span></div><span class="tpct">done</span></div>
+              <div class="track"><span class="tlabel">Bass</span><div class="bar"><span class="lane"></span><span class="fill partial" data-fill="42"></span></div><span class="tpct">42%</span></div>
+              <div class="track"><span class="tlabel">Drums</span><div class="bar open"></div><a class="tcont" href="#stage">Take this →</a></div>
+            </div>
+          </div>
+          <div class="win-right">
+            <div class="wr-h">Open proposals</div>
+            <div class="prop">
+              <div class="pt"><span class="plus">+ Bass</span> · bars 17–32</div>
+              <div class="pm">by @emma · 2 hours ago</div>
+              <div class="prev"><span class="lane"></span><span class="fill" data-fill="42"></span></div>
+              <div class="prow"><span class="pm">continues @rafa’s intro</span><span class="review">Review →</span></div>
+            </div>
+            <div class="prop">
+              <div class="pt"><span class="plus">+ Drums</span> · full</div>
+              <div class="pm">by @lucas · yesterday</div>
+              <div class="prev"><span class="lane"></span><span class="fill" data-fill="70"></span></div>
+              <div class="prow"><span class="pm">draft — 2 comments</span><span class="review">Review →</span></div>
+            </div>
+
+            <div class="wr-h" style="margin-top:24px">Contributors</div>
+            <div class="contribs">
+              <span class="ava" style="background:#E5432B;color:#fff">RA</span>
+              <span class="ava" style="background:#EDE9E2">EM</span>
+              <span class="ava" style="background:#C9C3B8">LU</span>
+              <span class="ava" style="background:#8B857B;color:#fff">+1</span>
+            </div>
+            <div class="chist">
+              <span class="dot">●</span> @rafa started the tab<br>
+              <span class="dot">●</span> @emma added Rhythm + Lead<br>
+              <span class="dot">●</span> @emma proposed Bass
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot" id="about">
+    <svg class="foot-wm" viewBox="-16 0 3919 790" role="img" aria-label="attacca"><use href="#wm"/></svg>
+    <p class="foot-line">Incomplete transcriptions are an invitation to contribute.</p>
+    <p class="foot-mean">attacca <span style="opacity:.6">(it., music)</span> — go on to the next without pause.</p>
+    <div class="foot-bar">
+      <span class="l">Rebranding concept for GitSong — visual direction, not a live product.</span>
+      <span class="r">
+        <a href="#library">Library</a>
+        <a href="#how">How it works</a>
+        <a href="#stage">Song page</a>
+      </span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  (function(){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var fills = Array.prototype.slice.call(document.querySelectorAll('.fill'));
+    var done = false;
+    function paint(){ if(done) return; done = true;
+      fills.forEach(function(f){ f.style.width = (f.getAttribute('data-fill')||0) + '%'; }); }
+    if (reduce) { fills.forEach(function(f){ f.style.transition='none'; }); paint(); }
+    else {
+      // paint via rAF for the intro animation, with load + timeout fallbacks
+      requestAnimationFrame(function(){ requestAnimationFrame(paint); });
+      window.addEventListener('load', function(){ setTimeout(paint, 80); });
+      setTimeout(paint, 400);
+    }
+  })();
+</script>
+</body>
+</html>
