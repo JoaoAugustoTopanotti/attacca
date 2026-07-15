@@ -65,10 +65,13 @@ type Detail = { add: number; del: number; highlight: string[] } | null;
 export default function ProposalsPanel({
   songId,
   refreshRevisions,
+  onReviewed,
 }: {
   songId: string;
   /** Aceitar cria um snapshot no histórico — avisa o pai para recarregar. */
   refreshRevisions: () => Promise<void>;
+  /** Aceitar/recusar muda a fila — avisa o pai para atualizar o badge da aba. */
+  onReviewed?: () => void;
 }) {
   const [me, setMe] = useState<Me>(null);
   const [data, setData] = useState<ProposalsResponse | null>(null);
@@ -125,6 +128,7 @@ export default function ProposalsPanel({
       );
       close();
       await load();
+      onReviewed?.();
       if (action === "accept") await refreshRevisions();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import PlayerPanel from "@/components/PlayerPanel";
 import CollabPanel from "@/components/CollabPanel";
 import ProposalsPanel from "@/components/ProposalsPanel";
@@ -25,10 +25,19 @@ export default function SongTabs({
   const [checked, setChecked] = useState(false);
   const [view, setView] = useState<string>(initialRevisions[0]?.id ?? "live");
   const [meId, setMeId] = useState<string | null>(null);
+  // Propostas pendentes visíveis para mim — alimenta o badge na aba Propostas.
+  const [pendingProposals, setPendingProposals] = useState<
+    { authorId: string | null }[]
+  >([]);
 
   // Dono = criador (ADR 0003); música sem dono (ownerId null) é aberta → todos
   // veem o Histórico. O Histórico é do dono: é dele o poder de reverter.
   const isOwner = !ownerId || (!!meId && ownerId === meId);
+
+  // Contagem que o usuário veria na aba: dono vê todas; colaborador só as suas.
+  const pendingCount = isOwner
+    ? pendingProposals.length
+    : pendingProposals.filter((p) => p.authorId && p.authorId === meId).length;
 
   useEffect(() => {
     fetch("/api/me")
@@ -76,6 +85,21 @@ export default function SongTabs({
       .catch(() => {});
   }, [songId]);
 
+  const refreshProposals = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/songs/${songId}/proposals`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setPendingProposals(data?.proposals ?? []);
+    } catch {
+      /* best-effort — badge é informativo */
+    }
+  }, [songId]);
+
+  useEffect(() => {
+    refreshProposals();
+  }, [refreshProposals]);
+
   async function refreshRevisions(selectId?: string) {
     const res = await fetch(`/api/songs/${songId}/revisions`);
     if (!res.ok) return;
@@ -122,6 +146,11 @@ export default function SongTabs({
             onClick={() => setActive(t.id)}
           >
             {t.label}
+            {t.id === "propostas" && pendingCount > 0 && (
+              <span className="tab-badge" aria-label={`${pendingCount} proposta(s) pendente(s)`}>
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -150,6 +179,7 @@ export default function SongTabs({
           <ProposalsPanel
             songId={songId}
             refreshRevisions={() => refreshRevisions()}
+            onReviewed={refreshProposals}
           />
         )}
         {active === "historico" && (
