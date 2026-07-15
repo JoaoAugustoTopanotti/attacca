@@ -9,6 +9,9 @@
 # A string de conexão correspondente (vai no .env):
 #   DATABASE_URL="postgresql://gitsong:gitsong@localhost:55432/gitsong_dev"
 
+# NOTA (rebranding 2026-07-15): os nomes gitsong/gitsong_dev ficam de propósito —
+# as credenciais e o volume local já foram criados com eles; renomear apagaria a
+# referência aos dados de dev. Mesma razão dos env vars GS_* e do cookie gs_session.
 services:
   db:
     image: postgres:16

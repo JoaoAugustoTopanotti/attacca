@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: gitsong
+    name: attacca
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npx prisma migrate deploy && npm start
@@ -19,7 +19,7 @@ services:
       - key: RESEND_API_KEY
         sync: false   # envio de e-mail real (magic link + notificação "sua vez")
       - key: EMAIL_FROM
-        sync: false   # remetente verificado no Resend, ex.: "GitSong <no-reply@seu-dominio>"
+        sync: false   # remetente verificado no Resend, ex.: "attacca <no-reply@seu-dominio>"
       - key: GOOGLE_CLIENT_ID
         sync: false   # OAuth client (Google Cloud Console); vazio = esconde o botão Google
       - key: GOOGLE_CLIENT_SECRET

@@ -79,7 +79,7 @@ export default function NewSongPage() {
         const scRes = await fetch(`/api/songs/${songId}/scaffold`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ template: mode === "template" ? "gitsong" : "blank" }),
+          body: JSON.stringify({ template: mode === "template" ? "attacca" : "blank" }),
         });
         if (!scRes.ok) {
           const scData = await scRes.json();
@@ -156,7 +156,7 @@ export default function NewSongPage() {
               onClick={() => setMode("template")}
               disabled={submitting}
             >
-              <div className="start-mode-title">Usar template do GitSong</div>
+              <div className="start-mode-title">Usar template do attacca</div>
               <div className="start-mode-desc">
                 Começa com guitarra + baixo de exemplo já preenchidos.
               </div>

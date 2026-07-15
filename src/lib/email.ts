@@ -6,7 +6,7 @@
 // Swapping to SMTP/Postmark/SES later is a one-function change here.
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM ?? "GitSong <onboarding@resend.dev>";
+const EMAIL_FROM = process.env.EMAIL_FROM ?? "attacca <onboarding@resend.dev>";
 
 export const emailConfigured = !!RESEND_API_KEY;
 
@@ -52,31 +52,32 @@ export async function sendEmail(msg: EmailMessage): Promise<boolean> {
   }
 }
 
-const BRAND = "#58a6ff";
+const BRAND = "#e5432b";
+const INK = "#141414";
 
 /** Minimal, inline-styled HTML shell so it renders in any mail client. */
 function shell(bodyHtml: string): string {
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1b1f24;">
-  <div style="font-weight:700;font-size:18px;margin-bottom:16px;">♪ GitSong</div>
+  <div style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin-bottom:16px;">attacca</div>
   ${bodyHtml}
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-  <div style="font-size:12px;color:#8b949e;">Transcrições musicais colaborativas. Se você não esperava este e-mail, pode ignorá-lo.</div>
+  <div style="font-size:12px;color:#8b949e;">Transcrições musicais colaborativas — alguém começa, você continua. Se você não esperava este e-mail, pode ignorá-lo.</div>
 </div>`;
 }
 
 function button(href: string, label: string): string {
-  return `<a href="${href}" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;">${label}</a>`;
+  return `<a href="${href}" style="display:inline-block;background:${INK};color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;">${label}</a>`;
 }
 
 /** The passwordless sign-in email. */
 export async function sendMagicLink(to: string, url: string): Promise<boolean> {
   return sendEmail({
     to,
-    subject: "Seu link de acesso ao GitSong",
-    text: `Entre no GitSong com este link (expira em breve):\n${url}`,
+    subject: "Seu link de acesso ao attacca",
+    text: `Entre no attacca com este link (expira em breve):\n${url}`,
     html: shell(
-      `<p style="font-size:15px;line-height:1.5;">Clique para entrar no GitSong. O link expira em breve e só funciona uma vez.</p>
-       <p style="margin:20px 0;">${button(url, "Entrar no GitSong")}</p>
+      `<p style="font-size:15px;line-height:1.5;">Clique para entrar no attacca. O link expira em breve e só funciona uma vez.</p>
+       <p style="margin:20px 0;">${button(url, "Entrar no attacca")}</p>
        <p style="font-size:12px;color:#8b949e;">Ou copie e cole: <br>${url}</p>`,
     ),
   });
@@ -97,7 +98,7 @@ export async function sendNotificationEmail(args: {
     html: shell(
       `<p style="font-size:15px;line-height:1.5;"><strong>${args.title}</strong></p>
        <p style="font-size:15px;line-height:1.5;">${args.message}</p>
-       <p style="margin:20px 0;">${button(args.url, "Abrir no GitSong")}</p>`,
+       <p style="margin:20px 0;">${button(args.url, "Abrir no attacca")}</p>`,
     ),
   });
 }

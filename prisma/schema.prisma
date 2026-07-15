@@ -1,4 +1,4 @@
-// GitSong — data model (Milestone 1 + M2 cell grid)
+// attacca — data model (Milestone 1 + M2 cell grid)
 // See CLAUDE.md and docs/adr/0002-modelo-de-celulas.md.
 
 generator client {

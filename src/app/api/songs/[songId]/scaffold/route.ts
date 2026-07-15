@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/identity";
 import { materializeSongGrid } from "@/lib/materialize";
-import { blankAlphaTex, gitsongTemplateAlphaTex } from "@/lib/templates";
+import { blankAlphaTex, attaccaTemplateAlphaTex } from "@/lib/templates";
 
 type Params = { params: Promise<{ songId: string }> };
 
 // POST /api/songs/:songId/scaffold — start a song without an upload: creates
-// a starter revision (blank or the GitSong template) and materializes the
+// a starter revision (blank or the attacca template) and materializes the
 // grid right away, the same way an uploaded file does.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
@@ -31,13 +31,13 @@ export async function POST(request: Request, { params }: Params) {
   } catch {
     body = {};
   }
-  const template = body.template === "gitsong" ? "gitsong" : "blank";
+  const template = body.template === "attacca" ? "attacca" : "blank";
 
   const me = await getCurrentUser();
   const authorName = me?.displayName ?? "anon";
   const alphaTex =
-    template === "gitsong"
-      ? gitsongTemplateAlphaTex(song.title)
+    template === "attacca"
+      ? attaccaTemplateAlphaTex(song.title)
       : blankAlphaTex(song.title);
 
   const last = await prisma.revision.findFirst({
@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: Params) {
       number,
       authorName,
       message:
-        template === "gitsong" ? "Criada a partir do template GitSong" : "Criada do zero",
+        template === "attacca" ? "Criada a partir do template do attacca" : "Criada do zero",
       source: "alphatex",
       format: "alphatex",
       alphaTex,

@@ -16,11 +16,11 @@ const SONGS: Array<{
   message: string;
 }> = [
   {
-    slug: "gitsong-demo",
-    title: "GitSong Demo",
-    artist: "Equipe GitSong",
+    slug: "attacca-demo",
+    title: "Demo do attacca",
+    artist: "Equipe attacca",
     message: "Demo inicial em AlphaTex",
-    alphaTex: `\\title "GitSong Demo"
+    alphaTex: `\\title "Demo do attacca"
 \\subtitle "Exemplo de revezamento"
 \\tempo 100
 .
@@ -89,7 +89,7 @@ async function main() {
         data: {
           songId: record.id,
           number: 1,
-          authorName: "GitSong",
+          authorName: "attacca",
           message: song.message,
           source: "alphatex",
           format: "alphatex",

@@ -17,8 +17,8 @@ export function blankAlphaTex(title: string): string {
 `;
 }
 
-/** GitSong's default starter: guitar + bass, a few notes already in place. */
-export function gitsongTemplateAlphaTex(title: string): string {
+/** attacca's default starter: guitar + bass, a few notes already in place. */
+export function attaccaTemplateAlphaTex(title: string): string {
   return `\\title "${safeTitle(title)}"
 \\tempo 100
 .

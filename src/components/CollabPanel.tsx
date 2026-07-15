@@ -19,10 +19,10 @@ export default function CollabPanel({
 }) {
   const router = useRouter();
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [scaffolding, setScaffolding] = useState<"blank" | "gitsong" | null>(null);
+  const [scaffolding, setScaffolding] = useState<"blank" | "attacca" | null>(null);
   const [scaffoldError, setScaffoldError] = useState<string | null>(null);
 
-  async function scaffold(template: "blank" | "gitsong") {
+  async function scaffold(template: "blank" | "attacca") {
     setScaffolding(template);
     setScaffoldError(null);
     try {
@@ -69,17 +69,17 @@ export default function CollabPanel({
             <button
               type="button"
               className="action-card"
-              onClick={() => scaffold("gitsong")}
+              onClick={() => scaffold("attacca")}
               disabled={scaffolding !== null}
             >
               <div className="action-body">
-                <div className="action-title">Usar o template do GitSong</div>
+                <div className="action-title">Usar o template do attacca</div>
                 <div className="action-desc">
                   Começa com guitarra + baixo de exemplo já preenchidos, pra
                   você editar em cima.
                 </div>
               </div>
-              <span className="action-arrow">{scaffolding === "gitsong" ? "…" : "→"}</span>
+              <span className="action-arrow">{scaffolding === "attacca" ? "…" : "→"}</span>
             </button>
 
             <button

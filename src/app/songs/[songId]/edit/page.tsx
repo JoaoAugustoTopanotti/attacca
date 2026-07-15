@@ -38,7 +38,7 @@ export default async function EditPage({
         <div style={{ padding: "24px" }}>
           <div className="player-error" role="alert">
             Esta música ainda não tem a grade de colaboração. Volte para a aba
-            Colaborar e escolha começar do zero, usar o template do GitSong,
+            Colaborar e escolha começar do zero, usar o template do attacca,
             ou enviar um arquivo Guitar Pro.
           </div>
         </div>

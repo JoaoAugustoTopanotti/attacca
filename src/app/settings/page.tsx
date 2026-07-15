@@ -4,7 +4,7 @@ import SettingsClient from "@/components/SettingsClient";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Configurações — GitSong" };
+export const metadata = { title: "Configurações — attacca" };
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();

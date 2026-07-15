@@ -74,7 +74,7 @@ async function createNotification(input: BaseInput & { userId: string | null | u
     if (user?.email && user.emailVerified) {
       await sendNotificationEmail({
         to: user.email,
-        title: EMAIL_TITLES[input.type] ?? "Novidade no GitSong",
+        title: EMAIL_TITLES[input.type] ?? "Novidade no attacca",
         message: input.message,
         songTitle: input.songTitle,
         url: `${appBase()}/songs/${input.songId}`,

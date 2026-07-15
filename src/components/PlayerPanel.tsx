@@ -31,7 +31,7 @@ export default function PlayerPanel({
           <p>Nenhuma versão ainda.</p>
           <p className="sub">
             Vá em <strong>Colaborar</strong> para começar do zero, usar o
-            template do GitSong, ou enviar um arquivo Guitar Pro.
+            template do attacca, ou enviar um arquivo Guitar Pro.
           </p>
         </div>
       ) : view === "live" && materialized ? (
