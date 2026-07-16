@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { songCompleteness, presetFamily } from "@/lib/tracks";
+import { songCompleteness, presetFamily, INSTRUMENT_PRESETS } from "@/lib/tracks";
 import { getCurrentUser } from "@/lib/identity";
 import HomeTabs from "@/components/HomeTabs";
 
@@ -17,13 +17,6 @@ export default async function HomePage() {
 
   const completeness = await Promise.all(songs.map((s) => songCompleteness(s.id)));
 
-  // "Falta baixo" só vira convite quando chega em quem toca baixo: uma trilha
-  // vazia cujo instrumento a pessoa declarou nas configurações é um chamado
-  // direto a ela.
-  const myFamilies = new Set(
-    (me?.instruments ?? []).map(presetFamily).filter((f): f is string => f !== null),
-  );
-
   type SongItem = {
     id: string;
     title: string;
@@ -31,7 +24,9 @@ export default async function HomePage() {
     percent: number;
     missing: string[];
     tracks: number;
-    needsYou: boolean;
+    families: string[];
+    openFamilies: string[];
+    missingFamilies: string[];
   };
 
   const tocar: SongItem[] = [];
@@ -39,6 +34,10 @@ export default async function HomePage() {
 
   for (let i = 0; i < songs.length; i++) {
     const c = completeness[i];
+    // As famílias GM por música alimentam os filtros do mural. "needsYou"
+    // ("precisa do seu instrumento") é derivado no cliente a partir de
+    // missingFamilies × instrumentos declarados — assim editar as tags na
+    // própria home atualiza os destaques sem refetch.
     const item: SongItem = {
       id: songs[i].id,
       title: songs[i].title,
@@ -46,7 +45,9 @@ export default async function HomePage() {
       percent: c.percent,
       missing: c.missing,
       tracks: c.tracks.length,
-      needsYou: c.tracks.some((t) => t.percent === 0 && myFamilies.has(t.family)),
+      families: [...new Set(c.tracks.map((t) => t.family))],
+      openFamilies: [...new Set(c.tracks.filter((t) => t.percent < 100).map((t) => t.family))],
+      missingFamilies: [...new Set(c.tracks.filter((t) => t.percent === 0).map((t) => t.family))],
     };
     if (c.tracks.length > 0 && c.percent >= TOCAR_THRESHOLD) {
       tocar.push(item);
@@ -55,12 +56,18 @@ export default async function HomePage() {
     }
   }
 
-  // Quem toca o que falta vê primeiro o que falta.
-  colaborar.sort((a, b) => Number(b.needsYou) - Number(a.needsYou));
-
   return (
     <div>
-      <HomeTabs tocar={tocar} colaborar={colaborar} />
+      <HomeTabs
+        tocar={tocar}
+        colaborar={colaborar}
+        presets={INSTRUMENT_PRESETS.map((p) => ({
+          key: p.key,
+          label: p.label,
+          family: presetFamily(p.key) ?? p.label,
+        }))}
+        myInstruments={me ? me.instruments : null}
+      />
     </div>
   );
 }
