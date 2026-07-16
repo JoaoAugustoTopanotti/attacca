@@ -14,6 +14,7 @@ import {
   PREFS_EVENT,
   readPlayerPrefs,
   type PlayerPrefs,
+  type StaveProfile,
 } from "@/lib/player-prefs";
 
 type AlphaTabModule = typeof import("@coderline/alphatab");
@@ -113,6 +114,11 @@ const AlphaTabPlayer = forwardRef<
   defaultTrackIndexRef.current = defaultTrackIndex;
   const highlightBeatsRef = useRef(highlightBeats);
   highlightBeatsRef.current = highlightBeats;
+  // Perfil de pauta PREFERIDO (Configurações). O perfil APLICADO pode divergir
+  // por trilha: percussão não tem tablatura de cordas e renderizá-la com o
+  // perfil "só tab" quebra o layout do alphaTab (erro "reading 'staves'") —
+  // bateria força um perfil com partitura (ver applyStaveProfileFor).
+  const prefStaveProfileRef = useRef<StaveProfile>("Tab");
 
   const [apiReady, setApiReady] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
@@ -126,17 +132,27 @@ const AlphaTabPlayer = forwardRef<
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
 
+  // Percussão não tem tablatura: antes de renderizar uma trilha de bateria,
+  // troca para um perfil com partitura; nas demais, restaura a preferência.
+  function applyStaveProfileFor(track: Track) {
+    const api = apiRef.current;
+    const alphaTab = alphaTabRef.current;
+    if (!api || !alphaTab) return;
+    const isPercussion = track.playbackInfo?.primaryChannel === 9;
+    const wanted =
+      isPercussion || prefStaveProfileRef.current === "ScoreTab"
+        ? alphaTab.StaveProfile.ScoreTab
+        : alphaTab.StaveProfile.Tab;
+    if (api.settings.display.staveProfile !== wanted) {
+      api.settings.display.staveProfile = wanted;
+      api.updateSettings();
+    }
+  }
+
   // Expose playPause() / selectTrack() / seekTick() for editMode callers
   useImperativeHandle(ref, () => ({
     playPause: () => apiRef.current?.playPause(),
-    selectTrack: (index: number) => {
-      const api = apiRef.current;
-      const score = scoreRef.current;
-      if (!api || !score) return;
-      setSelectedTrackIndex(index);
-      const track = score.tracks.find((t: Track) => t.index === index);
-      if (track) api.renderTracks([track]);
-    },
+    selectTrack: (index: number) => selectTrack(index),
     seekTick: (tick: number) => {
       const api = apiRef.current;
       if (api) api.tickPosition = tick;
@@ -159,6 +175,7 @@ const AlphaTabPlayer = forwardRef<
     let api: AlphaTabApi | null = null;
     let disposed = false;
     const prefs = readPlayerPrefs();
+    prefStaveProfileRef.current = prefs.staveProfile;
 
     (async () => {
       const alphaTab = await import("@coderline/alphatab");
@@ -190,6 +207,19 @@ const AlphaTabPlayer = forwardRef<
 
       api.scoreLoaded.on((score) => {
         scoreRef.current = score;
+        // Pauta de percussão usa clave NEUTRA (‖), não clave de sol — mas o
+        // importer de alphaTex deixa G2 (e o próprio exporter escreve
+        // "\clef g2" para bateria), então normaliza no modelo antes do render.
+        // As posições/símbolos das notas já vêm do mapa de percussão
+        // (staff.isPercussion); só a clave desenhada estava errada.
+        score.tracks.forEach((t) => {
+          t.staves.forEach((staff) => {
+            if (!staff.isPercussion) return;
+            staff.bars.forEach((bar) => {
+              bar.clef = alphaTab.model.Clef.Neutral;
+            });
+          });
+        });
         const list = score.tracks.map((t: Track) => {
           const pb = t.playbackInfo;
           const isPercussion = pb?.primaryChannel === 9;
@@ -218,18 +248,26 @@ const AlphaTabPlayer = forwardRef<
                 if (!wanted.has(`${measureIndex}:${beatIndex}`)) return;
                 const bs = new alphaTab.model.BeatStyle();
                 bs.colors.set(alphaTab.model.BeatSubElement.GuitarTabRests, green);
+                bs.colors.set(alphaTab.model.BeatSubElement.StandardNotationRests, green);
                 beat.style = bs;
                 for (const note of beat.notes) {
                   const ns = new alphaTab.model.NoteStyle();
                   ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabFretNumber, green);
                   ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabEffects, green);
+                  // Percussão renderiza em partitura (não há tab) — pinta também
+                  // a cabeça da nota na notação standard.
+                  ns.colors.set(alphaTab.model.NoteSubElement.StandardNotationNoteHead, green);
+                  ns.colors.set(alphaTab.model.NoteSubElement.StandardNotationEffects, green);
                   note.style = ns;
                 }
               });
             });
           });
         }
-        if (firstTrack) apiRef.current?.renderTracks([firstTrack]);
+        if (firstTrack) {
+          applyStaveProfileFor(firstTrack);
+          apiRef.current?.renderTracks([firstTrack]);
+        }
         setStatus("ready");
         setErrorMessage(null);
       });
@@ -276,10 +314,14 @@ const AlphaTabPlayer = forwardRef<
       const prefs = (event as CustomEvent<PlayerPrefs>).detail;
 
       applyPlaybackPrefs(api, prefs);
+      prefStaveProfileRef.current = prefs.staveProfile;
 
       const display = api.settings.display;
+      // Perfil desejado considera a trilha exibida: bateria força partitura
+      // (não tem tablatura; o perfil "só tab" quebra o render).
+      const shown = api.tracks?.[0];
       const wantedProfile =
-        prefs.staveProfile === "ScoreTab"
+        shown?.playbackInfo?.primaryChannel === 9 || prefs.staveProfile === "ScoreTab"
           ? alphaTab.StaveProfile.ScoreTab
           : alphaTab.StaveProfile.Tab;
       if (display.scale !== prefs.scale || display.staveProfile !== wantedProfile) {
@@ -343,7 +385,10 @@ const AlphaTabPlayer = forwardRef<
     if (!api || !score) return;
     setSelectedTrackIndex(index);
     const track = score.tracks.find((t: Track) => t.index === index);
-    if (track) api.renderTracks([track]);
+    if (track) {
+      applyStaveProfileFor(track);
+      api.renderTracks([track]);
+    }
   }
 
   function handlePlayPause() { apiRef.current?.playPause(); }
@@ -434,7 +479,17 @@ const AlphaTabPlayer = forwardRef<
             disabled={!playerReady || status !== "ready"}
             title={isPlaying ? "Pausar" : "Tocar"}
           >
-            {isPlaying ? "⏸" : "▶"}
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            ) : (
+              // Triângulo simples, deslocado ~1px à direita p/ centro óptico.
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                <polygon points="8,5 20,12 8,19" />
+              </svg>
+            )}
           </button>
 
           {tracks.length > 0 && status === "ready" && (
