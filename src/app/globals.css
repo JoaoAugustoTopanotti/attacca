@@ -727,23 +727,32 @@ label {
   border-top: 1px solid var(--border);
 }
 
-/* Play / pause toggle */
+/* Play / pause toggle — padrão da marca: fundo escuro, contorno + ícone
+   vermelhão (o mesmo do editor de faixa). Ícone é SVG (centragem óptica
+   exata; o glifo ▶ ficava torto). */
 .playpause-btn {
   width: 40px; height: 40px; flex-shrink: 0;
   border-radius: 50%;
-  background: var(--text); border: none; cursor: pointer;
+  background: var(--bg); color: var(--accent);
+  border: 1px solid var(--accent); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; color: var(--bg);
-  transition: transform .1s, opacity .1s;
-  box-shadow: 0 2px 8px rgba(0,0,0,.45);
+  transition: transform .1s, background .1s;
   font-family: inherit;
 }
-.playpause-btn:hover:not(:disabled) { opacity: .88; transform: scale(1.06); }
+.playpause-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  transform: scale(1.06);
+}
 .playpause-btn:active:not(:disabled) { transform: scale(.96); }
 .playpause-btn:disabled {
-  background: var(--panel-2); color: var(--sub);
-  cursor: not-allowed; box-shadow: none;
+  background: var(--bg);
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: not-allowed;
 }
+.playpause-btn svg { display: block; flex: 0 0 auto; }
+.playpause-btn svg polygon,
+.playpause-btn svg rect { fill: currentColor; }
 
 /* Track selector — custom styled */
 .track-select-wrap {
@@ -1368,27 +1377,9 @@ label {
   padding: 0 24px; height: 50px;
   background: var(--bg); border-bottom: 1px solid var(--border);
 }
-/* Play menor e no padrão da tela: fundo escuro, contorno + seta vermelhão.
-   Ícone é SVG (centragem óptica exata; o glifo ▶ ficava torto). */
-.edit-controls .playpause-btn {
-  width: 30px; height: 30px;
-  background: var(--bg); color: var(--accent);
-  border: 1px solid var(--accent); box-shadow: none;
-}
-.edit-controls .playpause-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  opacity: 1;
-}
-.edit-controls .playpause-btn:disabled {
-  background: var(--bg);
-  color: color-mix(in srgb, var(--accent) 45%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
-.edit-controls .playpause-btn svg {
-  display: block; width: 13px; height: 13px; flex: 0 0 auto;
-}
-.edit-controls .playpause-btn svg polygon,
-.edit-controls .playpause-btn svg rect { fill: var(--accent); }
+/* Play menor no editor (o visual em si é o padrão do .playpause-btn) */
+.edit-controls .playpause-btn { width: 30px; height: 30px; }
+.edit-controls .playpause-btn svg { width: 13px; height: 13px; }
 
 /* Role badge inside controls bar */
 .edit-role-badge {
