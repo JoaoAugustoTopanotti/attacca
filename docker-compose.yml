@@ -7,31 +7,33 @@
 #   docker compose down -v     # desliga E APAGA os dados (recomeçar do zero)
 #
 # A string de conexão correspondente (vai no .env):
-#   DATABASE_URL="postgresql://gitsong:gitsong@localhost:55432/gitsong_dev"
+#   DATABASE_URL="postgresql://attacca:attacca@localhost:55432/attacca_dev"
 
-# NOTA (rebranding 2026-07-15): os nomes gitsong/gitsong_dev ficam de propósito —
-# as credenciais e o volume local já foram criados com eles; renomear apagaria a
-# referência aos dados de dev. Mesma razão dos env vars GS_* e do cookie gs_session.
+# `name` fixa o projeto compose, que por padrão vem do NOME DA PASTA — sem isso,
+# renomear a pasta criaria um volume novo e vazio e o banco de dev leria zerado.
+name: attacca
+
 services:
   db:
     image: postgres:16
-    container_name: gitsong-dev-db
+    container_name: attacca-dev-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: gitsong
-      POSTGRES_PASSWORD: gitsong
-      POSTGRES_DB: gitsong_dev
+      POSTGRES_USER: attacca
+      POSTGRES_PASSWORD: attacca
+      POSTGRES_DB: attacca_dev
     ports:
       # host:container — 55432 no host pra não colidir com os Postgres nativos
       # do Windows (16 e 17) que já ocupam 5432/5433 nesta máquina.
       - "55432:5432"
     volumes:
-      - gitsong_dev_pgdata:/var/lib/postgresql/data
+      # o compose prefixa com o nome do projeto → volume real: attacca_pgdata
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gitsong -d gitsong_dev"]
+      test: ["CMD-SHELL", "pg_isready -U attacca -d attacca_dev"]
       interval: 5s
       timeout: 3s
       retries: 10
 
 volumes:
-  gitsong_dev_pgdata:
+  pgdata:
