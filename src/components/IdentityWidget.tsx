@@ -4,9 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthModal from "@/components/AuthModal";
+import WelcomeInstrumentsModal from "@/components/WelcomeInstrumentsModal";
 import { ME_EVENT } from "@/lib/identity-events";
 
-type Me = { id: string; displayName: string; email: string | null } | null;
+type Me = {
+  id: string;
+  displayName: string;
+  email: string | null;
+  instruments: string[];
+} | null;
 
 const AUTH_ERRORS: Record<string, string> = {
   invalid: "Link inválido. Peça um novo.",
@@ -26,6 +32,10 @@ export default function IdentityWidget() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  // Acabou de entrar (?welcome=1): se a conta ainda não tem instrumentos,
+  // este é o momento de perguntar "o que você toca?" — uma vez, pulável;
+  // depois disso o lugar de editar é Configurações.
+  const [justSignedIn, setJustSignedIn] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +64,7 @@ export default function IdentityWidget() {
       setAuthError(AUTH_ERRORS[code] ?? "Não foi possível entrar. Tente de novo.");
       setModalOpen(true);
     }
+    if (params.get("welcome")) setJustSignedIn(true);
     if (code || params.get("welcome")) {
       params.delete("auth_error");
       params.delete("welcome");
@@ -87,8 +98,12 @@ export default function IdentityWidget() {
 
   // ── Logged in ────────────────────────────────────────────────────────────
   if (me) {
+    const showWelcome = justSignedIn && me.instruments.length === 0;
     return (
       <div className="identity" ref={rootRef}>
+        {showWelcome && (
+          <WelcomeInstrumentsModal onClose={() => setJustSignedIn(false)} />
+        )}
         <button
           type="button"
           className="identity-pill identity-pill--btn"
