@@ -173,6 +173,12 @@ model CellContribution {
   message    String?
   createdAt  DateTime @default(now())
 
+  /// M3 — the merge base (git-style): what the cell had ACCEPTED when this
+  /// contribution was written (null = cell was empty, or legacy pre-M3 row).
+  /// Conflict = base ≠ current accepted AND normalized content differs; the
+  /// owner then resolves bar by bar. Plain pointer, no FK (provenance only).
+  baseContributionId String?
+
   /// Back-relation for the cell that has THIS contribution accepted.
   acceptedInCell Cell? @relation("acceptedContribution")
 

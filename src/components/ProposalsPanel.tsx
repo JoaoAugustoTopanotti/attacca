@@ -12,6 +12,15 @@ type Proposal = {
   authorId: string | null;
   authorName: string;
   count: number;
+  /** M3 — compassos onde a música mudou desde a proposta (mesma célula). */
+  conflicts: number;
+};
+/** M3 — um compasso em conflito: as duas versões, lado a lado. */
+type ConflictBar = {
+  measureOrder: number;
+  bar: number;
+  current: string;
+  proposed: string;
 };
 type ProposalsResponse = {
   song: { ownerId: string | null; ownerName: string | null };
@@ -60,7 +69,12 @@ function computeHighlights(current: string, proposed: string): string[] {
   return out;
 }
 
-type Detail = { add: number; del: number; highlight: string[] } | null;
+type Detail = {
+  add: number;
+  del: number;
+  highlight: string[];
+  conflicts: ConflictBar[];
+} | null;
 
 export default function ProposalsPanel({
   songId,
@@ -80,6 +94,8 @@ export default function ProposalsPanel({
   const [info, setInfo] = useState<string | null>(null);
   const [open, setOpen] = useState<Proposal | null>(null);
   const [detail, setDetail] = useState<Detail>(null); // null = carregando
+  // M3 — escolha do dono por compasso em conflito (measureOrder → versão).
+  const [choices, setChoices] = useState<Record<number, "current" | "proposed">>({});
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/songs/${songId}/proposals`);
@@ -94,16 +110,27 @@ export default function ProposalsPanel({
   function openProposal(p: Proposal) {
     setOpen(p);
     setDetail(null);
+    setChoices({});
     fetch(`/api/songs/${songId}/tracks/${p.trackOrder}/proposal?author=${p.authorId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((c: { currentAlphaTex: string; proposedAlphaTex: string } | null) => {
-        if (!c) { setDetail({ add: 0, del: 0, highlight: [] }); return; }
-        const stat = diffStat(c.currentAlphaTex, c.proposedAlphaTex);
-        setDetail({ ...stat, highlight: computeHighlights(c.currentAlphaTex, c.proposedAlphaTex) });
-      })
-      .catch(() => setDetail({ add: 0, del: 0, highlight: [] }));
+      .then(
+        (c: {
+          currentAlphaTex: string;
+          proposedAlphaTex: string;
+          conflicts?: ConflictBar[];
+        } | null) => {
+          if (!c) { setDetail({ add: 0, del: 0, highlight: [], conflicts: [] }); return; }
+          const stat = diffStat(c.currentAlphaTex, c.proposedAlphaTex);
+          setDetail({
+            ...stat,
+            highlight: computeHighlights(c.currentAlphaTex, c.proposedAlphaTex),
+            conflicts: c.conflicts ?? [],
+          });
+        },
+      )
+      .catch(() => setDetail({ add: 0, del: 0, highlight: [], conflicts: [] }));
   }
-  function close() { setOpen(null); setDetail(null); }
+  function close() { setOpen(null); setDetail(null); setChoices({}); }
 
   async function review(p: Proposal, action: "accept" | "reject") {
     if (busy) return;
@@ -116,7 +143,8 @@ export default function ProposalsPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ authorId: p.authorId, action }),
+          // M3: as escolhas por compasso em conflito acompanham o aceite.
+          body: JSON.stringify({ authorId: p.authorId, action, resolutions: choices }),
         },
       );
       const json = await res.json();
@@ -152,6 +180,8 @@ export default function ProposalsPanel({
 
   // ── Detalhe: tablatura em tela cheia com o diff na partitura ────────────────
   if (open) {
+    const conflicts = detail?.conflicts ?? [];
+    const unresolved = conflicts.filter((c) => !choices[c.measureOrder]).length;
     return (
       <div className="proposal-detail">
         <div className="proposal-detail-head">
@@ -162,6 +192,11 @@ export default function ProposalsPanel({
                 {" · "}
                 <span className="add">+{detail.add}</span>{" "}
                 <span className="del">−{detail.del}</span>
+                {conflicts.length > 0 && (
+                  <span className="conflict-count">
+                    {" "}⚡ {conflicts.length} conflito{conflicts.length === 1 ? "" : "s"}
+                  </span>
+                )}
                 <span className="proposal-legend"> · verde = mudou nesta proposta</span>
               </span>
             )}
@@ -169,8 +204,18 @@ export default function ProposalsPanel({
           <div className="proposal-detail-actions">
             {isOwner && (
               <>
-                <button type="button" className="btn-accept" onClick={() => review(open, "accept")} disabled={busy}>
-                  Aceitar
+                <button
+                  type="button"
+                  className="btn-accept"
+                  onClick={() => review(open, "accept")}
+                  disabled={busy || detail === null || unresolved > 0}
+                  title={
+                    unresolved > 0
+                      ? `escolha a versão de ${unresolved} compasso(s) em conflito`
+                      : undefined
+                  }
+                >
+                  {unresolved > 0 ? `Aceitar (${unresolved} sem escolha)` : "Aceitar"}
                 </button>
                 <button type="button" className="btn-reject" onClick={() => review(open, "reject")} disabled={busy}>
                   Recusar
@@ -182,6 +227,46 @@ export default function ProposalsPanel({
         </div>
 
         {error && <p className="form-error" style={{ padding: "6px 24px" }}>{error}</p>}
+
+        {conflicts.length > 0 && (
+          <div className="conflict-strip">
+            <p className="conflict-intro">
+              {isOwner
+                ? "a música mudou desde esta proposta — nos compassos abaixo, escolha qual versão fica. nada é resolvido automático."
+                : "a música mudou desde a sua proposta — o dono vai escolher, compasso a compasso, qual versão fica. você também pode reenviar a trilha por cima da versão atual."}
+            </p>
+            <ul className="conflict-list">
+              {conflicts.map((c) => (
+                <li key={c.measureOrder} className="conflict-bar">
+                  <div className="conflict-bar-label">compasso {c.bar}</div>
+                  <div className="conflict-panes">
+                    {(["current", "proposed"] as const).map((side) => {
+                      const chosen = choices[c.measureOrder] === side;
+                      const body = side === "current" ? c.current : c.proposed;
+                      return (
+                        <button
+                          key={side}
+                          type="button"
+                          className={`conflict-pane${chosen ? " conflict-pane--chosen" : ""}`}
+                          disabled={!isOwner}
+                          onClick={() =>
+                            setChoices((prev) => ({ ...prev, [c.measureOrder]: side }))
+                          }
+                        >
+                          <span className="conflict-pane-tag">
+                            {side === "current" ? "na música agora" : `proposta de ${open.authorName}`}
+                            {chosen && " ✓"}
+                          </span>
+                          <pre className="conflict-pane-tex">{body || "(vazio)"}</pre>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="proposal-detail-player">
           {detail === null ? (
@@ -231,6 +316,11 @@ export default function ProposalsPanel({
               <div className="proposal-who">{p.authorName}</div>
               <div className="proposal-track">
                 {p.trackName} · {p.count} compasso(s)
+                {p.conflicts > 0 && (
+                  <span className="conflict-count">
+                    {" "}· ⚡ {p.conflicts} conflito{p.conflicts === 1 ? "" : "s"}
+                  </span>
+                )}
               </div>
               {!isOwner && (
                 <div className="proposal-waiting">

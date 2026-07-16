@@ -1969,3 +1969,47 @@ label {
   .mural-prog { gap: 10px; }
   .blockbar i { width: 8px; }
 }
+
+/* ── M3: conflito de mesma célula (proposta × música que andou) ──────────────
+   As duas versões lado a lado; o dono escolhe por compasso. Vermelhão = "a sua
+   vez" — um conflito é literalmente a vez do dono decidir. */
+.conflict-count { color: var(--accent); font-weight: 600; }
+.conflict-strip {
+  flex-shrink: 0;
+  max-height: 38vh; overflow-y: auto;
+  padding: 12px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--panel-2);
+}
+.conflict-intro { margin: 0 0 10px; font-size: 0.8rem; color: var(--sub); }
+.conflict-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.conflict-bar-label {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--accent);
+  text-transform: lowercase; letter-spacing: 0.04em; margin-bottom: 4px;
+}
+.conflict-panes {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+@media (max-width: 640px) { .conflict-panes { grid-template-columns: 1fr; } }
+.conflict-pane {
+  display: block; text-align: left; width: 100%;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text); cursor: pointer;
+}
+.conflict-pane:disabled { cursor: default; }
+.conflict-pane:not(:disabled):hover { border-color: var(--muted); }
+.conflict-pane--chosen,
+.conflict-pane--chosen:not(:disabled):hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.conflict-pane-tag {
+  display: block; font-family: var(--mono); font-size: 0.65rem;
+  color: var(--sub); margin-bottom: 6px;
+}
+.conflict-pane--chosen .conflict-pane-tag { color: var(--accent); font-weight: 700; }
+.conflict-pane-tex {
+  margin: 0; font-family: var(--mono); font-size: 0.75rem; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; color: var(--text);
+}

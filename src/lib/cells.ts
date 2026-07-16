@@ -115,6 +115,8 @@ export async function addCellContribution(
       alphaTex,
       message,
       status: accept ? "accepted" : "proposed",
+      // M3: merge base — o aceito sobre o qual esta edição foi escrita.
+      baseContributionId: cell.acceptedContributionId,
     },
   });
 
