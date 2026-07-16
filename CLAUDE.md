@@ -417,9 +417,62 @@ O raciocínio que levou à decisão (mantido como contexto):
   pendente da trilha (nunca descarta) — compor do zero é save-a-save e compasso-a-compasso,
   e a versão antiga ("descarta suas edições não salvas") tornava isso impraticável; um
   botão "+" também aparece direto na tablatura, ao final de cada compasso. **Percussão**
-  (`Track.isPercussion`) → modo texto forçado (notação
-  `"Kick (hit)".8` não cabe no modelo visual). POST de submissão continua igual
+  (`Track.isPercussion`) → editor próprio em GRADE (`DrumGridEditor`, bullet abaixo);
+  o TabEditor nunca mais recebe `percussion=true`. POST de submissão continua igual
   (compassos por `|`; célula vazia round-tripa como "").
+- **Editor de bateria em GRADE (2026-07-16)** — `src/components/DrumGridEditor.tsx` +
+  `src/lib/drum-grid.ts` (lib pura, provada por round-trip em Node: groove, tercina,
+  flam, acento/ghost exatos). Percussão não cabe no modelo corda×casa: a UI é um
+  step-sequencer (linhas = peças do kit, colunas = subdivisões; resolução 1/4..1/32 por
+  fórmula de compasso; quiáltera POR TEMPO; pincéis nota/acento/fantasma/flam). Serializa
+  por compasso em alphaTex numérico — números = MIDI GM (`(36 42).16`, `{tu 3}`, `{ac}`/
+  `{g}`, flam = acorde `{gr}` antes do golpe); `NAME_TO_MIDI` confere 1:1 com as
+  articulações do alphaTab 1.8.3. Regras aprendidas (todas provadas empiricamente):
+  - ⚠️ **Percussão NÃO renderiza com `staveProfile: "Tab"`** — alphaTab 1.8.3 quebra o
+    layout ("Cannot read properties of undefined (reading 'staves')": não há pauta
+    nenhuma). O `AlphaTabPlayer` aplica o perfil **POR TRILHA** (bateria → ScoreTab;
+    demais → preferência da pessoa, restaurada ao trocar de trilha) e o highlight verde
+    do diff pinta também `StandardNotationNoteHead/Rests`. Era o "player não mostra a
+    bateria, dá um erro". **Não existe "drum tab"** no alphaTab (estilo Songsterr
+    HH|x-x-|): bateria é pauta de percussão padrão, como no Guitar Pro.
+  - ⚠️ **Clave de bateria = NEUTRA (‖), e o alphaTex não faz isso sozinho** — o importer
+    deixa G2 mesmo com `\instrument percussion` (e o exporter escreve `\clef g2` para
+    bateria!). Dois remendos: `declareTrack` põe `\clef n` no header de percussão (herda
+    para todos os compassos) e o `AlphaTabPlayer` normaliza `bar.clef = Clef.Neutral`
+    em toda pauta `isPercussion` no `scoreLoaded` (cobre trilhas antigas, imports e
+    snapshots). Os símbolos/posições das notas já vinham certos (`staff.isPercussion`
+    dirige o mapa de articulações); só a clave desenhada estava errada.
+  - **Compasso não tocado re-emite o texto ORIGINAL** (`origsRef` no editor): um clique
+    numa célula não reescreve a trilha inteira na notação da grade → zero ruído de
+    diff/autoria (o "bug dos 103 compassos", que reapareceria aqui).
+  - **Diretivas iniciais da célula (`\clef`, `\ks`, `\accidentals`…) viram prefixo
+    OPACO** (`Bar.prefix`, re-emitido na serialização) — o 1º compasso de trilha
+    materializada (o exporter as emite lá) abre na grade em vez de forçar texto.
+  - **`\voice` (2 vozes — padrão em bateria de `.gp`) cai para modo TEXTO** com o guia
+    de notação de percussão (movido do TabEditor, onde tinha virado código morto).
+    Vozes paralelas não cabem no modelo da grade; limitação conhecida.
+  - Baixar a resolução move golpe fora da grade (destrutivo) → `remapBeatIsLossless`
+    detecta e pede confirmação; só compassos de fato alterados contam como tocados.
+  - Cursor de playback: o tick do player headless vira coluna acesa na grade (mesmo
+    handle `seekTick` do TabEditor; semínima alphaTab = 960 ticks → semibreve = 3840,
+    o mesmo TPW da lib). Grade re-quantiza durações > resolução (mínima → semicolcheia
+    + pausas) e descarta props de beat desconhecidas (`{dy f}`) — só nos compassos
+    editados, pelo item do texto original.
+  - **Entrada rápida (2026-07-16, benchmark FL Studio/Hydrogen/LMMS/Ableton/drumbot)**:
+    **arrastar pinta** a linha inteira (estado-alvo decidido na 1ª célula, convenção
+    FL — arrasto lê `barsRef`, não o state, para não perder célula entre re-renders);
+    **botão direito apaga** (célula) e no **nome da peça** abre "preencher a cada
+    tempo/½ tempo/célula · limpar linha" (o "Fill each 2/4/8" do FL — mata o chimbal);
+    **seleção de compassos** (clique no "Compasso N", Shift estende) + **Ctrl+C/X/V/D**
+    e Delete (mesmas convenções do TabEditor: clipboard de escopo de módulo — copia
+    groove entre trilhas/músicas —, Ctrl+D repete adiante e move a seleção, Esc
+    desfaz); **Ctrl+Z/Y undo/redo** (fotos de bars+origins+resolução — o snapshot
+    INCLUI a resolução, senão desfazer um changeRes serializaria com durações
+    erradas). Colar conforma cada compasso à fórmula/resolução do DESTINO
+    (`conformBar`: remapeia beat a beat, tempo extra some, faltante nasce vazio;
+    `cloneBar` = cópia profunda — células são Maps) e **prefixo opaco não viaja**
+    com o conteúdo copiado (diretiva é posicional). Um arrasto = UM passo de undo
+    (history no pointerdown).
 - **Edição dinâmica no editor (2026-07-04, pós-teste de composição)** — atalhos seguem
   as convenções do nicho (pesquisa GP8/Soundslice/MuseScore/Flat/TuxGuitar):
   **pontuado** `.`/`Ctrl+.` (botões `·`/`··` na toolbar; `beatDots`/`setBeatDots` —
