@@ -440,6 +440,26 @@ O raciocínio que levou à decisão (mantido como contexto):
   de capacidade (`wouldOverflow`: só bloqueia o que AUMENTA além da fórmula). Lib
   coberta por teste manual em Node (23 casos, scratchpad). Delete numa seleção apaga
   o range; Esc desfaz a seleção.
+- **Conflito de mesma célula (M3, 2026-07-16) — detectar + humano escolhe, nunca
+  sobrescrever em silêncio** — `CellContribution.baseContributionId` (migração
+  `20260716000000_m3_conflict_base`) grava o **merge base** estilo git: o que estava
+  aceito na célula quando a contribuição foi escrita (gravado em `submitTrackContent` e
+  `addCellContribution`). **Conflito** = base ≠ aceito atual **e** conteúdo normalizado
+  difere (`isConflicting` em track-content; linhas legadas com base null podem dar
+  falso positivo — seguro, só pede um olhar humano). `pendingTrackProposals` devolve
+  `conflicts` por grupo (badge ⚡ na fila); `getProposalContent` devolve
+  `conflicts: [{measureOrder, bar, current, proposed}]` (lado a lado). **Aceite exige
+  escolha por compasso**: `acceptTrackProposals(..., resolutions)` (`measure.order` →
+  `"current"|"proposed"`); sem escolha → `UnresolvedConflictsError` → rota devolve
+  **409** com os compassos. `"current"` = a contribuição em conflito vira `rejected`
+  (message "conflito — o dono manteve a versão atual"), preservada no histórico;
+  tudo-"current" = vira recusa (sem snapshot). Snapshot/notificações contam só o que
+  **entrou**. UI no `ProposalsPanel`: painéis lado a lado clicáveis ("na música agora"
+  × "proposta de X", vermelhão = a vez do dono decidir), Aceitar desabilitado até
+  resolver tudo; o proponente vê o aviso e pode reenviar a trilha (re-propor grava base
+  novo e desfaz o conflito naturalmente). Re-proposta na mesma célula: a mais nova
+  vence (`orderBy createdAt`). Provado ponta a ponta com 2 identidades no dev (17
+  checks: detecção, 409, gate, resolução mista, recusa-total, regressão sem conflito).
 - **Auto-materialização no upload (feito)** — o POST `/revisions` deriva o canônico e,
   se a música **ainda não tem grade**, materializa na hora; upload que não converte ou
   não monta a grade é **barrado** (422, revisão desfeita). Re-upload em música JÁ
@@ -520,9 +540,9 @@ npm run dev                                    # http://localhost:4000  (webpack
 - **M2**: colaboração por trilha dentro de uma comunidade — **exige primeiro o formato
   canônico (seção 5)**. Criar música, convidar pessoas, **reivindicar trilhas**; botão
   "propor correção" (pull request) em trilha alheia; merge fácil (trilhas diferentes) +
-  propostas por célula; **mural de incompletude** (% de conclusão, "falta baixo/bateria").
-- **M3**: resolução de **conflito de mesma-célula** (flag + escolha humana). Raro, por
-  isso vem depois.
+  propostas por célula; **mural de incompletude** (% de conclusão, "falta baixo/bateria"). ✅
+- **M3**: resolução de **conflito de mesma-célula** (flag + escolha humana). ✅
+  (2026-07-16 — ver "Conflito de mesma célula" na seção 8.)
 - **Futuro**: camada pública (começando por domínio público/CC), reputação por
   comunidade, busca; auth real, takedown, licenciamento, pagamento; editor de tab no
   navegador.

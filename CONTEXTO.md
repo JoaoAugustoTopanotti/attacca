@@ -92,6 +92,24 @@ por humano (M3). **Não implementado** — só decidido.
 - [ ] Decidir início do M2 (modelo de "completar por instrumento").
 
 ## Log de sessões
+- **2026-07-16** — Sessão 1 (M3 — conflito de mesma célula ✅): fechado o último
+  milestone de mecanismo do roadmap. O buraco: se a música mudava por baixo de uma
+  proposta pendente (dono salvou direto, ou outra proposta aceita na mesma célula),
+  o aceite **sobrescrevia em silêncio** — a "sobrescrita" que o produto existe para
+  não ser. Feito (conforme a spec original da seção 5: detectar, lado a lado, humano
+  escolhe): `CellContribution.baseContributionId` = **merge base estilo git** (o
+  aceito no momento da escrita; migração aditiva `m3_conflict_base`); conflito =
+  base ≠ aceito atual E conteúdo normalizado difere; fila (`/proposals`) e detalhe
+  (`/proposal`) expõem os conflitos; **aceite exige `resolutions` por compasso**
+  (`"current"` = contribuição vira `rejected` preservada; sem escolha → **409**);
+  tudo-"current" degenera em recusa. UI no `ProposalsPanel`: badge ⚡, painéis lado
+  a lado clicáveis (vermelhão = a vez do dono), Aceitar travado até resolver; o
+  proponente vê o aviso e re-propor (base novo) desfaz o conflito naturalmente.
+  **Provado ponta a ponta** no dev com 2 identidades reais (magic link): 17 checks
+  — detecção, 409, gate do dono, resolução mista (1 fica atual + 1 entra), snapshot
+  creditado só pelo que entrou, recusa-total sem snapshot, aceite liso sem conflito
+  (regressão). `tsc` limpo; dados de teste removidos do dev.db. **Com M1+M2+M3
+  completos, o próximo marco volta a não ser código: densidade/self-serve.**
 - **2026-07-15** — Sessão 1 (rebranding GitSong → attacca): o projeto chegou ao ponto
   de ficar "apresentável"; João trouxe a direção de marca fechada (nome `attacca`
   minúsculo, slogan "Alguém começa. Você continua.", cor=significado com vermelhão
