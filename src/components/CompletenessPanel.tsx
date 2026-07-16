@@ -105,7 +105,11 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
               Falta um instrumento? Declare o slot
             </div>
             <p className="sub" style={{ fontSize: "0.74rem", margin: "0 0 8px" }}>
-              Cria uma trilha vazia e sem dono — o convite para alguém assumir.
+              {name.trim() ? (
+                <>vai aparecer como <strong>{presets.find((p) => p.key === presetKey)?.label ?? ""} — {name.trim()}</strong></>
+              ) : (
+                <>Cria uma trilha vazia e sem dono — o convite para alguém assumir.</>
+              )}
             </p>
             <div className="completeness-declare-row">
               <select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
@@ -117,7 +121,7 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Nome (opcional), ex.: Guitarra 4"
+                placeholder="nome (opcional), ex.: Fender do Mick"
               />
               <button type="button" onClick={declare} disabled={busy} className="completeness-declare-btn">
                 {busy ? "…" : "Declarar slot"}
