@@ -72,7 +72,7 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
   const summary = !hasTracks
     ? "sem instrumentos ainda — envie um arquivo"
     : data.missing.length > 0
-      ? `falta ${data.missing.join(", ")}`
+      ? `falta alguém em ${data.missing.join(", ")}`
       : "todos os instrumentos presentes";
 
   return (

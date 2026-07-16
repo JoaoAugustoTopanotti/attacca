@@ -39,7 +39,7 @@ function MuralRow({ song, mode }: { song: Song; mode: "tocar" | "colaborar" }) {
   const action =
     mode === "tocar"
       ? { label: "Tocar →", go: false }
-      : { label: song.percent === 0 ? "Começar →" : "Continuar →", go: true };
+      : { label: song.percent === 0 ? "Assumir →" : "Continuar daqui →", go: true };
 
   return (
     <Link href={`/songs/${song.id}`} className="mural-row">
@@ -61,10 +61,10 @@ function MuralRow({ song, mode }: { song: Song; mode: "tocar" | "colaborar" }) {
         {complete ? (
           <span className="mural-miss done">✓ completa</span>
         ) : !hasGrid ? (
-          <span className="mural-miss">ainda sem tablatura — envie um arquivo ou comece do zero</span>
+          <span className="mural-miss">ninguém começou ainda — envie um arquivo ou comece do zero</span>
         ) : song.missing.length > 0 ? (
           <span className="mural-miss">
-            falta:{" "}
+            falta alguém em:{" "}
             {song.missing.map((m, i) => (
               <span key={m}>
                 {i > 0 && " · "}
@@ -96,7 +96,7 @@ export default function HomeTabs({
         <p className="mural-slogan">
           Alguém começa. <span className="b">Você continua.</span>
         </p>
-        <p className="mural-sub">tabs da comunidade, terminadas uma trilha por vez.</p>
+        <p className="mural-sub">Continue de onde outro músico parou.</p>
         <p className="mural-count mural-meta">
           <span>
             <b>{total}</b> música{total === 1 ? "" : "s"} · <b>{colaborar.length}</b>{" "}
@@ -157,12 +157,6 @@ export default function HomeTabs({
 
       <footer className="mural-foot">
         <p className="mural-eth">Uma transcrição incompleta é um convite para contribuir.</p>
-        <p className="mural-fn">
-          attacca <span className="dim">(it., música)</span> — emendar no próximo
-          movimento, sem pausa.
-          <br />
-          <span className="dim">uma ferramenta pequena. as tabs são feitas pela comunidade.</span>
-        </p>
       </footer>
     </>
   );
