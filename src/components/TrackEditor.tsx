@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AlphaTabPlayer, { type AlphaTabPlayerHandle } from "@/components/AlphaTabPlayer";
 import TabEditor, { type MeasureMeta, type TabEditorHandle } from "@/components/TabEditor";
+import DrumGridEditor from "@/components/DrumGridEditor";
 
 type Me = { id: string; displayName: string } | null;
 type Content = {
@@ -22,6 +23,8 @@ function stringCountFromHeader(header: string | null): number | null {
   return n >= 3 && n <= 8 ? n : null;
 }
 
+type Preset = { key: string; label: string };
+
 export default function TrackEditor({
   songId,
   tracks,
@@ -30,7 +33,18 @@ export default function TrackEditor({
   tracks: { order: number; name: string }[];
 }) {
   const [me, setMe] = useState<Me>(null);
+  // Lista de trilhas em estado local — uma trilha recém-declarada aparece na
+  // hora no seletor, sem recarregar a página.
+  const [trackList, setTrackList] = useState(tracks);
   const [trackOrder, setTrackOrder] = useState(tracks[0]?.order ?? 0);
+
+  // ── Adicionar trilha (declarar instrumento) ──
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newPreset, setNewPreset] = useState("");
+  const [newName, setNewName] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [content, setContent] = useState<Content | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -80,7 +94,45 @@ export default function TrackEditor({
       .then((r) => r.json())
       .then(setMe)
       .catch(() => {});
-  }, []);
+    fetch(`/api/songs/${songId}/tracks`)
+      .then((r) => r.json())
+      .then((ps: Preset[]) => {
+        setPresets(ps);
+        setNewPreset(ps[0]?.key ?? "");
+      })
+      .catch(() => {});
+  }, [songId]);
+
+  // Declara um novo instrumento como trilha (bateria, teclado, mais uma
+  // guitarra…) e já a seleciona para editar.
+  async function addTrack() {
+    if (!newPreset || addBusy) return;
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      const res = await fetch(`/api/songs/${songId}/tracks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ presetKey: newPreset, name: newName.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao adicionar a trilha.");
+      setTrackList((list) =>
+        [...list, { order: json.order, name: json.name }].sort((a, b) => a.order - b.order),
+      );
+      setTrackOrder(json.order); // dispara o carregamento da nova trilha
+      // O /assembled ganhou uma trilha — recarrega o player headless para o
+      // documento novo (senão ele segue com a montagem antiga até o 1º save).
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      setNewName("");
+      setAdding(false);
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : "Erro.");
+    } finally {
+      setAddBusy(false);
+    }
+  }
 
   const ownerId = content?.song.ownerId ?? null;
   const ownerName = content?.song.ownerName ?? null;
@@ -273,13 +325,13 @@ export default function TrackEditor({
         >
           {isPlaying ? (
             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
-              <rect x="6" y="5" width="4" height="14" rx="1" fill="#e5432b" />
-              <rect x="14" y="5" width="4" height="14" rx="1" fill="#e5432b" />
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
             </svg>
           ) : (
             // Triângulo simples, deslocado ~1px à direita p/ centro óptico.
             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
-              <polygon points="8,5 20,12 8,19" fill="#e5432b" />
+              <polygon points="8,5 20,12 8,19" />
             </svg>
           )}
         </button>
@@ -291,12 +343,59 @@ export default function TrackEditor({
             onChange={(e) => setTrackOrder(Number(e.target.value))}
             aria-label="Faixa a editar"
           >
-            {tracks.map((t) => (
+            {trackList.map((t) => (
               <option key={t.order} value={t.order}>
                 {t.name}
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Adicionar uma trilha (declarar instrumento: bateria, teclado, etc.) */}
+        <div className="add-track">
+          <button
+            type="button"
+            className="add-track-btn"
+            onClick={() => { setAdding((a) => !a); setAddError(null); }}
+            disabled={!me || presets.length === 0}
+            title={me ? "Adicionar uma trilha (bateria, teclado…)" : "Identifique-se para adicionar trilhas"}
+            aria-expanded={adding}
+          >
+            + trilha
+          </button>
+          {adding && (
+            <div className="add-track-pop">
+              <div className="add-track-row">
+                <select
+                  value={newPreset}
+                  onChange={(e) => setNewPreset(e.target.value)}
+                  aria-label="Instrumento da nova trilha"
+                >
+                  {presets.map((p) => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="nome (opcional), ex.: Fender do Mick"
+                  onKeyDown={(e) => { if (e.key === "Enter") addTrack(); }}
+                />
+                <button type="button" onClick={addTrack} disabled={addBusy || !newPreset}>
+                  {addBusy ? "…" : "Adicionar"}
+                </button>
+              </div>
+              <p className="add-track-hint">
+                {newName.trim() ? (
+                  <>vai aparecer como <strong>{presets.find((p) => p.key === newPreset)?.label ?? ""} — {newName.trim()}</strong></>
+                ) : (
+                  <>Cria uma trilha vazia (sem dono) — o convite para alguém preencher.</>
+                )}
+              </p>
+              {addError && <div className="form-error" style={{ marginTop: 4 }}>{addError}</div>}
+            </div>
+          )}
         </div>
 
         {content && ownerName && (
@@ -345,23 +444,39 @@ export default function TrackEditor({
           (e o flag de percussão) da trilha errada. */}
       <div className="edit-bottom">
         {content && content.track.order === trackOrder ? (
-          <TabEditor
-            key={trackOrder}
-            ref={editorRef}
-            alphaTex={text}
-            onChange={setText}
-            disabled={!me}
-            trackStringCount={stringCountFromHeader(content.trackHeader) ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
-            trackHeader={content.trackHeader}
-            measureMeta={content.measures}
-            onSeek={seekPlayer}
-            percussion={content.track.isPercussion}
-            canEditStructure={isOwner && !!me}
-            onAddMeasure={addMeasureAfter}
-            onDeleteMeasure={removeMeasure}
-            error={error}
-            info={info}
-          />
+          content.track.isPercussion ? (
+            <DrumGridEditor
+              key={trackOrder}
+              ref={editorRef}
+              alphaTex={text}
+              onChange={setText}
+              disabled={!me}
+              measureMeta={content.measures}
+              canEditStructure={isOwner && !!me}
+              onAddMeasure={addMeasureAfter}
+              onDeleteMeasure={removeMeasure}
+              error={error}
+              info={info}
+            />
+          ) : (
+            <TabEditor
+              key={trackOrder}
+              ref={editorRef}
+              alphaTex={text}
+              onChange={setText}
+              disabled={!me}
+              trackStringCount={stringCountFromHeader(content.trackHeader) ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
+              trackHeader={content.trackHeader}
+              measureMeta={content.measures}
+              onSeek={seekPlayer}
+              percussion={content.track.isPercussion}
+              canEditStructure={isOwner && !!me}
+              onAddMeasure={addMeasureAfter}
+              onDeleteMeasure={removeMeasure}
+              error={error}
+              info={info}
+            />
+          )
         ) : (
           <div className="edit-editor">
             <div className="player-loading" style={{ flex: 1 }}>Carregando…</div>

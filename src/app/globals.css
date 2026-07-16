@@ -1381,6 +1381,40 @@ label {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
+/* Adicionar trilha — botão + popover no controls bar */
+.add-track { position: relative; flex-shrink: 0; }
+.add-track-btn {
+  height: 30px; padding: 0 11px; font-size: 0.8rem; font-family: inherit;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  white-space: nowrap;
+}
+.add-track-btn:hover:not(:disabled) { border-color: var(--muted); }
+.add-track-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.add-track-btn:disabled { opacity: .5; cursor: not-allowed; }
+.add-track-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); min-width: 340px;
+}
+/* Duas linhas: instrumento em cima (o select nativo é largo), nome + botão embaixo
+   — numa linha só o input do nome ficava espremido a quase nada. */
+.add-track-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.add-track-row select, .add-track-row input {
+  height: 32px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-family: inherit; font-size: 0.82rem;
+  padding: 0 9px;
+}
+.add-track-row select { flex: 1 1 100%; }
+.add-track-row input { flex: 1; min-width: 0; }
+.add-track-row button {
+  height: 32px; padding: 0 12px; font-size: 0.82rem; font-family: inherit;
+  background: var(--accent); color: var(--accent-ink); border: none;
+  border-radius: 7px; cursor: pointer; white-space: nowrap;
+}
+.add-track-row button:disabled { opacity: .55; cursor: not-allowed; }
+.add-track-hint { font-size: 0.72rem; color: var(--sub); margin: 7px 2px 0; }
+
 /* "Pré-visualizando proposta de X" badge */
 .edit-preview-badge {
   font-size: 0.74rem; color: var(--muted);
@@ -1748,6 +1782,34 @@ label {
   flex: 1; min-height: 0;
 }
 
+/* Guia de notação de percussão (só no editor de texto de bateria) */
+.perc-guide {
+  flex-shrink: 0; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2);
+}
+.perc-guide > summary {
+  cursor: pointer; padding: 7px 11px; font-size: 0.8rem; color: var(--accent);
+  list-style: none; user-select: none;
+}
+.perc-guide > summary::-webkit-details-marker { display: none; }
+.perc-guide > summary::before { content: "▸ "; color: var(--sub); }
+.perc-guide[open] > summary::before { content: "▾ "; }
+.perc-guide-body { padding: 0 11px 10px; font-size: 0.78rem; color: var(--sub); }
+.perc-guide-body p { margin: 0 0 8px; line-height: 1.55; }
+.perc-guide-cols {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 4px 12px; margin-bottom: 8px;
+}
+.perc-piece { color: var(--text); white-space: nowrap; }
+.perc-guide code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: 0 4px; color: var(--accent); font-size: 0.76rem;
+}
+.perc-guide-ex { margin-bottom: 0 !important; }
+.perc-guide-ex code { color: var(--text); white-space: nowrap; }
+
 @media (max-width: 720px) {
   .site-header {
     flex-wrap: wrap;
@@ -1969,6 +2031,210 @@ label {
   .mural-prog { gap: 10px; }
   .blockbar i { width: 8px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Editor de bateria (grade / step sequencer) — DrumGridEditor
+   ───────────────────────────────────────────────────────────────────────── */
+.drum-editor {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+.drum-toolbar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px 8px 24px; border-bottom: 1px solid var(--border);
+}
+.drum-toolbar-label {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sub);
+}
+.drum-toolbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.drum-res-group { display: flex; gap: 2px; }
+.drum-res-btn, .drum-addlane-btn, .drum-mode-toggle {
+  height: 28px; padding: 0 10px; font-size: 0.78rem; font-family: inherit;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.drum-res-btn.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent); color: var(--accent);
+}
+.drum-res-btn:hover:not(:disabled),
+.drum-addlane-btn:hover:not(:disabled),
+.drum-mode-toggle:hover:not(:disabled) { border-color: var(--muted); }
+.drum-res-btn:disabled, .drum-addlane-btn:disabled { opacity: .5; cursor: not-allowed; }
+.drum-addlane { position: relative; }
+.drum-addlane-pop {
+  position: absolute; top: calc(100% + 5px); left: 0; z-index: 30;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 9px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); padding: 5px; min-width: 210px;
+  max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+}
+.drum-addlane-pop button {
+  text-align: left; background: none; border: none; color: var(--text);
+  font-family: inherit; font-size: 0.8rem; padding: 6px 9px; border-radius: 6px;
+  cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+}
+.drum-addlane-pop button:hover { background: var(--panel-2); }
+.drum-piece-midi {
+  font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; color: var(--sub);
+}
+.drum-warn {
+  flex-shrink: 0; margin: 8px 14px 0 24px; padding: 6px 10px;
+  font-size: 0.76rem; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 7px;
+}
+/* Abraça a altura da grade (flex 0 1 auto): o scrollbar horizontal fica logo
+   abaixo da última peça, não no fundo da tela; com muitas linhas, encolhe e
+   ganha scroll vertical. */
+.drum-scroll { flex: 0 1 auto; min-height: 0; overflow: auto; padding: 12px 14px 4px 0; }
+.drum-table { display: inline-block; min-width: 100%; }
+.drum-row { display: flex; align-items: stretch; }
+.drum-lane-label {
+  position: sticky; left: 0; z-index: 5; flex: 0 0 132px; width: 132px;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  padding: 0 10px 0 24px; background: var(--bg);
+  font-size: 0.78rem; color: var(--text);
+  border-right: 1px solid var(--border);
+}
+.drum-lane-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drum-lane-hide {
+  flex-shrink: 0; width: 16px; height: 16px; line-height: 1; padding: 0;
+  border: none; background: none; color: var(--sub); cursor: pointer; border-radius: 4px;
+}
+.drum-lane-hide:hover { background: var(--panel-2); color: var(--text); }
+.drum-row--head .drum-lane-label--head {
+  background: var(--bg); border-right: 1px solid var(--border);
+}
+.drum-bar {
+  display: flex; align-items: stretch;
+  border-right: 2px solid var(--border);
+}
+.drum-bar--head { flex-direction: column; }
+.drum-bar-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 0 6px 4px; font-size: 0.7rem; color: var(--sub);
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+.drum-bar-ops { display: flex; gap: 2px; }
+.drum-bar-ops button {
+  width: 17px; height: 17px; line-height: 1; padding: 0; font-size: 0.8rem;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  border-radius: 4px; cursor: pointer;
+}
+.drum-bar-ops button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Cabeçalho por tempo: número + toggle de quiáltera */
+.drum-beats-head { display: flex; }
+.drum-beat-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  padding: 0 4px; border-right: 1px solid var(--border);
+}
+.drum-beat-num {
+  font-size: 0.66rem; color: var(--text);
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+.drum-tri {
+  width: 16px; height: 15px; line-height: 1; padding: 0; font-size: 0.64rem;
+  border: 1px solid var(--border); background: var(--panel); color: var(--sub);
+  border-radius: 4px; cursor: pointer;
+}
+.drum-tri:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
+.drum-tri.on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent); color: var(--accent);
+}
+.drum-tri:disabled { opacity: .35; cursor: default; }
+
+/* Grupo de células de um tempo (quiáltera ganha fundo sutil) */
+.drum-beat { display: flex; border-right: 1px solid var(--border); }
+.drum-beat:last-child { border-right: none; }
+.drum-beat.triplet { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+.drum-cell {
+  position: relative;
+  width: 22px; height: 22px; padding: 0; margin: 1px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; transition: background .05s;
+  display: flex; align-items: center; justify-content: center;
+}
+.drum-cell.beat { border-color: var(--muted); }
+.drum-cell:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 20%, var(--panel-2)); }
+.drum-cell.on {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.drum-cell.on.ghost {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: none;
+}
+.drum-cell.on.accent {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.drum-cell:disabled { cursor: default; }
+/* Coluna sob o cursor de reprodução (tick do player headless) */
+.drum-cell.playing {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.drum-cell.on.playing {
+  box-shadow: inset 0 0 0 2px var(--text), 0 0 6px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Arrasto de pintura: sem seleção de texto no meio do gesto */
+.drum-table { user-select: none; -webkit-user-select: none; }
+
+/* Dica de gestos (uma linha, discreta) */
+.drum-hint {
+  flex-shrink: 0; margin: 6px 14px 0 24px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.66rem; color: var(--sub);
+}
+
+/* Barra de ações da seleção de compassos */
+.drum-selbar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  margin: 6px 14px 0 24px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.drum-selbar-label {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.7rem; color: var(--accent); margin-right: 4px;
+}
+.drum-selbar button {
+  height: 22px; padding: 0 8px; font-size: 0.72rem; font-family: inherit;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 5px; cursor: pointer;
+}
+.drum-selbar button:hover:not(:disabled) { border-color: var(--muted); }
+.drum-selbar button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Nome do compasso clicável (seleção) */
+.drum-bar-name {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.drum-bar-name:hover { color: var(--text); }
+
+/* Compasso selecionado (coluna inteira ganha o tom) */
+.drum-bar.selected {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.drum-bar--head.selected .drum-bar-name { color: var(--accent); }
+
+/* Menu "preencher a cada N" da peça (botão direito no nome) */
+.drum-lane-menu { left: 20px; top: calc(100% - 4px); min-width: 180px; }
+/* A label é sticky com z-index 5; as labels das linhas SEGUINTES (mesmo
+   z-index, depois no DOM) pintariam por cima do menu aberto. */
+.drum-lane-label.menu-open { z-index: 25; }
+.drum-g {
+  position: absolute; font-size: 0.6rem; line-height: 1; color: var(--accent-ink);
+  font-weight: 700; pointer-events: none;
+}
+.drum-g-acc { top: 0; right: 1px; }
+.drum-g-flam { bottom: 0; left: 1px; }
 
 /* ── M3: conflito de mesma célula (proposta × música que andou) ──────────────
    As duas versões lado a lado; o dono escolhe por compasso. Vermelhão = "a sua

@@ -1643,7 +1643,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           ))}
       </div>
 
-      {/* ── Overlay do modo texto — cobre o editor visual ── */}
+      {/* ── Overlay do modo texto — cobre o editor visual ──
+          (O guia de percussão vive no DrumGridEditor, que é quem edita
+          bateria; este overlay hoje só atende trilhas de cordas.) */}
       {raw && (
         <div className="tab-editor-raw-overlay">
           <textarea

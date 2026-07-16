@@ -10,24 +10,11 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { watchSong, notifySlotDeclared } from "@/lib/notifications";
 import { instrumentLabel } from "@/lib/instruments";
+import { INSTRUMENT_PRESETS, type InstrumentPreset } from "@/lib/instrument-presets";
 
-export type InstrumentPreset = {
-  key: string;
-  label: string;
-  program: number; // GM
-  tuning: string | null; // alphaTex tokens, null = non-stringed (standard staff)
-  isPercussion: boolean;
-};
-
-export const INSTRUMENT_PRESETS: InstrumentPreset[] = [
-  { key: "guitar", label: "Guitarra", program: 25, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
-  { key: "guitar7", label: "Guitarra 7 cordas", program: 25, tuning: "E4 B3 G3 D3 A2 E2 B1", isPercussion: false },
-  { key: "bass", label: "Baixo", program: 33, tuning: "G2 D2 A1 E1", isPercussion: false },
-  { key: "bass5", label: "Baixo 5 cordas", program: 33, tuning: "G2 D2 A1 E1 B0", isPercussion: false },
-  { key: "piano", label: "Piano/Teclado", program: 0, tuning: null, isPercussion: false },
-  { key: "vocals", label: "Vocal", program: 52, tuning: null, isPercussion: false },
-  { key: "drums", label: "Bateria", program: 0, tuning: null, isPercussion: true },
-];
+// A lista em si vive em instrument-presets.ts (módulo puro, importável de
+// client components); re-exportada aqui para os consumidores server-side.
+export { INSTRUMENT_PRESETS, type InstrumentPreset };
 
 /**
  * The GM family a preset belongs to ("Baixo", "Guitarra/Violão", …). Matching an
@@ -41,7 +28,16 @@ export function presetFamily(key: string): string | null {
 
 function buildHeaderFragment(name: string, p: InstrumentPreset): string {
   const safe = name.replace(/"/g, "");
-  const lines = [`\\track "${safe}"`, `\\instrument ${p.program}`];
+  // Percussão precisa de "\instrument percussion" (canal 9, pauta de bateria) —
+  // "\instrument 0" criaria uma trilha de PIANO, e a notação de percussão
+  // ("Kick (hit)".4, números MIDI) não funcionaria nela.
+  const lines = [
+    `\\track "${safe}"`,
+    p.isPercussion ? `\\instrument percussion` : `\\instrument ${p.program}`,
+  ];
+  // Clave neutra (‖) para bateria — o importer alphaTex deixaria clave de sol.
+  // (O player também normaliza no render, cobrindo trilhas antigas/imports.)
+  if (p.isPercussion) lines.push(`\\clef n`);
   if (p.tuning) lines.push(`\\tuning ${p.tuning}`);
   return lines.join("\n");
 }
@@ -71,12 +67,24 @@ export async function declareTrack(
     );
   }
 
-  const agg = await prisma.track.aggregate({
+  const existing = await prisma.track.findMany({
     where: { songId },
-    _max: { order: true },
+    select: { order: true, name: true },
   });
-  const order = (agg._max.order ?? -1) + 1;
-  const label = name?.trim() || preset.label;
+  const order = existing.reduce((max, t) => Math.max(max, t.order), -1) + 1;
+
+  // Nome estilo Songsterr: tipo + apelido ("Guitarra — Fender do Mick"). Sem
+  // apelido, numera a repetição ("Guitarra", "Guitarra 2", …) para o seletor
+  // de trilhas nunca mostrar dois nomes iguais.
+  const custom = name?.trim();
+  let label: string;
+  if (custom) {
+    label = `${preset.label} — ${custom}`;
+  } else {
+    const sameLabel = new RegExp(`^${preset.label}( \\d+)?$`);
+    const count = existing.filter((t) => sameLabel.test(t.name)).length;
+    label = count ? `${preset.label} ${count + 1}` : preset.label;
+  }
   const trackId = randomUUID();
   const cellRows = measures.map((m) => ({
     id: randomUUID(),
@@ -176,6 +184,9 @@ export async function songCompleteness(songId: string): Promise<SongCompleteness
     measureCount,
     percent: totalCells ? Math.round((doneCells / totalCells) * 100) : 0,
     tracks: perTrack,
-    missing: perTrack.filter((t) => t.done === 0).map((t) => t.name),
+    // Deduplicado: duas trilhas vazias de mesmo nome viram um "falta" só
+    // (a lista é texto de convite, não inventário — e nomes repetidos
+    // quebravam a key do React no mural).
+    missing: [...new Set(perTrack.filter((t) => t.done === 0).map((t) => t.name))],
   };
 }
