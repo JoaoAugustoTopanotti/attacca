@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AlphaTabPlayer from "@/components/AlphaTabPlayer";
+import TabSnippet from "@/components/TabSnippet";
 import { diffStat } from "@/lib/linediff";
-import { parseTrackTex, type EditorBeat } from "@/lib/alphatex-editor";
+import {
+  parseTrackTex,
+  serializeForRender,
+  type EditorBeat,
+} from "@/lib/alphatex-editor";
 
 type Me = { id: string; displayName: string } | null;
 type Proposal = {
@@ -15,12 +20,16 @@ type Proposal = {
   /** M3 — compassos onde a música mudou desde a proposta (mesma célula). */
   conflicts: number;
 };
-/** M3 — um compasso em conflito: as duas versões, lado a lado. */
+/** M3 — um compasso em conflito: as duas versões, lado a lado.
+ *  ts/structPrefix vêm junto para renderizar o compasso como tablatura. */
 type ConflictBar = {
   measureOrder: number;
   bar: number;
   current: string;
   proposed: string;
+  tsNum: number;
+  tsDen: number;
+  structPrefix: string | null;
 };
 type ProposalsResponse = {
   song: { ownerId: string | null; ownerName: string | null };
@@ -74,7 +83,27 @@ type Detail = {
   del: number;
   highlight: string[];
   conflicts: ConflictBar[];
+  trackHeader: string | null;
+  isPercussion: boolean;
 } | null;
+
+/** Documento alphaTex renderizável de UM compasso em conflito — a mesma via do
+ *  editor visual (parseTrackTex + serializeForRender), com a fórmula de
+ *  compasso explícita (um compasso solto herdaria o 4/4 padrão). */
+function conflictBarTex(
+  fragment: string,
+  c: ConflictBar,
+  trackHeader: string | null,
+): string {
+  let struct = c.structPrefix?.trim() ?? "";
+  if (!/\\ts\b/.test(struct)) {
+    struct = [`\\ts ${c.tsNum} ${c.tsDen}`, struct].filter(Boolean).join("\n");
+  }
+  return serializeForRender(parseTrackTex(fragment), {
+    trackHeader,
+    structPrefixes: [struct],
+  });
+}
 
 export default function ProposalsPanel({
   songId,
@@ -111,6 +140,9 @@ export default function ProposalsPanel({
     setOpen(p);
     setDetail(null);
     setChoices({});
+    const empty: Detail = {
+      add: 0, del: 0, highlight: [], conflicts: [], trackHeader: null, isPercussion: false,
+    };
     fetch(`/api/songs/${songId}/tracks/${p.trackOrder}/proposal?author=${p.authorId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then(
@@ -118,17 +150,21 @@ export default function ProposalsPanel({
           currentAlphaTex: string;
           proposedAlphaTex: string;
           conflicts?: ConflictBar[];
+          trackHeader?: string | null;
+          isPercussion?: boolean;
         } | null) => {
-          if (!c) { setDetail({ add: 0, del: 0, highlight: [], conflicts: [] }); return; }
+          if (!c) { setDetail(empty); return; }
           const stat = diffStat(c.currentAlphaTex, c.proposedAlphaTex);
           setDetail({
             ...stat,
             highlight: computeHighlights(c.currentAlphaTex, c.proposedAlphaTex),
             conflicts: c.conflicts ?? [],
+            trackHeader: c.trackHeader ?? null,
+            isPercussion: c.isPercussion ?? false,
           });
         },
       )
-      .catch(() => setDetail({ add: 0, del: 0, highlight: [], conflicts: [] }));
+      .catch(() => setDetail(empty));
   }
   function close() { setOpen(null); setDetail(null); setChoices({}); }
 
@@ -194,7 +230,7 @@ export default function ProposalsPanel({
                 <span className="del">−{detail.del}</span>
                 {conflicts.length > 0 && (
                   <span className="conflict-count">
-                    {" "}⚡ {conflicts.length} conflito{conflicts.length === 1 ? "" : "s"}
+                    {" "}· {conflicts.length} conflito{conflicts.length === 1 ? "" : "s"}
                   </span>
                 )}
                 <span className="proposal-legend"> · verde = mudou nesta proposta</span>
@@ -257,7 +293,15 @@ export default function ProposalsPanel({
                             {side === "current" ? "na música agora" : `proposta de ${open.authorName}`}
                             {chosen && " ✓"}
                           </span>
-                          <pre className="conflict-pane-tex">{body || "(vazio)"}</pre>
+                          {body ? (
+                            <TabSnippet
+                              tex={conflictBarTex(body, c, detail?.trackHeader ?? null)}
+                              isPercussion={detail?.isPercussion ?? false}
+                              fallbackText={body}
+                            />
+                          ) : (
+                            <pre className="conflict-pane-tex">(vazio)</pre>
+                          )}
                         </button>
                       );
                     })}
@@ -318,7 +362,7 @@ export default function ProposalsPanel({
                 {p.trackName} · {p.count} compasso(s)
                 {p.conflicts > 0 && (
                   <span className="conflict-count">
-                    {" "}· ⚡ {p.conflicts} conflito{p.conflicts === 1 ? "" : "s"}
+                    {" "}· {p.conflicts} conflito{p.conflicts === 1 ? "" : "s"}
                   </span>
                 )}
               </div>

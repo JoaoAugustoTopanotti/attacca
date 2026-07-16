@@ -510,7 +510,14 @@ O raciocínio que levou à decisão (mantido como contexto):
   **entrou**. UI no `ProposalsPanel`: painéis lado a lado clicáveis ("na música agora"
   × "proposta de X", vermelhão = a vez do dono decidir), Aceitar desabilitado até
   resolver tudo; o proponente vê o aviso e pode reenviar a trilha (re-propor grava base
-  novo e desfaz o conflito naturalmente). Re-proposta na mesma célula: a mais nova
+  novo e desfaz o conflito naturalmente). **Os painéis mostram TABLATURA, não texto**
+  (`TabSnippet`, alphaTab render-only sem player/soundfont; `pointer-events: none` — o
+  clique continua no botão do painel): o compasso vira documento renderizável pela
+  mesma via do editor visual (`parseTrackTex` + `serializeForRender`, com
+  `trackHeader` + `\ts`/`structPrefix` que `getProposalContent` passou a devolver —
+  um compasso solto sem `\ts` explícito leria 4/4). alphaTex cru só como fallback se
+  o render falhar. Sem emoji ⚡ no contador de conflitos (só "· N conflito(s)" em
+  vermelhão). Re-proposta na mesma célula: a mais nova
   vence (`orderBy createdAt`). Provado ponta a ponta com 2 identidades no dev (17
   checks: detecção, 409, gate, resolução mista, recusa-total, regressão sem conflito).
 - **Auto-materialização no upload (feito)** — o POST `/revisions` deriva o canônico e,

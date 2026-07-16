@@ -2299,7 +2299,7 @@ label {
 .conflict-count { color: var(--accent); font-weight: 600; }
 .conflict-strip {
   flex-shrink: 0;
-  max-height: 38vh; overflow-y: auto;
+  max-height: 48vh; overflow-y: auto;
   padding: 12px 24px 16px;
   border-bottom: 1px solid var(--border);
   border-left: 3px solid var(--accent);
@@ -2335,4 +2335,11 @@ label {
 .conflict-pane-tex {
   margin: 0; font-family: var(--mono); font-size: 0.75rem; line-height: 1.5;
   white-space: pre-wrap; word-break: break-word; color: var(--text);
+}
+/* Compasso do conflito renderizado como tablatura (TabSnippet). O painel
+   inteiro é um <button> (escolher a versão) — o snippet não captura cliques. */
+.tab-snippet {
+  pointer-events: none;
+  overflow: hidden;
+  min-height: 56px;
 }

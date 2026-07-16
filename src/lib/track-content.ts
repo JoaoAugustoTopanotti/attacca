@@ -312,6 +312,8 @@ export async function getProposalContent(
 
   // M3 — compassos onde a música mudou por baixo da proposta: mostrar as duas
   // versões lado a lado; o dono escolhe (nada de merge automático "esperto").
+  // ts/structPrefix acompanham para a UI renderizar o compasso como TABLATURA
+  // (mesma via do editor visual), não como alphaTex cru.
   const conflicts = measures.flatMap((m) => {
     const cell = byMeasure.get(m.id);
     const prop = cell && propByCell.get(cell.id);
@@ -322,12 +324,17 @@ export async function getProposalContent(
         bar: m.order + 1, // número humano do compasso
         current: cell.acceptedContribution?.alphaTex?.trim() ?? "",
         proposed: prop.alphaTex.trim(),
+        tsNum: m.tsNumerator,
+        tsDen: m.tsDenominator,
+        structPrefix: m.structPrefix ?? null,
       },
     ];
   });
 
   return {
     trackName: track.name,
+    trackHeader: track.headerFragment ?? null,
+    isPercussion: track.isPercussion,
     currentAlphaTex: current.join("\n|\n"),
     proposedAlphaTex: proposed.join("\n|\n"),
     conflicts,
