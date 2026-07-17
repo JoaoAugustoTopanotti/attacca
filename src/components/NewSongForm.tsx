@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AuthModal from "@/components/AuthModal";
 
 export default function NewSongForm() {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function NewSongForm() {
   const [submitting, setSubmitting] = useState(false);
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
 
   // Show a "taking too long" hint after 10s — common on Render free tier cold start.
   useEffect(() => {
@@ -29,6 +31,12 @@ export default function NewSongForm() {
         body: JSON.stringify({ title, artist }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        // Criar exige identidade (a música nasce com dono) — abre o login.
+        setAuthOpen(true);
+        setSubmitting(false);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error ?? "Falha ao criar a música.");
       router.push(`/songs/${data.id}`);
     } catch (err) {
@@ -74,6 +82,7 @@ export default function NewSongForm() {
         </p>
       )}
       {error && <div className="form-error">{error}</div>}
+      {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </form>
   );
 }

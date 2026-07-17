@@ -18,9 +18,11 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 export const googleEnabled = !!(CLIENT_ID && CLIENT_SECRET);
 
-/** Short-lived cookies carrying the CSRF state + PKCE verifier across the hop. */
+/** Short-lived cookies carrying the CSRF state + PKCE verifier across the hop,
+ *  plus the optional same-origin path to land on after sign-in. */
 export const STATE_COOKIE = "gs_oauth_state";
 export const VERIFIER_COOKIE = "gs_oauth_verifier";
+export const REDIRECT_COOKIE = "gs_oauth_redirect";
 export const OAUTH_COOKIE_MAX_AGE = 60 * 10; // 10 minutes
 
 export const oauthCookieOptions = () => ({

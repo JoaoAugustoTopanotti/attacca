@@ -201,6 +201,16 @@ export async function readLegacyCookieUserId(): Promise<string | null> {
 
 export const LEGACY_IDENTITY_COOKIE = LEGACY_COOKIE;
 
+// ── Redirect safety ───────────────────────────────────────────────────────────
+
+/** Only same-origin paths ("/songs/new", "/settings?…") may be used as a
+ *  post-sign-in destination — never a full URL or a protocol-relative one,
+ *  which would make the auth flow an open redirect. */
+export function safeRedirectPath(path: string | null | undefined): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
+  return path;
+}
+
 // ── Base URL (for building absolute magic-link URLs behind a proxy) ────────────
 
 export function appBaseUrl(request: Request): string {

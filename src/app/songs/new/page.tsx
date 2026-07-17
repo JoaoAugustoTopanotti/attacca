@@ -1,11 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UPLOAD_ACCEPT } from "@/lib/format";
+import AuthModal from "@/components/AuthModal";
 
 type StartMode = "upload" | "blank" | "template";
+
+// Anyone can fill this form; identity is only demanded at save time. The draft
+// survives the sign-in round-trip (magic link / Google both navigate away).
+const DRAFT_KEY = "attacca:new-song-draft";
 
 export default function NewSongPage() {
   const router = useRouter();
@@ -17,8 +22,26 @@ export default function NewSongPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Coming back from sign-in: restore what was typed before the modal opened.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(DRAFT_KEY);
+      const draft = JSON.parse(raw) as { title?: unknown; artist?: unknown; mode?: unknown };
+      if (typeof draft.title === "string") setTitle(draft.title);
+      if (typeof draft.artist === "string") setArtist(draft.artist);
+      if (draft.mode === "upload" || draft.mode === "blank" || draft.mode === "template") {
+        setMode(draft.mode);
+      }
+    } catch {
+      /* malformed draft — start clean */
+    }
+  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFileName(e.target.files?.[0]?.name ?? null);
@@ -53,6 +76,14 @@ export default function NewSongPage() {
         }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        // Saving needs identity — keep the draft and open the sign-in modal
+        // (no red error: this is an invitation, not a failure).
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ title, artist, mode }));
+        setAuthOpen(true);
+        setSubmitting(false);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error ?? "Erro ao criar música.");
       const songId: string = data.id;
 
@@ -218,6 +249,14 @@ export default function NewSongPage() {
           {submitting ? "Criando…" : "Criar e começar →"}
         </button>
       </form>
+
+      {authOpen && (
+        <AuthModal
+          onClose={() => setAuthOpen(false)}
+          reason="Logue para poder criar uma música!"
+          redirectTo="/songs/new"
+        />
+      )}
     </div>
   );
 }

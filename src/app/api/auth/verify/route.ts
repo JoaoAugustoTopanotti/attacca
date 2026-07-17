@@ -6,14 +6,8 @@ import {
   SESSION_COOKIE,
   LEGACY_IDENTITY_COOKIE,
   appBaseUrl,
+  safeRedirectPath,
 } from "@/lib/identity";
-
-/** Only same-origin paths ("/settings?…") may come back from the token — never a
- *  full URL or a protocol-relative one, which would make this an open redirect. */
-function safePath(path: string | null): string | null {
-  if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
-  return path;
-}
 
 // GET /api/auth/verify?token=...  — consume the magic link, start a JWT session,
 // then redirect home (or wherever the token asked, e.g. an email change lands
@@ -31,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const jwt = await signSessionToken(result.user.id);
-  const destination = safePath(result.redirectTo) ?? "/?welcome=1";
+  const destination = safeRedirectPath(result.redirectTo) ?? "/?welcome=1";
   const res = NextResponse.redirect(`${base}${destination}`);
   res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions());
   // Retire the legacy cookie now that identity is durable.

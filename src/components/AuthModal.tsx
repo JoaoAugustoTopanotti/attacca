@@ -7,6 +7,11 @@ type Props = {
   onClose: () => void;
   /** Error carried over from a failed redirect (?auth_error=…). */
   initialError?: string | null;
+  /** Why the modal opened (e.g. "Logue para poder criar uma música!") —
+   *  replaces the default title. */
+  reason?: string;
+  /** Same-origin path to land on after signing in (both providers). */
+  redirectTo?: string;
 };
 
 function GoogleMark() {
@@ -32,7 +37,7 @@ function GoogleMark() {
   );
 }
 
-export default function AuthModal({ onClose, initialError }: Props) {
+export default function AuthModal({ onClose, initialError, reason, redirectTo }: Props) {
   const [mounted, setMounted] = useState(false);
   const [providers, setProviders] = useState<{ google: boolean } | null>(null);
 
@@ -73,7 +78,11 @@ export default function AuthModal({ onClose, initialError }: Props) {
       const res = await fetch("/api/auth/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), displayName: name.trim() || undefined }),
+        body: JSON.stringify({
+          email: email.trim(),
+          displayName: name.trim() || undefined,
+          redirectTo,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Falha ao enviar o link.");
@@ -135,7 +144,7 @@ export default function AuthModal({ onClose, initialError }: Props) {
           // ── Sign in ────────────────────────────────────────────────────
           <>
             <h2 id="auth-title" className="auth-title">
-              Entrar no attacca
+              {reason ?? "Entrar no attacca"}
             </h2>
             <p className="auth-sub">
               Sua identidade fica ligada ao e-mail — sua autoria te acompanha em
@@ -145,7 +154,14 @@ export default function AuthModal({ onClose, initialError }: Props) {
             {error && <p className="auth-error">{error}</p>}
 
             {providers?.google && (
-              <a className="auth-google" href="/api/auth/google">
+              <a
+                className="auth-google"
+                href={
+                  redirectTo
+                    ? `/api/auth/google?redirect=${encodeURIComponent(redirectTo)}`
+                    : "/api/auth/google"
+                }
+              >
                 <GoogleMark />
                 Continuar com Google
               </a>

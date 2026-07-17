@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
-import { issueLoginToken, readLegacyCookieUserId, appBaseUrl } from "@/lib/identity";
+import {
+  issueLoginToken,
+  readLegacyCookieUserId,
+  appBaseUrl,
+  safeRedirectPath,
+} from "@/lib/identity";
 import { sendMagicLink, emailConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// POST /api/auth/request { email, displayName? }
+// POST /api/auth/request { email, displayName?, redirectTo? }
 // Issues a single-use magic link and emails it. Passwordless sign-in / sign-up.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -13,6 +18,10 @@ export async function POST(request: Request) {
     typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const displayName =
     typeof body.displayName === "string" ? body.displayName.trim() : undefined;
+  // Where the magic link should land once consumed (e.g. back on /songs/new).
+  const redirectTo = safeRedirectPath(
+    typeof body.redirectTo === "string" ? body.redirectTo : null,
+  );
 
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
@@ -29,7 +38,7 @@ export async function POST(request: Request) {
     : null;
   const claimUserId = legacy && !legacy.email ? legacy.id : null;
 
-  const raw = await issueLoginToken({ email, displayName, claimUserId });
+  const raw = await issueLoginToken({ email, displayName, claimUserId, redirectTo });
   const url = `${appBaseUrl(request)}/api/auth/verify?token=${encodeURIComponent(raw)}`;
 
   await sendMagicLink(email, url);

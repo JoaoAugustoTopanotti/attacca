@@ -8,12 +8,14 @@ import {
   sessionCookieOptions,
   SESSION_COOKIE,
   LEGACY_IDENTITY_COOKIE,
+  safeRedirectPath,
 } from "@/lib/identity";
 import {
   googleEnabled,
   exchangeCodeForProfile,
   STATE_COOKIE,
   VERIFIER_COOKIE,
+  REDIRECT_COOKIE,
 } from "@/lib/google";
 
 const expire = { path: "/", maxAge: 0 };
@@ -26,6 +28,7 @@ export async function GET(request: Request) {
     const res = NextResponse.redirect(`${base}/?auth_error=${code}`);
     res.cookies.set(STATE_COOKIE, "", expire);
     res.cookies.set(VERIFIER_COOKIE, "", expire);
+    res.cookies.set(REDIRECT_COOKIE, "", expire);
     return res;
   };
 
@@ -64,10 +67,20 @@ export async function GET(request: Request) {
   });
 
   const jwt = await signSessionToken(user.id);
-  const res = NextResponse.redirect(`${base}/?welcome=1`);
+  // The cookie value may arrive percent-encoded ("%2Fsongs%2Fnew") depending on
+  // how it was set; decode before validating (idempotent for plain paths).
+  let redirectRaw = store.get(REDIRECT_COOKIE)?.value ?? null;
+  try {
+    if (redirectRaw) redirectRaw = decodeURIComponent(redirectRaw);
+  } catch {
+    redirectRaw = null;
+  }
+  const destination = safeRedirectPath(redirectRaw) ?? "/?welcome=1";
+  const res = NextResponse.redirect(`${base}${destination}`);
   res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions());
   res.cookies.set(STATE_COOKIE, "", expire);
   res.cookies.set(VERIFIER_COOKIE, "", expire);
+  res.cookies.set(REDIRECT_COOKIE, "", expire);
   res.cookies.set(LEGACY_IDENTITY_COOKIE, "", expire);
   return res;
 }

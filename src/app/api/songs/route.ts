@@ -12,8 +12,15 @@ export async function GET() {
   return NextResponse.json(songs);
 }
 
-// POST /api/songs — create a song. Body: { title, artist? }.
+// POST /api/songs — create a song. Body: { title, artist? }. Requires identity:
+// the creator owns the song (maintainer model), so an anonymous song would be
+// ownerless — no one to accept proposals or answer for it.
 export async function POST(request: Request) {
+  const me = await getCurrentUser();
+  if (!me) {
+    return NextResponse.json({ error: "Entre para criar uma música." }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -42,15 +49,12 @@ export async function POST(request: Request) {
     slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
   }
 
-  // The creator owns the song (maintainer model). Anonymous → ownerId null (open).
-  const me = await getCurrentUser();
-
   const song = await prisma.song.create({
     data: {
       title: title.trim(),
       artist: artistValue,
       slug,
-      ownerId: me?.id ?? null,
+      ownerId: me.id,
     },
   });
 
