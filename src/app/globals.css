@@ -549,6 +549,37 @@ label {
 .share-btn:hover { color: var(--text); border-color: var(--muted); }
 
 .breadcrumb-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Excluir música (só o dono vê) — discreto até o hover avisar o perigo. */
+.delete-song-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.75rem; color: var(--sub); cursor: pointer;
+  font-family: inherit;
+}
+.delete-song-btn:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+
+/* Modal de exclusão — reusa a casca do auth-modal, alinhado à esquerda. */
+.danger-modal { text-align: left; }
+.danger-label {
+  font-family: var(--mono); font-size: 0.74rem; color: var(--sub);
+  margin: 0;
+}
+.danger-label strong { color: var(--text); font-weight: 600; }
+.danger-confirm {
+  width: 100%; padding: 11px 14px;
+  border: none; border-radius: 999px;
+  font-size: 0.88rem; font-weight: 600;
+  background: var(--danger); color: var(--accent-ink);
+}
+.danger-confirm:disabled {
+  background: var(--panel-2); color: var(--sub); cursor: not-allowed;
+}
 .follow-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; background: transparent;

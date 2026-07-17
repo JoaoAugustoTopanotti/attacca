@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import SongTabs from "@/components/SongTabs";
 import ShareButton from "@/components/ShareButton";
 import FollowButton from "@/components/FollowButton";
+import DeleteSongButton from "@/components/DeleteSongButton";
 import type { RevisionDTO } from "@/lib/song-types";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,11 @@ export default async function SongPage({
           <div className="breadcrumb-actions">
             <FollowButton songId={song.id} />
             <ShareButton songId={song.id} />
+            <DeleteSongButton
+              songId={song.id}
+              songTitle={song.title}
+              ownerId={song.ownerId}
+            />
           </div>
         </div>
 

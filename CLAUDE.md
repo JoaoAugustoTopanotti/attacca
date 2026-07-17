@@ -520,6 +520,16 @@ O raciocínio que levou à decisão (mantido como contexto):
   vermelhão). Re-proposta na mesma célula: a mais nova
   vence (`orderBy createdAt`). Provado ponta a ponta com 2 identidades no dev (17
   checks: detecção, 409, gate, resolução mista, recusa-total, regressão sem conflito).
+- **Excluir música (2026-07-17) — só o dono, confirmação estilo GitHub** —
+  `DELETE /api/songs/[id]` exige `{confirmTitle}` idêntico ao título (o servidor
+  re-valida; o clique nunca basta) e `ownerId === me` — música **sem dono**
+  (seed/legado) ninguém exclui (não há quem responda pelo trabalho coletivo).
+  O delete limpa `Cell.acceptedContributionId` antes do `song.delete` na mesma
+  transação (a FK é NoAction — cascade puro poderia tropeçar no meio) + apaga
+  `storage/<songId>` legado (best-effort). UI: botão "Excluir" discreto no
+  `breadcrumb-actions` (`DeleteSongButton`, só o dono vê) → modal (casca do
+  auth-modal) com input que precisa do título exato para liberar o botão
+  vermelho. Provado ponta a ponta no dev (401/403/400/200/404 + zero órfãos).
 - **Auto-materialização no upload (feito)** — o POST `/revisions` deriva o canônico e,
   se a música **ainda não tem grade**, materializa na hora; upload que não converte ou
   não monta a grade é **barrado** (422, revisão desfeita). Re-upload em música JÁ

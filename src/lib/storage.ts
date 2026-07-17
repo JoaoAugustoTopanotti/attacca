@@ -35,3 +35,8 @@ export async function saveRevisionFile(
 export async function readRevisionFile(relativePath: string): Promise<Buffer> {
   return fs.readFile(resolveInStorage(relativePath));
 }
+
+/** Remove every legacy on-disk file of a song (pre-DB-blob revisions). */
+export async function deleteSongFiles(songId: string): Promise<void> {
+  await fs.rm(resolveInStorage(songId), { recursive: true, force: true });
+}
