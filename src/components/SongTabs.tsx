@@ -30,9 +30,10 @@ export default function SongTabs({
     { authorId: string | null }[]
   >([]);
 
-  // Dono = criador (ADR 0003); música sem dono (ownerId null) é aberta → todos
-  // veem o Histórico. O Histórico é do dono: é dele o poder de reverter.
-  const isOwner = !ownerId || (!!meId && ownerId === meId);
+  // Dono = criador (ADR 0003); música sem dono (ownerId null) é aberta para
+  // qualquer IDENTIFICADO (anônimo nunca é dono — mesma regra do ProposalsPanel;
+  // sem isso o badge de propostas aparecia até deslogado em música aberta).
+  const isOwner = !!meId && (!ownerId || ownerId === meId);
 
   // Contagem que o usuário veria na aba: dono vê todas; colaborador só as suas.
   const pendingCount = isOwner
