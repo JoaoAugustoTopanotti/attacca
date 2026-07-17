@@ -1,119 +1,306 @@
-import { PrismaClient } from "@prisma/client";
+// Seed de demonstração — músicas de domínio público escritas em AlphaTex (nada
+// binário no repo, nada com copyright). Monta o estado que conta a história do
+// produto na home:
+//   - 2 músicas COMPLETAS (guitarra + baixo + bateria), cada trilha de um autor
+//     diferente — a autoria por pedaço visível;
+//   - 2 músicas com PROPOSTA PENDENTE (baixo/bateria esperando aprovação) — o
+//     revezamento no meio do caminho, com a fila de Propostas populada.
+//
+// Todas as músicas ficam SEM DONO (ownerId null = "música aberta"): qualquer
+// pessoa logada vê as propostas pendentes e pode aceitar/recusar — perfeito
+// para demonstrar o fluxo sem depender de uma conta específica.
+//
+// Reaproveita as MESMAS libs do app (materialize/declareTrack/submitTrackContent),
+// então tudo que o seed grava passa pela validação real de remontagem.
+
+import { prisma } from "../src/lib/prisma";
 import { materializeSongGrid } from "../src/lib/materialize";
+import { declareTrack, songCompleteness } from "../src/lib/tracks";
+import { submitTrackContent, pendingTrackProposals } from "../src/lib/track-content";
 
-const prisma = new PrismaClient();
+type SeedUser = { id: string; displayName: string };
 
-// ---------------------------------------------------------------------------
-// Demo songs — all public domain, written in AlphaTex so no binary files are
-// committed and no copyright issues arise. Instruments follow GM standard.
-// ---------------------------------------------------------------------------
+// Usuários fictícios da "comunidade" (sem e-mail — só aparecem como autores;
+// ninguém consegue logar como eles).
+const USERS: Array<{ name: string; instruments: string[] }> = [
+  { name: "Helena", instruments: ["guitar"] },
+  { name: "Rafa", instruments: ["guitar"] },
+  { name: "Clara", instruments: ["bass"] },
+  { name: "Miguel", instruments: ["drums"] },
+];
 
-const SONGS: Array<{
+// Batida rock básica (MIDI GM: 36 bumbo, 38 caixa, 42 chimbal, 49 crash).
+// Nota de percussão sempre entre parênteses — "42.8" solto seria lido como
+// casa.corda (fretted) e quebra a pauta de articulação.
+const ROCK = "(36 42).8 (42).8 (38 42).8 (42).8 (36 42).8 (42).8 (38 42).8 (42).8";
+const ROCK_END = "(36 49).4 (42).8 (42).8 (38 42).4 (36 42).4";
+
+type Part = {
+  preset: "bass" | "drums";
+  author: string; // displayName em USERS
+  /** true = fica como proposta esperando aprovação (não aceita) */
+  pending?: boolean;
+  message: string;
+  bars: string[]; // um fragmento por compasso, mesmo total da música
+};
+
+type SeedSong = {
   slug: string;
   title: string;
   artist: string;
-  alphaTex: string;
+  starter: string; // quem "começou" (autor do import de guitarra)
   message: string;
-}> = [
-  {
-    slug: "attacca-demo",
-    title: "Demo do attacca",
-    artist: "Equipe attacca",
-    message: "Demo inicial em AlphaTex",
-    alphaTex: `\\title "Demo do attacca"
-\\subtitle "Exemplo de revezamento"
-\\tempo 100
-.
-\\track "Guitarra"
-\\instrument 25
-:4 0.6 2.6 3.6 0.5 | 2.5 3.5 0.4 2.4 | :2 0.6 3.6
-\\track "Baixo"
-\\instrument 33
-\\tuning G2 D2 A1 E1
-:4 0.4 0.4 0.3 0.3 | 0.2 0.2 2.3 2.3 | :2 0.4 0.3
-`,
-  },
+  alphaTex: string; // documento inicial (só a guitarra)
+  parts: Part[];
+};
+
+const SONGS: SeedSong[] = [
+  // ------------------------------------------------------------------ completa
   {
     slug: "ode-to-joy",
     title: "Ode to Joy",
     artist: "Beethoven",
-    message: "Guitarra solo — falta baixo",
-    // Ode to Joy melody on guitar (4th string, standard tuning), 8 measures
+    starter: "Helena",
+    message: "guitarra — melodia completa",
     alphaTex: `\\title "Ode to Joy"
 \\subtitle "Beethoven — domínio público"
-\\tempo 104
+\\tempo 108
 .
 \\track "Guitarra"
 \\instrument 25
-:4 2.3 2.3 3.3 0.2 | 0.2 3.3 2.3 1.3 | 0.3 0.3 1.3 3.4 | 3.4 1.3 0.3 r |
-2.3 2.3 3.3 0.2 | 0.2 3.3 2.3 1.3 | 0.3 0.3 1.3 3.4 | :2 3.4 1.3
+0.1.4 0.1.4 1.1.4 3.1.4 | 3.1.4 1.1.4 0.1.4 3.2.4 |
+1.2.4 1.2.4 3.2.4 0.1.4 | 0.1.4{d} 3.2.8 3.2.2 |
+0.1.4 0.1.4 1.1.4 3.1.4 | 3.1.4 1.1.4 0.1.4 3.2.4 |
+1.2.4 1.2.4 3.2.4 0.1.4 | 3.2.4{d} 1.2.8 1.2.2
 `,
+    parts: [
+      {
+        preset: "bass",
+        author: "Clara",
+        message: "baixo completo",
+        bars: [
+          "3.3.4 3.3.4 0.1.4 3.3.4",
+          "3.4.4 3.4.4 0.2.4 3.4.4",
+          "3.3.4 3.3.4 0.1.4 3.3.4",
+          "3.4.4 0.2.4 3.4.2",
+          "3.3.4 3.3.4 0.1.4 3.3.4",
+          "3.4.4 3.4.4 0.2.4 3.4.4",
+          "3.3.4 3.3.4 0.1.4 3.3.4",
+          "3.4.4 3.4.4 3.3.2",
+        ],
+      },
+      {
+        preset: "drums",
+        author: "Miguel",
+        message: "bateria completa",
+        bars: [ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK_END],
+      },
+    ],
   },
+  // ------------------------------------------------------------------ completa
+  {
+    slug: "when-the-saints",
+    title: "When the Saints Go Marching In",
+    artist: "Tradicional",
+    starter: "Helena",
+    message: "guitarra — melodia completa",
+    alphaTex: `\\title "When the Saints Go Marching In"
+\\subtitle "Tradicional — domínio público"
+\\tempo 120
+.
+\\track "Guitarra"
+\\instrument 25
+1.2.4 0.1.4 1.1.4 3.1.4 | 3.1.1 | 1.2.4 0.1.4 1.1.4 3.1.4 | 3.1.1 |
+0.1.4 1.2.4 0.1.4 3.2.4 | 3.2.1 | 0.1.4 0.1.4 3.2.4 1.2.4 | 3.2.4 3.2.4 1.2.2
+`,
+    parts: [
+      {
+        preset: "bass",
+        author: "Clara",
+        message: "baixo completo",
+        bars: [
+          "3.3.2 0.1.2",
+          "3.3.2 3.3.2",
+          "3.3.2 0.1.2",
+          "3.4.2 3.4.2",
+          "3.3.2 0.1.2",
+          "3.4.2 0.2.2",
+          "3.3.2 3.4.2",
+          "3.3.2 3.3.2",
+        ],
+      },
+      {
+        preset: "drums",
+        author: "Miguel",
+        message: "bateria completa",
+        bars: [ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK_END],
+      },
+    ],
+  },
+  // ------------------------------------------- pendente: baixo proposto (Clara)
   {
     slug: "greensleeves",
     title: "Greensleeves",
     artist: "Tradicional",
-    message: "Guitarra — falta violão de acompanhamento",
-    // Greensleeves melody in 3/4 on guitar, 8 measures
+    starter: "Rafa",
+    message: "guitarra — falta baixo",
     alphaTex: `\\title "Greensleeves"
 \\subtitle "Tradicional inglesa — domínio público"
 \\tempo 88
 .
-\\track "Guitarra Melódica"
+\\track "Guitarra"
 \\instrument 25
 \\ts 3 4
-:4 2.4 | 0.3 1.3 3.3 | 0.3 r 0.4 | 2.4 0.4 3.5 | 1.4 r 2.4 |
-0.3 1.3 3.3 | 0.3 r 0.4 | 2.4 0.4 1.4 | 2.3 r 2.4
+2.4.4 | 0.3.4 1.3.4 3.3.4 | 0.3.4 r.4 0.4.4 | 2.4.4 0.4.4 3.5.4 | 1.4.4 r.4 2.4.4 |
+0.3.4 1.3.4 3.3.4 | 0.3.4 r.4 0.4.4 | 2.4.4 0.4.4 1.4.4 | 2.3.4 r.4 2.4.4
 `,
+    parts: [
+      {
+        preset: "bass",
+        author: "Clara",
+        pending: true,
+        message: "proposta de baixo",
+        bars: [
+          "r.4",
+          "0.3.2{d}",
+          "3.3.2{d}",
+          "3.4.2{d}",
+          "0.4.2{d}",
+          "0.3.2{d}",
+          "3.3.2{d}",
+          "3.4.4 3.4.4 0.4.4",
+          "0.3.2{d}",
+        ],
+      },
+    ],
+  },
+  // ---------------------------------------- pendente: bateria proposta (Miguel)
+  {
+    slug: "frere-jacques",
+    title: "Frère Jacques",
+    artist: "Tradicional",
+    starter: "Rafa",
+    message: "guitarra — melodia completa",
+    alphaTex: `\\title "Frère Jacques"
+\\subtitle "Tradicional francesa — domínio público"
+\\tempo 112
+.
+\\track "Guitarra"
+\\instrument 25
+1.2.4 3.2.4 0.1.4 1.2.4 | 1.2.4 3.2.4 0.1.4 1.2.4 |
+0.1.4 1.1.4 3.1.2 | 0.1.4 1.1.4 3.1.2 |
+3.1.8 5.1.8 3.1.8 1.1.8 0.1.4 1.2.4 | 3.1.8 5.1.8 3.1.8 1.1.8 0.1.4 1.2.4 |
+1.2.4 0.3.4 1.2.2 | 1.2.4 0.3.4 1.2.2
+`,
+    parts: [
+      {
+        preset: "bass",
+        author: "Clara",
+        message: "baixo completo",
+        bars: [
+          "3.3.2 3.4.2",
+          "3.3.2 3.4.2",
+          "3.3.2 3.4.2",
+          "3.3.2 3.4.2",
+          "3.3.2 3.4.2",
+          "3.3.2 3.4.2",
+          "3.3.4 3.4.4 3.3.2",
+          "3.3.4 3.4.4 3.3.2",
+        ],
+      },
+      {
+        preset: "drums",
+        author: "Miguel",
+        pending: true,
+        message: "proposta de bateria",
+        bars: [ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK, ROCK_END],
+      },
+    ],
   },
 ];
 
-async function main() {
-  for (const song of SONGS) {
-    const record = await prisma.song.upsert({
-      where: { slug: song.slug },
-      update: {},
-      create: {
-        title: song.title,
-        artist: song.artist,
-        slug: song.slug,
-      },
-    });
+async function ensureUser(name: string, instruments: string[]): Promise<SeedUser> {
+  const existing = await prisma.user.findFirst({
+    where: { displayName: name, email: null },
+  });
+  if (existing) return existing;
+  return prisma.user.create({ data: { displayName: name, instruments } });
+}
 
-    const existing = await prisma.revision.findFirst({
-      where: { songId: record.id },
-    });
+async function seedSong(def: SeedSong, users: Map<string, SeedUser>) {
+  const existing = await prisma.song.findUnique({ where: { slug: def.slug } });
+  if (existing) {
+    console.log(`— "${def.title}" já existe, pulando.`);
+    return;
+  }
 
-    if (!existing) {
-      await prisma.revision.create({
-        data: {
-          songId: record.id,
-          number: 1,
-          authorName: "attacca",
-          message: song.message,
-          source: "alphatex",
-          format: "alphatex",
-          alphaTex: song.alphaTex,
-          sizeBytes: song.alphaTex.length,
-        },
+  const starter = users.get(def.starter)!;
+  const song = await prisma.song.create({
+    data: { title: def.title, artist: def.artist, slug: def.slug, ownerId: null },
+  });
+  await prisma.revision.create({
+    data: {
+      songId: song.id,
+      number: 1,
+      authorName: starter.displayName,
+      message: def.message,
+      source: "alphatex",
+      format: "alphatex",
+      alphaTex: def.alphaTex,
+      sizeBytes: def.alphaTex.length,
+    },
+  });
+
+  const grid = await materializeSongGrid(song.id);
+  // A materialização só grava o cache de nome; liga a identidade real de quem
+  // começou (neste ponto só existem as células do import de guitarra).
+  await prisma.cellContribution.updateMany({
+    where: { cell: { songId: song.id } },
+    data: { authorId: starter.id },
+  });
+
+  for (const part of def.parts) {
+    const author = users.get(part.author)!;
+    const actor = { id: author.id, displayName: author.displayName };
+    const track = await declareTrack(song.id, part.preset, undefined, actor);
+
+    if (part.pending) {
+      // submitTrackContent só gera "proposed" quando o ator NÃO é o dono; numa
+      // música aberta viraria aceite direto. Dono temporário durante o submit →
+      // a proposta nasce pendente pelo caminho real (validação + merge base) e
+      // a música volta a ficar aberta (qualquer logado revisa na demo).
+      await prisma.song.update({
+        where: { id: song.id },
+        data: { ownerId: starter.id },
       });
-      console.log(`✓ Seeded "${song.title}"`);
+      await submitTrackContent(song.id, track.order, part.bars.join(" | "), actor);
+      await prisma.song.update({ where: { id: song.id }, data: { ownerId: null } });
     } else {
-      console.log(`— "${song.title}" já existe, pulando a revisão.`);
-    }
-
-    // Uma música sem grade de células é um beco sem saída: a aba Colaborar cai
-    // no onboarding "como quer começar?" em vez de deixar editar as trilhas que
-    // já existem. O upload materializa sozinho; o seed escreve direto no banco,
-    // então precisa materializar aqui também.
-    const hasGrid = (await prisma.measure.count({ where: { songId: record.id } })) > 0;
-    if (!hasGrid) {
-      const res = await materializeSongGrid(record.id);
-      console.log(
-        `  ↳ grade: ${res.tracks} trilha(s), ${res.measures} compasso(s), ${res.cells} célula(s)`,
-      );
+      await submitTrackContent(song.id, track.order, part.bars.join(" | "), actor);
     }
   }
+
+  const [completeness, proposals] = await Promise.all([
+    songCompleteness(song.id),
+    pendingTrackProposals(song.id),
+  ]);
+  const perTrack = completeness.tracks
+    .map((t) => `${t.name} ${t.percent}%`)
+    .join(" · ");
+  const pending = proposals
+    .map((p) => `${p.trackName} (${p.authorName}, ${p.count} compassos)`)
+    .join(" · ");
+  console.log(
+    `✓ "${def.title}" — ${completeness.percent}% [${grid.measures} compassos] ${perTrack}` +
+      (pending ? `\n  ↳ esperando aprovação: ${pending}` : ""),
+  );
+}
+
+async function main() {
+  const users = new Map<string, SeedUser>();
+  for (const u of USERS) users.set(u.name, await ensureUser(u.name, u.instruments));
+
+  for (const song of SONGS) await seedSong(song, users);
 }
 
 main()
