@@ -1,0 +1,735 @@
+<title>attacca — documentação técnica</title>
+<style>
+/* attacca — documentação técnica · tokens herdados da identidade do produto:
+   dark carvão default; claro papel opcional; vermelhão = acento raro;
+   hairlines; zero gradiente; cara de ferramenta. */
+:root {
+  --bg: #141311; --bg-raised: #191713; --bg-inset: #100f0d;
+  --ink: #ede9e2; --ink-soft: #c9c3b8; --muted: #9a948a; --faint: #6e6960;
+  --hairline: #2c2924; --hairline-strong: #3a362f;
+  --accent: #e5432b; --accent-soft: rgba(229, 67, 43, 0.14);
+  --ok: #7da87b; --code-bg: #1d1b16; --sel: rgba(229, 67, 43, 0.25);
+  --font-display: "Space Grotesk", "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --measure: 72ch; --sidebar: 250px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fcfbf8; --bg-raised: #f5f3ee; --bg-inset: #f0eee7;
+    --ink: #141414; --ink-soft: #3a3833; --muted: #6b665e; --faint: #94908a;
+    --hairline: #e4e1d8; --hairline-strong: #d2cec2;
+    --accent: #d63a24; --accent-soft: rgba(214, 58, 36, 0.09);
+    --ok: #4a7a48; --code-bg: #f2f0e9; --sel: rgba(214, 58, 36, 0.18);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141311; --bg-raised: #191713; --bg-inset: #100f0d;
+  --ink: #ede9e2; --ink-soft: #c9c3b8; --muted: #9a948a; --faint: #6e6960;
+  --hairline: #2c2924; --hairline-strong: #3a362f;
+  --accent: #e5432b; --accent-soft: rgba(229, 67, 43, 0.14);
+  --ok: #7da87b; --code-bg: #1d1b16; --sel: rgba(229, 67, 43, 0.25);
+}
+:root[data-theme="light"] {
+  --bg: #fcfbf8; --bg-raised: #f5f3ee; --bg-inset: #f0eee7;
+  --ink: #141414; --ink-soft: #3a3833; --muted: #6b665e; --faint: #94908a;
+  --hairline: #e4e1d8; --hairline-strong: #d2cec2;
+  --accent: #d63a24; --accent-soft: rgba(214, 58, 36, 0.09);
+  --ok: #4a7a48; --code-bg: #f2f0e9; --sel: rgba(214, 58, 36, 0.18);
+}
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { animation: none !important; transition: none !important; }
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15.5px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--sel); }
+.shell { display: flex; min-height: 100vh; }
+.toc { width: var(--sidebar); flex: 0 0 auto; position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; padding: 28px 18px 40px 26px; border-right: 1px solid var(--hairline); scrollbar-width: thin; }
+.toc .wordmark { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: 0.01em; margin-bottom: 2px; }
+.toc .wordmark-sub { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 18px; }
+.toc nav { display: flex; flex-direction: column; gap: 1px; }
+.toc a { display: block; padding: 4px 8px; font-size: 13px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; border-radius: 0 3px 3px 0; }
+.toc a:hover { color: var(--ink); background: var(--bg-raised); }
+.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.toc a.active { color: var(--ink); border-left-color: var(--accent); background: var(--bg-raised); }
+.toc .toc-group { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--faint); margin: 15px 0 4px 8px; }
+.main { flex: 1 1 auto; min-width: 0; }
+.content { max-width: calc(var(--measure) + 96px); padding: 0 48px 120px; margin: 0 auto; }
+@media (max-width: 900px) { .toc { display: none; } .content { padding: 0 20px 80px; } }
+.doc-header { padding: 56px 0 36px; border-bottom: 1px solid var(--hairline); margin-bottom: 44px; }
+.doc-header .blockbar { font-family: var(--font-mono); font-size: 14px; letter-spacing: 2px; color: var(--ink-soft); user-select: none; margin-bottom: 18px; }
+.doc-header .blockbar .live { color: var(--accent); }
+.doc-header .blockbar .todo { color: var(--faint); }
+.doc-header h1 { font-family: var(--font-display); font-size: clamp(34px, 5vw, 46px); font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; margin-bottom: 10px; }
+.doc-header .tagline { font-size: 17px; color: var(--ink-soft); max-width: var(--measure); }
+.doc-header .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.chip { font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; border: 1px solid var(--hairline-strong); border-radius: 999px; color: var(--muted); white-space: nowrap; }
+section { margin-bottom: 64px; scroll-margin-top: 24px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 6px; }
+h2 { font-family: var(--font-display); font-size: 27px; font-weight: 600; line-height: 1.2; text-wrap: balance; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--hairline); }
+h3 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 30px 0 8px; text-wrap: balance; }
+h4 { font-family: var(--font-body); font-size: 15.5px; font-weight: 650; margin: 20px 0 6px; }
+p { max-width: var(--measure); margin-bottom: 12px; }
+ul, ol { max-width: var(--measure); margin: 0 0 14px 22px; }
+li { margin-bottom: 5px; }
+li::marker { color: var(--muted); }
+strong { font-weight: 650; }
+a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--accent); }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; }
+pre { background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 6px; padding: 14px 16px; overflow-x: auto; margin: 14px 0 18px; max-width: 100%; }
+pre code { background: none; border: none; padding: 0; white-space: pre; font-size: 12.5px; line-height: 1.6; }
+.table-wrap { overflow-x: auto; margin: 14px 0 20px; border: 1px solid var(--hairline); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500; color: var(--muted); text-align: left; padding: 9px 12px; background: var(--bg-raised); border-bottom: 1px solid var(--hairline-strong); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td code { white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.num { font-variant-numeric: tabular-nums; }
+.m { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; padding: 1.5px 7px; border-radius: 3px; letter-spacing: 0.04em; border: 1px solid var(--hairline-strong); color: var(--ink-soft); white-space: nowrap; display: inline-block; }
+.m-get { color: var(--ok); border-color: rgba(125, 168, 123, 0.5); }
+.m-post { color: var(--accent); border-color: rgba(229, 67, 43, 0.5); }
+.m-patch { color: var(--ink-soft); }
+.m-del { color: var(--accent); background: var(--accent-soft); }
+.callout { border: 1px solid var(--hairline-strong); border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: 0 6px 6px 0; padding: 12px 16px; margin: 16px 0 20px; max-width: var(--measure); font-size: 14.5px; }
+.callout .callout-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); display: block; margin-bottom: 4px; }
+.callout.note { border-left-color: var(--faint); }
+.callout.note .callout-label { color: var(--muted); }
+.callout p:last-child { margin-bottom: 0; }
+.diagram { overflow-x: auto; margin: 16px 0 22px; padding: 8px 0; }
+
+/* ---------- diagramas estáticos (HTML/CSS, sem JS/rede, theme-aware) ---------- */
+.gdiagram {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  padding: 20px 18px;
+  overflow-x: auto;
+}
+.gnode {
+  display: inline-flex; flex-direction: column; gap: 3px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 9px 12px;
+  min-width: 128px;
+  text-align: left;
+}
+.gnode .gn-title { font-family: var(--font-display); font-weight: 600; font-size: 13.5px; line-height: 1.2; }
+.gnode .gn-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+.gnode.accent { border-color: var(--accent); }
+.gnode.accent .gn-title { color: var(--accent); }
+
+/* fluxo (pipeline) */
+.gflow { display: flex; flex-direction: column; gap: 12px; min-width: 520px; }
+.gflow-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.garrow { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); flex: 0 0 auto; }
+.garrow .ga-line { font-size: 18px; line-height: 1; color: var(--accent); }
+.garrow .ga-label { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); max-width: 132px; text-align: center; line-height: 1.3; }
+.gself { font-family: var(--font-mono); font-size: 10px; color: var(--muted); border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; margin: 2px 0 2px 8px; }
+
+/* relação (ER) */
+.grel { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; min-width: 460px; }
+.grel-row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+.grel-row:last-child { border-bottom: none; }
+.grel-parent { font-family: var(--font-display); font-weight: 600; }
+.grel-parent .card { font-family: var(--font-mono); font-size: 10.5px; color: var(--accent); font-weight: 400; }
+.grel-kids { color: var(--ink-soft); }
+.grel-kids .rk { font-family: var(--font-mono); font-size: 12px; }
+.grel-kids .rlabel { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+
+/* sequência */
+.gseq { display: flex; flex-direction: column; gap: 0; min-width: 520px; counter-reset: seqstep; }
+.gseq-lanes { display: flex; gap: 10px; margin-bottom: 12px; }
+.gseq-lane { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); border-bottom: 2px solid var(--hairline-strong); padding-bottom: 6px; }
+.gseq-step { display: grid; grid-template-columns: 26px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--hairline); align-items: baseline; }
+.gseq-step:last-child { border-bottom: none; }
+.gseq-step .gs-n { font-family: var(--font-mono); font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.gseq-step .gs-actors { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.gseq-step .gs-body { font-size: 13.5px; }
+.gseq-step .gs-body code { white-space: normal; }
+.gseq-alt { border-left: 3px solid var(--accent); background: var(--bg); border-radius: 0 6px 6px 0; padding: 6px 12px; margin: 6px 0 6px 38px; }
+.gseq-alt .ga-branch { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); display: block; margin: 4px 0 2px; }
+.gseq-alt .ga-branch.ok { color: var(--ok); }
+.gcap { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); margin-top: 10px; }
+.filelist { list-style: none; margin: 10px 0 18px; max-width: none; }
+.filelist li { display: grid; grid-template-columns: minmax(180px, 300px) 1fr; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--hairline); font-size: 13.5px; margin: 0; }
+.filelist li:last-child { border-bottom: none; }
+.filelist .path { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); word-break: break-all; }
+@media (max-width: 640px) { .filelist li { grid-template-columns: 1fr; gap: 2px; } }
+.doc-footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--hairline); font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+</style>
+
+<div class="shell">
+<aside class="toc">
+  <div class="wordmark">attacca</div>
+  <div class="wordmark-sub">documentação técnica</div>
+  <nav>
+    <div class="toc-group">produto</div>
+    <a href="#visao">visão geral</a>
+    <a href="#arquitetura">arquitetura</a>
+    <a href="#historia">decisões &amp; história</a>
+    <div class="toc-group">núcleo</div>
+    <a href="#dados">modelo de dados</a>
+    <a href="#canonico">formato canônico</a>
+    <a href="#colaboracao">colaboração</a>
+    <div class="toc-group">plataforma</div>
+    <a href="#identidade">identidade &amp; auth</a>
+    <a href="#notificacoes">ciclo assíncrono</a>
+    <a href="#api">referência de API</a>
+    <div class="toc-group">frontend</div>
+    <a href="#player">player &amp; página da música</a>
+    <a href="#editores">editores</a>
+    <a href="#shell-app">shell, tema &amp; home</a>
+    <div class="toc-group">operação</div>
+    <a href="#deploy">build &amp; deploy</a>
+    <a href="#invariantes">invariantes &amp; pegadinhas</a>
+    <a href="#mapa">mapa do repositório</a>
+  </nav>
+</aside>
+
+<main class="main"><div class="content">
+
+<header class="doc-header">
+  <div class="blockbar" aria-hidden="true">██████████████<span class="live">█</span><span class="todo">░░░░░</span></div>
+  <h1>attacca — documentação técnica</h1>
+  <p class="tagline">Como o código transforma "alguém começa, você continua" em software: o formato canônico em alphaTex, a grade trilha × compasso, o revezamento por propostas com autoria preservada, e tudo que sustenta isso — do schema Prisma ao editor de tablatura no navegador.</p>
+  <div class="meta-row">
+    <span class="chip">Next.js 16 · App Router · webpack</span>
+    <span class="chip">React 19</span>
+    <span class="chip">TypeScript</span>
+    <span class="chip">Prisma 6 · PostgreSQL</span>
+    <span class="chip">@coderline/alphatab 1.8.3</span>
+    <span class="chip">jose (JWT HS256)</span>
+    <span class="chip">Render + Neon</span>
+  </div>
+</header>
+
+<section id="visao">
+  <div class="eyebrow">produto</div>
+  <h2>visão geral</h2>
+  <p>O attacca (ex-GitSong; o nome é o termo musical para "seguir ao próximo movimento sem pausa") é uma plataforma onde uma comunidade completa <strong>transcrições musicais em revezamento</strong>: uma pessoa começa uma tablatura, outra continua de onde a primeira parou, dividindo o trabalho <strong>por instrumento/trilha</strong>, com autoria de cada pedaço preservada e histórico de versões. É "GitHub para tablatura" — mas o foco não é fork/branch/merge genérico, e sim a <strong>passagem de bastão assíncrona por trilha</strong>, com player estilo Songsterr (tab multi-instrumento, trilha selecionável, playback com cursor sincronizado).</p>
+  <p>O diferencial estrutural contra o mercado (wikis convergentes como Songsterr/Ultimate Guitar, editores síncronos como Flat.io, autoria solo como Guitar Pro/MuseScore): transcrição <strong>divisível por trilha + assíncrona + autoria preservada + incompletude visível como convite</strong>. O "mural de incompletude" ("Paint It Black — 60%, falta baixo e bateria") é a resposta ao risco nº 1 do produto, a densidade: "falta baixo" só vira convite quando chega em quem toca baixo.</p>
+  <h3>estado atual</h3>
+  <ul>
+    <li><strong>M1 ✅</strong> — upload de Guitar Pro/MusicXML, render + playback com alphaTab, histórico imutável de revisões com reverter.</li>
+    <li><strong>M2 ✅</strong> — formato canônico alphaTex, grade de células (trilha × compasso), edição/proposta por trilha, modelo maintainer, mural de incompletude, notificações in-app.</li>
+    <li><strong>M3 ✅</strong> — conflito de mesma célula: detecção via merge base (estilo git) + resolução humana compasso a compasso, nunca sobrescrita silenciosa.</li>
+    <li><strong>Identidade durável</strong> — magic link + sessão JWT + Google OIDC (ADR 0004); e-mail verificado é a âncora da conta.</li>
+    <li><strong>Editores no navegador</strong> — editor visual de tablatura (TabEditor) e step-sequencer de bateria (DrumGridEditor), ambos serializando alphaTex.</li>
+    <li><strong>Primeiro revezamento real validado</strong> (26/06/2026): duas pessoas em dois computadores, proposta enviada, aceita pelo dono, snapshot no histórico — a tese central provada com gente de verdade.</li>
+  </ul>
+  <div class="callout note"><span class="callout-label">princípio guia</span>
+  <p>Pequeno, nichado, provado de ponta a ponta. O projeto não compete por catálogo (800 mil músicas) nem tenta "transcrever o mundo": prova que o revezamento acontece numa comunidade pequena e densa, e só então expande. Cada mecanismo novo do produto foi provado primeiro num spike com partitura real antes de virar schema.</p></div>
+</section>
+
+<section id="arquitetura">
+  <div class="eyebrow">produto</div>
+  <h2>arquitetura</h2>
+  <p>A ideia central da arquitetura é o <strong>modelo mental de planilha</strong>: uma música é uma grade em que linhas são trilhas (instrumentos) e colunas são compassos. A unidade atômica de edição é a célula <code>(trilha, compasso)</code>. Trilhas diferentes nunca colidem (merge = união, cobre ~95% do fluxo); correção em trilha alheia vira proposta estilo pull request; conflito real na mesma célula é detectado e resolvido por um humano, nunca automaticamente.</p>
+  <p>Sobre esse modelo, o pipeline de dados é uma via de mão dupla entre duas representações: o <strong>documento</strong> (alphaTex completo, que o alphaTab importa/renderiza/toca) e a <strong>grade</strong> (linhas de banco endereçáveis, onde a colaboração acontece). A verdade vive na grade; o documento é artefato derivado, remontado sob demanda e validado pelo importador oficial antes de qualquer uso.</p>
+  <div class="diagram"><div class="gdiagram"><div class="gflow">
+    <div class="gflow-row">
+      <div class="gnode"><span class="gn-title">.gp / .gpx / MusicXML</span><span class="gn-sub">upload</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">scoreBytesToAlphaTex()<br>canonical.ts</span></div>
+      <div class="gnode"><span class="gn-title">Revision</span><span class="gn-sub">blob (proveniência)<br>+ alphaTex (canônico)</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">materializeSongGrid()<br>1× por música</span></div>
+      <div class="gnode accent"><span class="gn-title">grade viva</span><span class="gn-sub">Track · Measure · Cell<br>· CellContribution</span></div>
+    </div>
+    <div class="gflow-row" style="margin-left:8px">
+      <div class="gnode" style="min-width:auto"><span class="gn-title" style="font-size:12px">template alphaTex</span><span class="gn-sub">música do zero</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">scaffold</span></div>
+      <span class="gn-sub" style="font-family:var(--font-mono)">…também alimenta a Revision inicial</span>
+    </div>
+    <div class="gself">↺ edição por trilha / propostas / aceites — append-only, a grade evolui sobre si mesma</div>
+    <div class="gflow-row">
+      <div class="gnode accent"><span class="gn-title">grade viva</span><span class="gn-sub">fonte da verdade</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">assembleSongAlphaTex()<br>validado no importador</span></div>
+      <div class="gnode"><span class="gn-title">/assembled</span><span class="gn-sub">documento derivado</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">carrega</span></div>
+      <div class="gnode"><span class="gn-title">AlphaTabPlayer</span><span class="gn-sub">render + playback</span></div>
+    </div>
+    <div class="gflow-row">
+      <div class="gnode accent"><span class="gn-title">grade viva</span><span class="gn-sub">&nbsp;</span></div>
+      <div class="garrow"><span class="ga-line">→</span><span class="ga-label">snapshotGrid()<br>só no aceite de proposta</span></div>
+      <div class="gnode"><span class="gn-title">Revision kind=snapshot</span><span class="gn-sub">histórico do handoff</span></div>
+    </div>
+  </div></div></div>
+  <h3>camadas</h3>
+  <ul>
+    <li><code>src/lib/</code> — o domínio. Funções puras de servidor (materialização, células, trilhas, conflitos, identidade, notificações). Toda regra de negócio mora aqui; as rotas só traduzem HTTP ⇄ domínio.</li>
+    <li><code>src/app/api/</code> — rotas finas do App Router. Validam input, chamam a lib, mapeiam erros de domínio para status HTTP (o padrão do projeto: <code>Error</code> de domínio → 400 com mensagem em pt-BR; conflito M3 → 409; gates de identidade → 401/403).</li>
+    <li><code>src/components/</code> — client components React. O alphaTab só roda no cliente via <code>import()</code> dinâmico dentro de <code>useEffect</code> (nunca no topo do módulo — quebraria o SSR) e no servidor como pacote externo (<code>serverExternalPackages</code>).</li>
+  </ul>
+  <div class="callout"><span class="callout-label">decisão estrutural</span>
+  <p>O alphaTab é a única engrenagem musical do sistema: importa (<code>ScoreLoader</code>), exporta (<code>AlphaTexExporter</code>), renderiza e toca. O código do attacca <strong>nunca interpreta semanticamente alphaTex à mão</strong> — a decomposição em células (<code>src/lib/alphatex-grid.ts</code>) é fatiamento de texto posicional sobre um re-export anotado do próprio alphaTab, e toda validação passa pelo importador oficial. alphaTab é LGPL: usado só como dependência npm, nunca vendorizado.</p></div>
+</section>
+
+<section id="historia">
+  <div class="eyebrow">produto</div>
+  <h2>decisões &amp; história</h2>
+  <p>O repo mantém dois registros: o <strong>CLAUDE.md</strong> (estado atual) e o <strong>CONTEXTO.md</strong> (log de sessões — o <em>porquê</em>; atenção: registra estados intermediários já superados, ex. o snapshot que antes disparava também no save direto do dono). Quatro ADRs em <code>docs/adr/</code>. A linha do tempo que explica o código de hoje:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>quando</th><th>decisão / evento</th></tr></thead>
+    <tbody>
+      <tr><td class="mono num">2026-06-07</td><td><strong>ADR 0001</strong> — alphaTex como formato canônico, com prova de round-trip no Stairway real.</td></tr>
+      <tr><td class="mono num">2026-06-12</td><td><strong>ADR 0002</strong> — célula (trilha × compasso) = fonte da verdade; documento = derivado; fatiar por <code>|</code>, nunca por marcador.</td></tr>
+      <tr><td class="mono num">2026-06-16</td><td>Identidade por cookie assinado (ADR 0003) + <strong>blob no banco</strong> (o disco do Render é efêmero — "honestidade do banco, não escala"; deixou <code>saveRevisionFile</code> órfã de propósito).</td></tr>
+      <tr><td class="mono num">2026-06-18</td><td><strong>Pós-primeiro-teste real, três revisões de modelo no mesmo dia:</strong> (1) reivindicar trilha → <strong>modelo maintainer</strong> (o criador ficou impotente na própria música); (2) autoria célula → <strong>trilha</strong> (célula a célula escalaria a 167 PRs); (3) tela de revisão com preview + snapshot no histórico. Deploy Render + Neon; migrações SQLite consolidadas no baseline Postgres (Railway descartado: sem free tier).</td></tr>
+      <tr><td class="mono num">2026-06-26</td><td><strong>Primeiro revezamento real</strong>: dois PCs, proposta aceita, snapshot no Histórico — a tese central provada com pessoas reais (ainda <em>coached</em>; self-serve segue como incógnita aberta declarada).</td></tr>
+      <tr><td class="mono num">2026-07-05</td><td>Notificações/SongWatch (fecha o ciclo assíncrono) + <strong>ADR 0004</strong> — magic link + JWT aposentam o cookie-identidade.</td></tr>
+      <tr><td class="mono num">2026-07-10/14</td><td>Google sign-in (OIDC hand-rolled) · página de Configurações (rename com reescrita de caches, troca de e-mail, instrumentos).</td></tr>
+      <tr><td class="mono num">2026-07-15</td><td><strong>Rebranding GitSong → attacca</strong> (envs/cookies legados mantidos de propósito).</td></tr>
+      <tr><td class="mono num">2026-07-16/17</td><td><strong>M3</strong> — conflito de mesma célula (merge base + escolha humana) · DrumGridEditor · excluir música com confirmação de título.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><strong>Prisma pinado no 6 de propósito</strong> (o 7 exige <code>prisma.config.ts</code> + driver adapter — "peso desnecessário"); não fazer upgrade de rotina.</li>
+    <li><strong>Lição do seed:</strong> alphaTex com <code>.</code> é sintaticamente carregado (<code>casa.corda.duração</code>) — dados de teste nunca escritos à mão; usar texto que comprovadamente parseia ou o exportador.</li>
+    <li><strong>Template ≠ contribuição pré-semeada</strong> ("senão o mural mente"): baixar o degrau do alphaTex nunca pode corromper a métrica honesta de completude.</li>
+    <li><strong>Warning de hidratação neste projeto: testar primeiro em janela anônima</strong> — a extensão Bitdefender injeta atributos (<code>bis_skin_checked</code>…) antes do React hidratar; é o motivo do <code>suppressHydrationWarning</code> em <code>&lt;html&gt;</code> e <code>&lt;body&gt;</code> no layout.</li>
+  </ul>
+</section>
+
+<section id="dados">
+  <div class="eyebrow">núcleo</div>
+  <h2>modelo de dados</h2>
+  <p>Prisma 6 sobre PostgreSQL (produção: Neon; <code>migration_lock.toml</code> trava o provider). São 10 modelos em quatro camadas: histórico imutável (M1), grade colaborativa (M2), identidade e ciclo assíncrono. Todos os IDs são <code>cuid()</code>; "enums" são <code>String</code> comentado (sem enum Prisma).</p>
+  <div class="diagram"><div class="gdiagram"><div class="grel">
+    <div class="grel-row">
+      <div class="grel-parent">User</div>
+      <div class="grel-kids"><span class="rk">1 : N</span> → Song <span class="rlabel">(owner)</span> · CellContribution <span class="rlabel">(author)</span> · SongWatch · Notification &nbsp;<span class="rlabel">— todas SetNull: apagar User não apaga conteúdo</span></div>
+    </div>
+    <div class="grel-row">
+      <div class="grel-parent">Song</div>
+      <div class="grel-kids"><span class="rk">1 : N</span> → Revision · Track · Measure · Cell · SongWatch · Notification &nbsp;<span class="rlabel">— todas Cascade</span></div>
+    </div>
+    <div class="grel-row">
+      <div class="grel-parent">Track</div>
+      <div class="grel-kids"><span class="rk">1 : N</span> → Cell <span class="rlabel">(Cascade)</span> &nbsp;·&nbsp; a "linha" da grade</div>
+    </div>
+    <div class="grel-row">
+      <div class="grel-parent">Measure</div>
+      <div class="grel-kids"><span class="rk">1 : N</span> → Cell <span class="rlabel">(Cascade)</span> &nbsp;·&nbsp; a "coluna" da grade</div>
+    </div>
+    <div class="grel-row">
+      <div class="grel-parent">Cell <span class="card">= (Track × Measure)</span></div>
+      <div class="grel-kids"><span class="rk">1 : N</span> → CellContribution <span class="rlabel">(append-only, Cascade)</span> &nbsp;<br><span class="rk">1 : 1</span> → CellContribution <span class="rlabel">(accepted — o ponteiro vivo, FK NoAction)</span></div>
+    </div>
+  </div>
+  <div class="gcap">Song → {Track, Measure} → Cell → CellContribution é a grade viva; Song → Revision é a proveniência/snapshot em paralelo.</div>
+  </div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>modelo</th><th>papel</th><th>campos-chave</th></tr></thead>
+    <tbody>
+      <tr><td><code>Song</code></td><td>a música; agrega tudo</td><td><code>slug @unique</code>, <code>ownerId?</code> (modelo maintainer; <code>null</code> = música aberta), <code>headerFragment?</code> (header alphaTex global opaco para remontagem)</td></tr>
+      <tr><td><code>Revision</code></td><td>snapshot/proveniência imutável</td><td><code>number</code> sequencial (<code>@@unique([songId, number])</code>; atual = maior), <code>blob Bytes?</code> (arquivo original <em>no banco</em>), <code>alphaTex?</code> (canônico), <code>format</code> gp|musicxml|alphatex, <code>kind</code> import|snapshot</td></tr>
+      <tr><td><code>Track</code></td><td>linha da grade (identidade = id, não índice)</td><td><code>order</code> (<code>@@unique([songId, order])</code>), <code>headerFragment?</code> (<code>\track/\staff/\tuning</code> opaco), <code>instrument</code> (program GM), <code>isPercussion</code>, <code>ownerId/ownerName</code> <em>inertes</em> (reivindicação removida)</td></tr>
+      <tr><td><code>Measure</code></td><td>coluna da grade; andaime estrutural compartilhado</td><td><code>tsNumerator/tsDenominator</code> e <code>tempo</code> tipados (UI), <code>structPrefix?</code> — diretivas de masterbar opacas (<code>\section</code>, <code>\ro/\rc</code>, <code>\jump</code>…)</td></tr>
+      <tr><td><code>Cell</code></td><td>o slot (trilha, compasso)</td><td><code>@@unique([trackId, measureId])</code>; <code>acceptedContributionId? @unique</code> — ponteiro para o conteúdo vivo, FK <strong>NoAction</strong> (ver abaixo)</td></tr>
+      <tr><td><code>CellContribution</code></td><td><strong>a fonte da verdade</strong>: conteúdo + autoria + status</td><td><code>alphaTex</code> (fragmento da célula), <code>status</code> accepted|proposed|rejected, <code>authorId?</code> + <code>authorName</code> (cache denormalizado), <code>baseContributionId?</code> (merge base M3, ponteiro <em>sem FK</em>)</td></tr>
+      <tr><td><code>User</code></td><td>pessoa; âncora = e-mail verificado</td><td><code>email? @unique</code>, <code>emailVerified?</code>, <code>displayName</code>, <code>instruments String[]</code> (chaves de INSTRUMENT_PRESETS — alimenta o mural)</td></tr>
+      <tr><td><code>LoginToken</code></td><td>magic link de uso único</td><td><code>tokenHash @unique</code> (só SHA-256; o raw só existe na URL), <code>claimUserId?</code> (anexar e-mail a conta existente), <code>redirectTo?</code>, <code>expiresAt</code>/<code>consumedAt</code></td></tr>
+      <tr><td><code>SongWatch</code></td><td>seguir uma música (lado da demanda)</td><td><code>@@unique([userId, songId])</code> — follow idempotente</td></tr>
+      <tr><td><code>Notification</code></td><td>notificação in-app</td><td><code>type</code> (5 eventos), <code>songTitle/actorName</code> denormalizados de propósito, <code>message</code> pronta em pt-BR, <code>readAt?</code></td></tr>
+    </tbody>
+  </table></div>
+  <h3>as três regras de integridade que o schema impõe</h3>
+  <ul>
+    <li><strong>Cascade na árvore de conteúdo, SetNull para pessoas.</strong> Apagar uma <code>Song</code> leva junto revisões, trilhas, compassos, células, contribuições, watches e notificações. Apagar um <code>User</code> <em>não</em> apaga conteúdo: <code>ownerId/authorId</code> viram <code>null</code> e o trabalho sobrevive anônimo.</li>
+    <li><strong>A FK <code>NoAction</code> do aceito.</strong> <code>Cell.acceptedContributionId → CellContribution</code> é <code>NoAction</code> nos dois sentidos para evitar ciclo de cascade com <code>CellContribution.cell</code> (Cascade). Consequência prática: qualquer delete que alcance contribuições (delete de música, remoção de compasso, re-materialização) precisa <strong>zerar/re-apontar o ponteiro antes, na mesma transação</strong> — o padrão aparece em <code>materialize.ts</code>, <code>measures.ts</code> e no <code>DELETE /api/songs/[id]</code>.</li>
+    <li><strong><code>baseContributionId</code> sem FK, de propósito.</strong> É proveniência pura (o merge base M3): pode apontar para uma linha que já não existe; <code>null</code> = célula estava vazia ou linha pré-M3 (falso positivo de conflito possível e aceito — só pede um olhar humano a mais).</li>
+  </ul>
+  <h3>denormalizações mantidas por código</h3>
+  <p><code>CellContribution.authorName</code> e <code>Track.ownerName</code> são caches de exibição — o vínculo real é <code>authorId/ownerId</code>. Renomear o usuário (<code>PATCH /api/me</code>) reescreve os dois caches em transação; sem isso, o nome antigo ficaria congelado nas contribuições passadas e uma pessoa leria como duas, corroendo a autoria por pedaço. Já <code>Notification.songTitle/actorName</code> são congelados <em>de propósito</em> (a notificação descreve o evento no momento em que ocorreu).</p>
+  <h3>migrações</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>migração</th><th>o que adicionou</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">20260618000000_postgres_baseline</td><td>Baseline consolidada — substitui todo o histórico SQLite anterior; Song/Revision/Track/Measure/Cell/CellContribution/User já nascem completos (a arqueologia pré-baseline só existe no git).</td></tr>
+      <tr><td class="mono">20260705000000_notifications</td><td><code>SongWatch</code> + <code>Notification</code> (ciclo assíncrono).</td></tr>
+      <tr><td class="mono">20260705120000_magic_link_auth</td><td><code>User.email/emailVerified</code> + tabela <code>LoginToken</code>.</td></tr>
+      <tr><td class="mono">20260714000000_user_settings</td><td><code>User.instruments TEXT[]</code> (tipo nativo Postgres) + <code>LoginToken.redirectTo</code>.</td></tr>
+      <tr><td class="mono">20260716000000_m3_conflict_base</td><td><code>CellContribution.baseContributionId</code> (coluna simples, sem FK).</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><span class="callout-label">atenção · dev local</span>
+  <p>O fluxo SQLite documentado no CLAUDE.md (<code>DATABASE_URL=file:./dev.db</code> + <code>prisma db push</code>) ficou para trás: desde <code>user_settings</code> o schema usa <code>String[]</code> e <code>Bytes</code>, que o SQLite não suporta — o dev local precisa de um Postgres real (há <code>docker-compose.yml</code> no repo). E após qualquer mudança de schema, <strong>reiniciar o <code>next dev</code></strong>: o client Prisma em memória fica velho e as rotas dão 500 até o restart.</p></div>
+  <h3>persistência de arquivos e seed</h3>
+  <p>Uploads não vão para disco: o blob de proveniência vive em <code>Revision.blob</code> (BYTEA). <code>src/lib/storage.ts</code> (layout <code>storage/&lt;songId&gt;/&lt;revisionId&gt;.&lt;ext&gt;</code>, com guarda de path traversal em <code>resolveInStorage</code>) sobrevive só para ler linhas legadas pré-blob e para limpeza best-effort no delete. O seed (<code>prisma/seed.ts</code>) cria 4 usuários fictícios sem e-mail e 4 músicas de domínio público — duas completas e duas com proposta pendente — usando as libs reais (<code>materializeSongGrid</code>, <code>declareTrack</code>, <code>submitTrackContent</code>), então todo o estado demo passa pela validação de remontagem de verdade. Para a proposta pendente nascer <code>proposed</code> pelo caminho real, o seed seta <code>ownerId</code> temporariamente e desfaz depois.</p>
+</section>
+
+<section id="canonico">
+  <div class="eyebrow">núcleo</div>
+  <h2>formato canônico — alphaTex e a grade de células</h2>
+  <p><strong>ADR 0001 (2026-06-07):</strong> o formato canônico interno é o <strong>alphaTex</strong>, o formato de notação em texto do alphaTab. A decisão foi tomada com evidência de round-trip num <code>.gp</code> real (Stairway to Heaven: 13 trilhas, 167 compassos, 19.786 notas): o alphaTex preservou 7.551/7.551 beats-com-nota e todos os efeitos medidos (a única divergência é normalização de rests redundantes — canonicalização, não perda), é texto diffável/versionável, ~70× menor que o JSON do alphaTab (324 KB vs 22,5 MB), e o round-trip usa import/export oficiais sem nenhum código próprio. MusicXML foi descartado (o alphaTab não exporta).</p>
+  <h3>conversão no upload</h3>
+  <p><code>scoreBytesToAlphaTex(bytes)</code> (<code>src/lib/canonical.ts</code>) roda 100% server-side: <code>await import("@coderline/alphatab")</code> (o pacote é <code>serverExternalPackage</code>), <code>ScoreLoader.loadScoreFromBytes</code> (que fareja o formato real pelos bytes — a validação de extensão em <code>src/lib/format.ts</code> é só gate de UX) e <code>AlphaTexExporter().exportToString</code>. Qualquer exceção vira <code>null</code>, e o caller (rota de upload) converte <code>null</code> em <strong>422 sem gravar nada</strong>: não existe música aceita sem forma colaborativa.</p>
+  <h3>decomposição — documento → grade</h3>
+  <p><code>src/lib/alphatex-grid.ts</code> é processamento de string puro, sem dependência do alphaTab — e é <em>o mesmo código</em> executado pelo spike de prova (<code>spikes/assemble.ts</code> importa de <code>../src/lib/alphatex-grid</code>): o que foi provado e o que está em produção são o mesmo arquivo. O truque:</p>
+  <ol>
+    <li>O texto decomposto nunca é o alphaTex cru do usuário: <code>importScoreFromAlphaTex</code> (<code>materialize.ts</code>) importa e <strong>re-exporta com <code>settings.exporter.comments = true</code></strong>, gerando um export anotado com layout linha-a-linha previsível (<code>// Bar N / Voice</code>, <code>|</code> sozinho na linha, <code>\voice</code> em linha própria).</li>
+    <li><code>decompose()</code> é uma máquina de estados (global → header da trilha → compassos): <code>\track</code> abre trilha; o primeiro comentário-marcador encerra o header (único uso dos marcadores); dentro dos compassos, <code>\voice</code> separa vozes e a linha <code>|</code> separa compassos. <strong>Compassos são fatiados pelo <code>|</code>, nunca pelos comentários</strong> (o exportador só os emite quando a estrutura muda — a ADR 0002 registra explicitamente que fatiar por marcador é frágil).</li>
+    <li><code>toNormalized()</code> extrai as diretivas de masterbar (<code>\ts \tempo \section \ro \rc \ae \jump \beaming \tf \ac \ft</code>) da trilha 0/voz 0 para <code>Measure.structPrefix</code> (andaime compartilhado, opaco); o corpo da célula fica com clef/ks/notas/efeitos, com as vozes daquele compasso unidas pela linha literal <code>\voice</code>.</li>
+  </ol>
+  <pre><code>// forma normalizada (espelho do banco):
+Song.headerFragment    \title "..." + stylesheet        (opaco)
+Track.headerFragment   \track "Baixo" \instrument 33
+                       \tuning G2 D2 A1 E1              (opaco)
+Measure.structPrefix   \ts 3 4  \section "Chorus" ...   (opaco, por coluna)
+Cell → CellContribution.alphaTex:
+                       3.3.8 5.3.8 7.4.4                (voz 0)
+                       \voice                            (separador interno)
+                       r.1                               (voz 1)</code></pre>
+  <div class="callout note"><span class="callout-label">nuance</span>
+  <p>A linha <code>\voice</code> dentro do corpo da célula <strong>não é alphaTex válido por compasso</strong> (criaria masterbars extras) — é formato interno. A remontagem transpõe: laço externo por voz, interno por compasso, re-emitindo <code>structPrefix</code> só na voz 0. Célula vazia remonta como <code>r.1</code> (pausa de compasso inteiro) — por isso um slot recém-declarado sempre monta um documento válido. Granularidade por voz foi conscientemente descartada (ADR 0002): a célula carrega todas as vozes do compasso.</p></div>
+  <h3>materialização — grade no banco</h3>
+  <p><code>materializeSongGrid(songId)</code> (<code>src/lib/materialize.ts</code>) pega a revisão mais recente com <code>alphaTex</code>, decompõe e grava a grade numa transação all-or-nothing (timeout 30 s), idempotente (substitui a grade): zera <code>acceptedContributionId</code> (a FK NoAction), apaga contribuições→células→trilhas→compassos, recria tudo via <code>createMany</code>, aponta cada célula à sua única contribuição com um <code>UPDATE</code> raw (sintaxe Postgres) e persiste <code>Song.headerFragment</code>. Colunas tipadas vêm do <em>modelo</em>, não do texto: <code>ts</code> de <code>masterBars[m]</code>, <code>tempo</code> de <code>tempoAutomations[0]</code>, <code>instrument</code> de <code>playbackInfo.program</code>, <code>isPercussion</code> de <code>primaryChannel === 9</code>. A materialização é automática no upload e no scaffold — <strong>apenas se a música ainda não tem grade</strong>; música materializada nunca é re-materializada por upload (apagaria o revezamento).</p>
+  <h3>remontagem — grade → documento</h3>
+  <p><code>assembleSongAlphaTex(songId, overrides?)</code> remonta o documento a partir de <code>headerFragment</code> + <code>structPrefix</code> + corpo aceito de cada célula e <strong>valida importando com <code>ScoreLoader.loadAlphaTex</code></strong> — retorna <code>{alphaTex, valid, error?}</code>. O parâmetro <code>overrides</code> (<code>Map&lt;cellId, string&gt;</code>) é o mecanismo universal de pré-visualização e validação sem gravar: é como propostas são ouvidas antes do aceite (<code>GET /assembled?track=&amp;author=</code>), como o preview do editor funciona, e como <em>todo aceite valida o documento inteiro antes de tocar o banco</em>.</p>
+  <h3>snapshot — o handoff no histórico</h3>
+  <p><code>snapshotGrid(songId, authorName, message)</code> congela o remontado como <code>Revision kind="snapshot"</code>, creditando o autor. Dispara <strong>exclusivamente</strong> em <code>acceptTrackProposals</code> (proposta de outra pessoa aceita pelo dono) — não no save direto do dono, não em add/remover compasso. Decisão pós-teste real: compor do zero é save-a-save, e cada save gerando snapshot enchia o Histórico de "mudanças" que não eram passo de revezamento. É best-effort por contrato: grade que não remonta válida → <code>null</code> silencioso, o aceite nunca é bloqueado.</p>
+  <h3>a cadeia de prova (spikes/)</h3>
+  <ul>
+    <li><code>roundtrip.mjs</code> — fidelidade do formato (ADR 0001): contagem de notas/efeitos original × round-trip.</li>
+    <li><code>struct.mjs</code> — fidelidade estrutural: repetições, casas alternativas, jumps, ts/ks/clef/tempo.</li>
+    <li><code>cellslice.mjs</code> — o merge atômico: enxertar as vozes de um compasso de um score em outro + <code>score.finish()</code> → re-export válido, zero dano colateral.</li>
+    <li><code>assemble.ts</code> — decompose/assemble <em>do código de produção</em> em 3 modos; sem perda no caso controlado e no Stairway.</li>
+    <li><code>verify-materialize.ts</code> — pós-implementação: o <code>GET /assembled</code> do banco real é idêntico ao canônico da Revision (Stairway: 2.171 células).</li>
+  </ul>
+</section>
+
+<section id="colaboracao">
+  <div class="eyebrow">núcleo</div>
+  <h2>colaboração — trilhas, propostas e conflitos</h2>
+  <p>Duas camadas: <code>src/lib/cells.ts</code> tem as primitivas por célula (append, aceitar, recusar, contribuidores); <code>src/lib/track-content.ts</code> é a UX real do produto — a pessoa edita a <strong>trilha inteira</strong> como um único alphaTex com compassos separados por <code>|</code>, e o submit decompõe em contribuições por célula (a granularidade de merge provada). A autoria virou por-trilha depois do primeiro teste real: célula por célula era inviável (167 compassos = 167 PRs).</p>
+  <div class="callout"><span class="callout-label">invariante nº 1 · append-only</span>
+  <p>Editar uma célula = criar uma <strong>nova</strong> <code>CellContribution</code> + re-apontar <code>Cell.acceptedContributionId</code>. Nunca há <code>UPDATE</code> no conteúdo de uma linha existente (aceitar/recusar só muda <code>status</code>). A contribuição antiga vira histórico — a autoria por pedaço e o "continuar de onde o outro parou" derivam dessa regra, não de código extra.</p></div>
+  <h3>autoridade — modelo maintainer</h3>
+  <p>O dono da música é o criador (<code>Song.ownerId</code>, setado no <code>POST /api/songs</code>). <strong>O dono aceita; qualquer identificado propõe.</strong> O gate (<code>assertCanAccept</code>/<code>assertOwner</code>) compara <code>song.ownerId</code> com o id do ator; <code>ownerId null</code> (seed/legado) = música aberta, qualquer identificado salva direto. "Reivindicar trilha" foi removido (tornava o criador impotente na própria música — dor sentida no primeiro teste); <code>Track.ownerId</code> ficou inerte no schema para uma futura delegação. Reconhecimento vem de <code>songContributors</code>: dono + autores distintos de contribuições aceitas. O gate é social ("honra, não trava") e as rotas convertem violação em 400/401 com mensagem em pt-BR.</p>
+  <h3>o fluxo do revezamento</h3>
+  <div class="diagram"><div class="gdiagram"><div class="gseq">
+    <div class="gseq-lanes">
+      <div class="gseq-lane">colaborador</div>
+      <div class="gseq-lane">API / lib</div>
+      <div class="gseq-lane">dono</div>
+    </div>
+    <div class="gseq-step"><span class="gs-n">1</span><div><span class="gs-actors">colaborador → API</span><div class="gs-body"><code>POST tracks/[order]/content {alphaTex}</code> — split por <code>|</code>, nº de compassos deve bater, valida o documento inteiro remontado (overrides).</div></div></div>
+    <div class="gseq-step"><span class="gs-n">2</span><div><span class="gs-actors">API</span><div class="gs-body"><code>CellContribution status=proposed</code> por compasso <strong>mudado</strong> (+ <code>baseContributionId</code>).</div></div></div>
+    <div class="gseq-step"><span class="gs-n">3</span><div><span class="gs-actors">API ⇢ dono</span><div class="gs-body"><code>notifyProposalReceived</code> (in-app + e-mail).</div></div></div>
+    <div class="gseq-step"><span class="gs-n">4</span><div><span class="gs-actors">dono → API</span><div class="gs-body"><code>GET /proposals</code> (fila por trilha, autor) e <code>GET …/proposal?author=</code> (diff + conflitos).</div></div></div>
+    <div class="gseq-step"><span class="gs-n">5</span><div><span class="gs-actors">dono → API</span><div class="gs-body"><code>POST tracks/[order]/accept {authorId, resolutions?}</code></div></div></div>
+    <div class="gseq-alt">
+      <span class="ga-branch">alt · conflito sem resolução</span>
+      <div class="gs-body" style="font-size:13px">API ⇢ dono: <strong>409</strong> <code>UnresolvedConflictsError {compassos}</code></div>
+      <span class="ga-branch ok">else · ok</span>
+      <div class="gs-body" style="font-size:13px">transação: <code>keep→accepted</code> + repoint · <code>drop→rejected</code> &nbsp;·&nbsp; <code>snapshotGrid</code> (credita o proponente) &nbsp;·&nbsp; <code>notifyProposalReviewed</code> ao colaborador + <code>notifyTrackDelivered</code> aos seguidores.</div>
+    </div>
+  </div></div></div>
+  <p>Detalhes que importam em <code>submitTrackContent</code>:</p>
+  <ul>
+    <li><strong>Só o que mudou vira contribuição.</strong> A comparação é normalizada (<code>normalizeFragment</code>: linhas trimadas, vazias fora) — o exporter indenta e o editor re-serializa sem indentação; comparação crua marcava todo compasso como mudado (o "bug dos 103 compassos", que aconteceu de verdade).</li>
+    <li><strong>Contagem de compassos é imutável aqui</strong>: <code>fragments.length !== measures.length</code> → erro; mudar estrutura é operação separada e só-dono (<code>measures.ts</code>).</li>
+    <li>Dono (ou música aberta) → cada compasso mudado nasce <code>accepted</code> + repoint imediato; outro → nasce <code>proposed</code>. Ambos gravam <code>baseContributionId</code> = o aceito da célula naquele momento (o merge base).</li>
+    <li>Quem contribui passa a seguir a música (<code>watchSong</code>), e proposta de não-dono notifica o dono.</li>
+  </ul>
+  <h3>conflito de mesma célula (M3)</h3>
+  <p>Detectar + humano escolhe, nunca sobrescrever em silêncio. <code>isConflicting</code>: conflito ⟺ o aceito atual da célula difere do <code>baseContributionId</code> da proposta <em>e</em> o conteúdo normalizado difere de verdade (conteúdo igual = sem conflito, mesmo com base diferente). O aceite em lote exige uma escolha por compasso conflitante — <code>resolutions: Record&lt;measure.order, "current"|"proposed"&gt;</code>; sem escolha, <code>UnresolvedConflictsError</code> → HTTP <strong>409</strong> com os números humanos dos compassos. Escolher <code>"current"</code> preserva a proposta como <code>rejected</code> com a mensagem "conflito — o dono manteve a versão atual do compasso"; todas-"current" vira recusa total (sem snapshot). Re-propor grava base novo e desfaz o conflito naturalmente; em re-proposta na mesma célula, a mais nova vence (<code>orderBy createdAt asc</code> + sobrescrita em Map). A UI mostra os dois lados como <strong>tablatura renderizada</strong> (TabSnippet), não texto.</p>
+  <h3>completude e o mural</h3>
+  <p>Dois tipos de incompletude: a lacuna <em>dentro</em> da trilha (a grade já dá) e a <strong>trilha ausente</strong> ("falta baixo"), que exige instrumentação declarada. <code>declareTrack</code> (<code>src/lib/tracks.ts</code>) cria uma trilha-slot que nasce vazia e sem dono — uma <code>Cell</code> por compasso, sem contribuição — e o slot vazio <em>é</em> o convite. <code>songCompleteness</code> mede pelo critério honesto: célula pronta ⟺ <code>acceptedContributionId != null</code> (pausa transcrita conta — silêncio é música); slot novo lê 0%, import cheio lê 100%; <code>missing</code> = trilhas com <code>done === 0</code>. O match trilha ↔ "instrumentos que eu toco" é por <strong>família GM</strong> (<code>instrumentLabel</code>, 16 famílias de 8 programas — guitarra num <code>.gp</code> costuma vir program 29, não 25), via <code>presetFamily</code>.</p>
+  <h3>estrutura de compassos</h3>
+  <p><code>addMeasure/deleteMeasure</code> (<code>src/lib/measures.ts</code>) inserem/removem uma coluna inteira, só o dono, sem snapshot. O deslocamento de <code>order</code> respeita o <code>@@unique([songId, order])</code> (de trás pra frente ao abrir espaço, da frente pra trás ao fechar). Remoção é bloqueada no último compasso e em compasso com <code>structPrefix</code> (carrega fórmula/seção/repetição). O delete zera <code>acceptedContributionId</code> da coluna antes de apagar (a FK NoAction, de novo).</p>
+  <h3>diff de propostas</h3>
+  <p><code>src/lib/linediff.ts</code>: LCS clássico O(n·m) por programação dinâmica, zero dependências, com a <em>mesma</em> normalização de linhas do submit. <code>diffRows</code> colapsa trechos iguais em <code>{type:"gap"}</code> com 2 linhas de contexto; <code>diffStat</code> dá o "+N −M" do cabeçalho. No painel de propostas o diff também é pintado <em>na partitura</em>: os beats mudados (LCS de assinaturas de beat) viram <code>highlightBeats</code> verdes no AlphaTabPlayer.</p>
+</section>
+
+<section id="identidade">
+  <div class="eyebrow">plataforma</div>
+  <h2>identidade &amp; auth</h2>
+  <p><strong>ADR 0004:</strong> a âncora da identidade é o <strong>e-mail verificado</strong> (<code>User.email @unique</code> + <code>emailVerified</code>), não o cookie. Perder o cookie não perde a conta — reautentica-se pelo e-mail e cai no mesmo <code>User</code>, preservando a autoria por pedaço (o diferencial do produto). Não há senha nem <code>next-auth</code>: login passwordless por magic link + sessão JWT, e Google como segundo autenticador hand-rolled (~100 linhas), ambos convergindo na mesma função de resolução.</p>
+  <h3>magic link</h3>
+  <ol>
+    <li><code>POST /api/auth/request</code> valida o e-mail (regex, trim + lowercase) e chama <code>issueLoginToken</code> (<code>src/lib/identity.ts</code>): token raw = <code>randomBytes(32)</code> base64url; <strong>só o SHA-256 é persistido</strong> (<code>LoginToken.tokenHash</code>); TTL 30 min. O raw vive apenas na URL enviada por e-mail (e no <code>devUrl</code> da resposta, só sem provider e fora de produção).</li>
+    <li><code>GET /api/auth/verify?token=</code> consome: acha por hash, rejeita consumido/vencido (redirect <code>/?auth_error=invalid|expired</code>), resolve o usuário e <strong>queima todos os tokens pendentes do mesmo e-mail</strong>. Sempre responde redirect 307, nunca JSON.</li>
+    <li><code>resolveUserForEmail</code> é o <strong>único lugar do código onde um e-mail verificado vira conta</strong>. Ordem de resolução: (1) e-mail já conhecido → aquela conta; (2) <code>claimUserId</code> → anexa o e-mail <em>in place</em> a uma conta existente (ponte do cookie legado <code>gs_uid</code> e troca de e-mail — mesmo <code>User.id</code>, autoria intacta); (3) cria conta nova (<code>displayName</code> proposto ou derivado do local-part). A regra "(1) vence (2)" garante que provar posse de um e-mail já usado loga naquela conta em vez de movê-lo.</li>
+    <li>Sessão: JWT HS256 via <code>jose</code> (<code>sub</code>=userId, exp 30 dias) no cookie httpOnly <code>gs_session</code>. <code>getCurrentUser()</code> verifica o JWT e carrega o User — é a única porta de identidade das rotas (a assinatura foi preservada desde a era do cookie, por isso nenhuma rota consumidora mudou). Logout só limpa o cookie; não há revogação server-side (fora de escopo por ADR).</li>
+  </ol>
+  <h3>google (OIDC + PKCE)</h3>
+  <p>Authorization code + PKCE S256, com <code>state</code>/<code>code_verifier</code>/<code>redirect</code> em cookies httpOnly de 10 min. O callback troca o code no token endpoint e verifica o <code>id_token</code> contra o <strong>JWKS remoto do Google</strong> (<code>jose</code>: assinatura + <code>iss</code> nas duas formas + <code>aud</code> = client id); <strong><code>email_verified !== true</code> é recusado</strong> — senão alguém reivindicaria conta de endereço que não controla. O e-mail resolvido passa pelo mesmo <code>resolveUserForEmail</code>, então Google + magic link no mesmo endereço = mesma conta (provado, sem duplicar). Sem <code>GOOGLE_CLIENT_ID/SECRET</code>, <code>/api/auth/providers</code> devolve <code>{google:false}</code> e o modal esconde o botão. Todos os erros do fluxo saem como redirect <code>/?auth_error=google_*</code>, que o <code>IdentityWidget</code> mapeia e reabre o modal com a razão.</p>
+  <h3>perfil e conta</h3>
+  <ul>
+    <li><strong>Renomear</strong> (<code>PATCH /api/me</code> → <code>updateProfile</code>): nome trimado 2–40 chars; se mudou, reescreve os caches denormalizados <code>CellContribution.authorName</code> + <code>Track.ownerName</code> em transação. No cliente, <code>emitMeChanged</code> (<code>src/lib/identity-events.ts</code>, um <code>CustomEvent</code> <code>gs:me-changed</code>) atualiza o header sem F5.</li>
+    <li><strong>Trocar e-mail</strong> (<code>POST /api/me/email</code>): 409 se o endereço pertence a outra conta; emite magic link <em>para a caixa nova</em> com <code>claimUserId</code>=eu e <code>redirectTo=/settings?email=changed</code> — nada muda até o link ser aberto; prova de posse obrigatória.</li>
+    <li><strong>Instrumentos</strong> (<code>User.instruments String[]</code>, chaves de <code>INSTRUMENT_PRESETS</code>): alimentam o destaque "precisa do seu instrumento" no mural.</li>
+    <li><strong>Overview</strong> (<code>GET /api/me/overview</code>): o inbox do revezamento — esperando por você / propostas em aberto / minhas músicas / seguindo.</li>
+  </ul>
+  <div class="callout note"><span class="callout-label">segurança · o que existe e o que não</span>
+  <p>Existe: hash-only do token, uso único + queima de concorrentes, TTL, JWT httpOnly/lax/secure-em-prod, anti open-redirect (<code>safeRedirectPath</code>: só paths começando com <code>/</code> e não <code>//</code>), verificação completa do id_token, HMAC + <code>timingSafeEqual</code> no cookie legado, e-mail sempre normalizado. Não existe (fora de escopo declarado na ADR 0004): rate-limit no request, anti-enumeração, revogação de sessão server-side, senha. O segredo do JWT cai em cascata <code>GS_AUTH_SECRET ?? GS_COOKIE_SECRET ?? "dev-insecure-change-me"</code> — em produção as envs devem estar setadas.</p></div>
+</section>
+
+<section id="notificacoes">
+  <div class="eyebrow">plataforma</div>
+  <h2>ciclo assíncrono — notificações e seguir</h2>
+  <p>O produto vende "alguém continua enquanto você não está e você volta depois" — sem notificação, uma proposta apodreceria até o dono recarregar a aba por acaso. <code>src/lib/notifications.ts</code> fecha esse ciclo com dois modelos: <code>Notification</code> (in-app, denormalizada, mensagem pronta em pt-BR) e <code>SongWatch</code> (seguir uma música — o lado da demanda do mural).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>evento</th><th>gatilho</th><th>destino</th><th>e-mail?</th></tr></thead>
+    <tbody>
+      <tr><td><code>proposal_received</code></td><td><code>submitTrackContent</code> por não-dono</td><td>dono da música</td><td>sim, se verificado</td></tr>
+      <tr><td><code>proposal_accepted</code> / <code>proposal_rejected</code></td><td><code>accept/rejectTrackProposals</code></td><td>proponente</td><td>sim, se verificado</td></tr>
+      <tr><td><code>track_progress</code></td><td>aceite de proposta (entrega)</td><td>seguidores (fan-out)</td><td>não — só in-app</td></tr>
+      <tr><td><code>slot_declared</code></td><td><code>declareTrack</code> ("agora falta baixo")</td><td>seguidores (fan-out)</td><td>não — só in-app</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><strong>Tudo best-effort por contrato:</strong> os writers engolem os próprios erros — uma notificação nunca quebra o aceite/proposta/declaração. <code>sendEmail</code> (<code>src/lib/email.ts</code>) nunca lança: com <code>RESEND_API_KEY</code> envia via fetch na API do Resend; sem chave, "modo dev" loga o link no console.</li>
+    <li><strong>Fan-out exclui o ator</strong> (e, na entrega, o proponente — que já recebe "aceita" — e o dono revisor).</li>
+    <li><strong>Auto-follow:</strong> propor ou declarar segue a música (<code>watchSong</code>, upsert idempotente); lurkers usam o botão "Seguir" (<code>FollowButton</code>).</li>
+    <li><strong>UI:</strong> <code>NotificationBell</code> no header — polling de 30 s em <code>GET /api/notifications</code> (que devolve feed <em>vazio</em> para anônimo, não 401, justamente para o polling ser livre), badge de não-lidas, marcação otimista, e navegação com hash: <code>proposal_received</code> → <code>#propostas</code>, <code>slot_declared</code> → <code>#colaborar</code>, demais → aba Player (o <code>SongTabs</code> lê o hash e abre a aba certa).</li>
+  </ul>
+</section>
+
+<section id="player">
+  <div class="eyebrow">frontend</div>
+  <h2>player &amp; página da música</h2>
+  <p>A página <code>/songs/[songId]</code> é um Server Component (<code>force-dynamic</code>) que busca Song + revisões no Prisma, serializa para <code>RevisionDTO</code> (datas como ISO string — <code>Date</code> nunca cruza a fronteira server/client) e monta o shell: breadcrumb com <code>FollowButton</code>/<code>ShareButton</code>/<code>DeleteSongButton</code> e o <code>SongTabs</code> — orquestrador client de 5 abas (Player, Colaborar, Propostas, Histórico, Contribuidores), com deep-link por hash (<code>#propostas</code>, <code>#colaborar</code> — é como as notificações aterrissam na aba certa).</p>
+  <h3>AlphaTabPlayer — toda a integração alphaTab num componente</h3>
+  <ul>
+    <li><strong>Import dinâmico obrigatório:</strong> <code>await import("@coderline/alphatab")</code> dentro do <code>useEffect</code>, nunca no topo do módulo (quebraria o SSR). Settings: <code>core.fontDirectory="/font/"</code>, <code>player.soundFont="/soundfont/sonivox.sf2"</code>, cursor + <code>ScrollMode.Continuous</code>, <code>display.resources = alphaTabResources(readTheme())</code> — o alphaTab desenha em canvas/SVG próprio e <em>não herda CSS</em>; as cores da tablatura vêm por objeto, por tema.</li>
+    <li><strong>Três layouts:</strong> <code>fullpage</code> (bottom bar com play/pause + select de trilha), compacto (toolbar + transporte com seek por fração de tempo) e <code>editMode/audioOnly</code> (headless para o editor: a surface fica em <code>position:absolute</code> fora da tela, mas <em>nunca sai do DOM</em> — desmontar o nó mata a instância). Handle imperativo via <code>forwardRef</code>: <code>playPause</code>, <code>selectTrack</code>, <code>seekTick</code>, <code>loadTex</code>, <code>isReadyForPlayback</code>.</li>
+    <li><strong>Percussão:</strong> <code>StaveProfile.Tab</code> puro quebra o layout do alphaTab 1.8.3 em trilha de bateria ("Cannot read properties of undefined (reading 'staves')") — <code>applyStaveProfileFor</code> aplica o perfil <em>por trilha</em> (percussão → <code>ScoreTab</code>; demais → preferência da pessoa) e todo <code>scoreLoaded</code> normaliza <code>bar.clef = Clef.Neutral</code> nas pautas de percussão (o importer alphaTex deixa clave de sol).</li>
+    <li><strong>Diff na partitura:</strong> a prop <code>highlightBeats: string[]</code> (formato <code>"measureIndex:beatIndex"</code>, voz 0) pinta de verde os beats/notas mudados via <code>NoteStyle</code>/<code>BeatStyle</code> (sub-elementos de tab e de notação standard) antes do <code>renderTracks</code>.</li>
+    <li><strong>Preferências vivas:</strong> <code>src/lib/player-prefs.ts</code> guarda notação/zoom/velocidade/volume/metrônomo/contagem em localStorage (<code>gs.player.prefs</code> — "descrevem um aparelho, não uma identidade"); <code>writePlayerPrefs</code> dispara um <code>CustomEvent</code> que players montados aplicam na hora (áudio ao vivo; escala/pauta exigem <code>updateSettings()</code> + <code>render()</code>).</li>
+  </ul>
+  <h3>o player mostra a verdade viva</h3>
+  <p><code>SongTabs</code> detecta materialização via <code>GET /completeness</code> (<code>tracks.length &gt; 0</code>) e então <code>view = "live"</code>: o <code>PlayerPanel</code> toca <code>/api/songs/[id]/assembled</code> — o remontado das células, todas as trilhas — e não o snapshot de upload. "Ouvir" no <code>HistoryPanel</code> troca a <code>key</code> do player (remontagem completa da instância) e mostra a barra "Tocando a versão #N — ← Voltar ao atual". Reverter: só dono, só em <code>kind="import"</code> (snapshot não reverte — a grade viva é a verdade).</p>
+  <h3>ProposalsPanel — a tela de revisão</h3>
+  <p>Fila agrupada por (trilha, autor); dono vê todas, colaborador vê as suas (filtro de UI — a rota é pública; o servidor re-valida no aceite). O detalhe abre em tela cheia com: contagem <code>+N −M</code> (<code>diffStat</code>), tablatura com os beats mudados em verde (highlights por LCS de assinaturas JSON de beat, via <code>parseTrackTex</code> — comparação normalizada, nunca texto cru), player "ouvir como fica" (<code>/assembled?track=&amp;author=</code>, proposta aplicada em memória, abrindo na trilha via <code>defaultTrackIndex</code>) e, no M3, os conflitos por compasso lado a lado: dois painéis clicáveis "na música agora" × "proposta de X", renderizados como tablatura por <code>TabSnippet</code> (instância alphaTab render-only, sem player/soundfont; <code>pointer-events:none</code> para o clique cair no botão). <code>conflictBarTex</code> injeta <code>\ts</code> quando o <code>structPrefix</code> não o traz — um compasso solto sem fórmula leria 4/4. Aceitar fica desabilitado até todo conflito ter escolha; o servidor devolve 409 de qualquer forma (defesa em profundidade).</p>
+</section>
+
+<section id="editores">
+  <div class="eyebrow">frontend</div>
+  <h2>editores — tablatura visual e bateria em grade</h2>
+  <p>Duas libs puras (zero DOM, testáveis em Node) com o mesmo contrato — parse → modelo imutável → mutações que retornam modelo novo → serialização round-trip estável, <strong>preservando opaco tudo que o editor não modela</strong> (sufixos de nota/beat, diretivas <code>\clef/\ks</code> como prefixo, vozes 1+ como tail, bends importados). Dois componentes de UI com o mesmo handle (<code>TabEditorHandle { seekTick }</code>) e a mesma convenção de eco (<code>lastEmittedRef</code> distingue mudança externa — refetch pós-save — do eco da própria edição). O <code>TrackEditor</code> orquestra: carrega <code>GET .../content</code>, escolhe o editor por <code>track.isPercussion</code>, mantém o buffer, salva/propõe por <code>POST .../content</code>.</p>
+  <h3>alphatex-editor.ts + TabEditor (instrumentos de corda)</h3>
+  <ul>
+    <li><strong>Gramática do beat:</strong> <code>casa.corda{efeitosDeNota}.duração{efeitosDeBeat}</code>; pausa <code>r.dur</code>; acorde <code>(c.s c.s).dur</code>. Efeitos de nota vêm <em>antes</em> da duração; anotações de beat <em>depois</em>; o alphaTab aceita <strong>um único grupo <code>{}</code></strong> por nota e por beat — o serializer mescla efeitos editáveis + anotações opacas num grupo só.</li>
+    <li><strong>Pegadinha nº 1 — numeração de corda:</strong> alphaTex numera corda 1 = mais aguda; o modelo do alphaTab numera 1 = mais grave. Conversão obrigatória <code>tex = total + 1 − model</code> em todo clique/overlay.</li>
+    <li><strong>Formato de submissão ≠ formato de render:</strong> <code>serializeModel</code> produz o formato de célula (vozes dentro do compasso); <code>\voice</code> por compasso não é alphaTex válido (cria masterbars extras). Renderizar usa <code>serializeForRender</code> (vozes transpostas + <code>trackHeader</code> + <code>structPrefix</code>) → mesmo número de masterbars da música completa, senão cliques e ticks desalinham.</li>
+    <li><strong>Capacidade do compasso em 64avos</strong>, fracionária: pontuado ×1.5/×1.75, quiáltera den(N)/N ou M/N, grace ×0. <code>wouldOverflow</code> bloqueia só o que <em>aumenta</em> além da fórmula; badges "falta/passa X" na tablatura.</li>
+    <li><strong>Interações:</strong> clique escolhe corda pelo Y (geometria calibrada por NoteBounds); dígitos com acúmulo de 2 dígitos (900 ms, casas ≤ 24); seleção âncora↔cursor (Shift+setas/clique, Ctrl+Shift+←→ por compasso); clipboard Ctrl+C/X/V em <em>escopo de módulo</em> (copia entre trilhas/músicas); Ctrl+D repete a seleção adiante; Alt+←→ move o beat no tempo (atravessa compasso); Shift+↑↓ move a nota de corda; <code>+/−</code> duração; <code>.</code>/Ctrl+<code>.</code> pontuado; Ctrl+Z/Y undo/redo (pilha ≤200, zerada em mudança externa). Convenções emprestadas do nicho (GP8/Soundslice/MuseScore/TuxGuitar).</li>
+    <li><strong>Percussão nunca entra no TabEditor visual</strong> (prop <code>percussion</code> força modo texto e o alphaTab nem inicializa) — a rota normal é o DrumGridEditor.</li>
+  </ul>
+  <h3>drum-grid.ts + DrumGridEditor (percussão)</h3>
+  <ul>
+    <li><strong>Modelo step-sequencer:</strong> linhas = peças do kit (MIDI GM: 36 bumbo, 38 caixa, 42 chimbal…), colunas = subdivisões por fórmula (resolução 1/4..1/32), quiáltera <em>por tempo</em>, pincéis nota/acento/fantasma/flam. Serializa alphaTex numérico por compasso: <code>(36{ac} 42).16{tu 3}</code>; flam = acorde de graça <code>{gr}</code> antes do golpe; <code>NAME_TO_MIDI</code> confere 1:1 com as articulações do alphaTab 1.8.3 (round-trip de trilha importada).</li>
+    <li><strong>Anti-ruído de diff:</strong> compasso não tocado re-emite o texto <em>original</em> (<code>origsRef</code>) — um clique numa célula não re-serializa a trilha inteira (o "bug dos 103 compassos" reapareceria aqui). Diretivas iniciais viram prefixo opaco posicional que <em>não viaja</em> com conteúdo copiado.</li>
+    <li><strong>Fallbacks conscientes:</strong> <code>\voice</code> (2 vozes — padrão em bateria de <code>.gp</code>), ritmo pontuado ou subdivisão irregular → modo texto com guia de notação. Baixar a resolução move golpes (destrutivo) → <code>remapBeatIsLossless</code> detecta e pede confirmação.</li>
+    <li><strong>Entrada rápida</strong> (benchmark FL Studio/Hydrogen): arrastar pinta a linha (estado-alvo decidido na 1ª célula; o arrasto lê <code>barsRef</code>, não o state), botão direito apaga, menu na peça preenche "a cada tempo/½ tempo/célula", seleção de compassos + Ctrl+C/X/V/D com <code>conformBar</code> (colar conforma cada compasso à fórmula/resolução do destino), undo com snapshot que <em>inclui a resolução</em>. Um arrasto = um passo de undo.</li>
+  </ul>
+  <h3>a tela /edit</h3>
+  <p>O playback é um <code>AlphaTabPlayer</code> <strong>headless</strong> (<code>editMode audioOnly</code>) tocando o <code>/assembled</code> — a música completa, não só a trilha editada. Cursor bidirecional por <strong>tick</strong> (semínima alphaTab = 960 → semibreve = 3840, o mesmo TPW da drum-grid): <code>onTickChange</code> do player → <code>editorRef.seekTick</code>; clique num beat do editor → <code>playerRef.seekTick</code>. <strong>"Play toca o que se vê":</strong> com edição não salva, <code>POST .../preview</code> monta o documento com a trilha local aplicada e o player recarrega via <code>loadTex</code> — nada é gravado. Após <em>propor</em>, o buffer <strong>não</strong> é recarregado (recarregar revertia a tela para a versão aceita e a edição "sumia"). Add/remover compasso salva o buffer dirty <em>primeiro</em> — nunca descarta edição pendente. <code>CellEditor.tsx</code> (edição por célula) é legado sem importadores.</p>
+</section>
+
+<section id="shell-app">
+  <div class="eyebrow">frontend</div>
+  <h2>shell, tema &amp; home</h2>
+  <h3>tema — dark first, anti-flash</h3>
+  <p>O <code>&lt;html&gt;</code> sai do SSR com <code>data-theme="dark"</code>; um script inline (primeiro nó do body em <code>layout.tsx</code>) promove para light <em>antes da pintura</em> apenas se <code>localStorage["attacca:theme"] === "light"</code> — zero flash, e qualquer erro cai em dark. Tokens em <code>:root</code> de <code>globals.css</code> (carvão <code>#141311</code>, texto <code>#ede9e2</code>, vermelhão <code>#e5432b</code> = "a sua vez"/a lacuna — o acento <em>não muda</em> entre temas), override em <code>[data-theme="light"]</code> (papel <code>#fcfbf8</code>, tinta <code>#141414</code>). <code>src/lib/theme.ts</code>: <code>readTheme/applyTheme</code> + <code>alphaTabResources(theme)</code> — a ponte de cores para o canvas do alphaTab. Fontes via <code>next/font</code> (Space Grotesk títulos, Inter texto, JetBrains Mono dados). Assinatura visual: <code>.blockbar</code> — 14 blocos, tinta = feito, vermelhão = borda viva, cinza = não começou.</p>
+  <h3>globals.css como contrato</h3>
+  <p>Um único stylesheet global (2.377 linhas) — sem CSS Modules/Tailwind; cada componente tem sua família de classes por prefixo (<code>.tab-editor-*</code>, <code>.drum-*</code>, <code>.mural-*</code>…). Três contratos que não são decoração:</p>
+  <ul>
+    <li><strong><code>.at-cursor-bar/.at-cursor-beat/.at-selection/.at-highlight</code> — "DO NOT REMOVE":</strong> o alphaTab injeta os elementos do cursor de playback <em>sem estilo nenhum</em>; sem essas regras o cursor é invisível (bug real do histórico). Como usam <code>var(--accent)</code>, cursor/seleção seguem a troca de tema ao vivo — diferente da tablatura (canvas), que só muda via <code>alphaTabResources</code> na remontagem.</li>
+    <li><strong>Casca de modal única:</strong> <code>.auth-overlay/.auth-modal</code> é compartilhada por AuthModal, DeleteSongButton (<code>.danger-modal</code>) e WelcomeInstrumentsModal — modal novo = casca + modificador, nunca outra estrutura de overlay.</li>
+    <li><strong>Cor = significado, imposto pelos tokens:</strong> o vermelhão marca exclusivamente "a sua vez"/a lacuna (tab ativa, badge, borda viva da blockbar, chip "precisa de você", cursor); o botão padrão é tinta invertida (<code>bg var(--text)</code>), nunca vermelhão. Estados derivados por <code>color-mix</code> dos tokens — o mesmo CSS serve aos dois temas. Não há <code>prefers-color-scheme</code>: o tema é 100% <code>[data-theme]</code> + localStorage.</li>
+  </ul>
+  <h3>home = mural</h3>
+  <p><code>page.tsx</code> (server, <code>force-dynamic</code>) calcula <code>songCompleteness</code> por música e divide em <strong>Tocar</strong> (grade existente e ≥ 80%) × <strong>Colaborar</strong>. Cada item leva as famílias GM derivadas das trilhas (<code>families/openFamilies/missingFamilies</code>). <code>HomeTabs</code> (client) aplica busca acento-insensível (NFD + strip), chips por família (só de famílias presentes — "filtro morto não é filtro"), e o destaque <strong>"precisa de você"</strong>: <code>missingFamilies ∩ instrumentos declarados</code>, calculado no cliente (editar as tags na home atualiza sem refetch); a aba Colaborar ordena essas músicas primeiro — a alavanca contra o risco de densidade. Linha do mural: BlockBar + "falta alguém em: X" + CTA por estado ("Tocar →" / "Assumir →" / "Continuar daqui →").</p>
+  <h3>criar música e login no meio do caminho</h3>
+  <p><code>/songs/new</code> tem três modos (do zero — default, template attacca, upload). O <code>POST /api/songs</code> exige identidade; o 401 é tratado como <em>convite</em>: o form salva rascunho em sessionStorage (<code>attacca:new-song-draft</code>), abre o <code>AuthModal</code> (Google → divisor "ou" → magic link, degradando conforme <code>GET /api/auth/providers</code>) e restaura o formulário na volta do login. Depois: modo upload → <code>POST /revisions</code>; do zero/template → <code>POST /scaffold</code> → direto no <code>/edit</code>. Primeiro login com <code>?welcome=1</code> e conta sem instrumentos abre o <code>WelcomeInstrumentsModal</code> ("o que você toca?") — alimenta o mural. Todos os modais (auth, welcome, exclusão) reusam a mesma casca <code>.auth-overlay/.auth-modal</code> via portal, com Esc/backdrop fechando e scroll do body travado.</p>
+  <div class="callout note"><span class="callout-label">nomenclatura legada · de propósito</span>
+  <p>Envs e cookies mantêm o prefixo da era GitSong — <code>GS_AUTH_SECRET</code>/<code>GS_COOKIE_SECRET</code>, cookies <code>gs_session</code>/<code>gs_uid</code>, chave <code>gs.player.prefs</code>, evento <code>gs:me-changed</code> — porque renomear quebraria sessões e o deploy. Só chaves novas usam o prefixo attacca (<code>attacca:theme</code>, <code>attacca:new-song-draft</code>). Código órfão conhecido: <code>NewSongForm.tsx</code> + <code>NewSongToggle.tsx</code> (a home linka <code>/songs/new</code>), <code>CellEditor.tsx</code>, <code>RevisionList.tsx</code> (o <code>HistoryPanel</code> assumiu), <code>SongWorkspace.tsx</code> (só re-exporta um tipo).</p></div>
+</section>
+
+<section id="api">
+  <div class="eyebrow">plataforma</div>
+  <h2>referência de API</h2>
+  <p>Route handlers do App Router; em todas as rotas dinâmicas, <code>params</code> é <code>Promise</code> (Next 16 — <code>await params</code> obrigatório). Padrão de erro: <strong>401</strong> para anônimo nas escritas gateadas; <strong>400</strong> para input inválido <em>e também para violação de gate</em> (os gates de domínio lançam <code>Error</code> comum, capturado pelo catch genérico — o único 403 real é o DELETE de música); <strong>409</strong> para conflito M3 e scaffold repetido; <strong>422</strong> para conteúdo que não converte/não monta. Leitura é sempre pública.</p>
+  <h3>músicas e revisões</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>rota</th><th>o que faz</th><th>auth / erros</th></tr></thead>
+    <tbody>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs</span></td><td>Lista (updatedAt desc) com <code>_count.revisions</code>.</td><td>pública</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/songs</span></td><td>Cria música; criador vira dono; slug único (sufixo aleatório em colisão).</td><td>401 anônimo · 400 título vazio</td></tr>
+      <tr><td><span class="m m-del">DELETE</span> <span class="mono">/api/songs/[id]</span></td><td>Exclui com confirmação do título exato (re-validada no servidor); transação zera <code>acceptedContributionId</code> antes do delete.</td><td>401 · <strong>403</strong> não-dono ou sem dono · 400 título errado</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/revisions</span></td><td>Histórico (number desc), sem blob/alphaTex.</td><td>pública · 404</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/songs/[id]/revisions</span></td><td>Upload multipart → revisão (blob no banco + canônico) + auto-materialização se sem grade.</td><td>sem auth (autor = sessão ?? form ?? "anon") · 415 formato · 422 não converte/grade falhou (revisão desfeita)</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/revisions/[id]/file</span></td><td>Conteúdo cru: text/plain (alphatex) ou octet-stream do blob; fallback disco legado.</td><td>pública · 404/500</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/revisions/[id]/revert</span></td><td>Nova revisão copiando uma antiga ("Revertido para #N"); não toca a grade.</td><td><strong>sem auth</strong> (stub M1; gate só na UI) · 404/400</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/songs/[id]/scaffold</span></td><td>Começo sem upload: revisão template (blank/attacca) + materialização.</td><td>sem auth · 409 já tem grade · 422</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/songs/[id]/materialize</span></td><td>(Re)constrói a grade do último canônico. Manual/dirigido.</td><td><strong>sem auth e sem guarda</strong> — destrutivo em música viva (ver pegadinhas)</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/assembled</span></td><td>Documento remontado das células (text/plain), com preview: <code>?track=&amp;author=</code> ou <code>?cell=&amp;contribution=</code>.</td><td>pública · 422 não monta</td></tr>
+    </tbody>
+  </table></div>
+  <h3>colaboração</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>rota</th><th>o que faz</th><th>auth / erros</th></tr></thead>
+    <tbody>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">…/tracks/[order]/content</span></td><td>Trilha inteira editável (compassos por <code>|</code>) + trackHeader + ts/structPrefix por compasso + dono.</td><td>pública · 404</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">…/tracks/[order]/content</span></td><td>Salva (dono/aberta) ou propõe (outro); grava só compassos mudados (normalizado) com merge base; valida o documento antes.</td><td>401 · 400 contagem/documento inválido → <code>{changed, accepted}</code></td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">…/tracks/[order]/accept</span></td><td>Dono aceita/recusa em lote as propostas de um autor; M3 exige <code>resolutions</code> por compasso conflitante; aceite gera snapshot + notificações.</td><td>401 · 400 gate/inválido · <strong>409</strong> conflitos sem escolha</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">…/tracks/[order]/proposal?author=</span></td><td>Atual × proposto + conflitos lado a lado com contexto de render.</td><td>pública · 400 sem author · 404</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">…/tracks/[order]/preview</span></td><td>Documento completo com a trilha local aplicada — nada gravado.</td><td>sem auth · 422 inválido</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/proposals</span></td><td>Fila pendente agrupada por (trilha, autor) com contagens e conflitos.</td><td>pública (filtro por papel é na UI) · 404</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/completeness</span></td><td>% por trilha + geral + <code>missing</code> (métrica honesta).</td><td>pública</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/contributors</span></td><td>Dono + autores de contribuição aceita.</td><td>pública</td></tr>
+      <tr><td><span class="m m-get">GET</span>/<span class="m m-post">POST</span> <span class="mono">/api/songs/[id]/tracks</span></td><td>GET: presets (lista global). POST: declarar trilha-slot vazia.</td><td>GET pública · POST <strong>aceita anônimo</strong> (actor null)</td></tr>
+      <tr><td><span class="m m-post">POST</span>/<span class="m m-del">DEL</span> <span class="mono">/api/songs/[id]/measures</span></td><td>Inserir/remover coluna de compasso em todas as trilhas (estrutural, sem snapshot).</td><td>401 · gate dono → 400 · remove bloqueado no último/com structPrefix</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/cells/[id]/contributions</span> · <span class="mono">/accept</span> · <span class="mono">/reject</span></td><td>Via legada por célula: append / re-apontar / recusar.</td><td>401 · gate dono → 400</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/songs/[id]/cell?track=&amp;measure=</span></td><td>Célula por coordenada com histórico (legado).</td><td>pública · 400/404</td></tr>
+      <tr><td><span class="m m-get">GET</span>/<span class="m m-post">POST</span>/<span class="m m-del">DEL</span> <span class="mono">/api/songs/[id]/watch</span></td><td>Estado / seguir / deixar de seguir (idempotentes).</td><td>GET pública (anônimo = <code>canWatch:false</code>) · POST/DELETE 401</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/notifications</span></td><td>Últimas 30 + não-lidas; anônimo recebe feed vazio (polling livre do sino).</td><td>pública por design</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/notifications/read</span></td><td>Marca lidas (ids, ou todas sem ids); escopo sempre do próprio usuário.</td><td>401</td></tr>
+    </tbody>
+  </table></div>
+  <h3>auth e conta</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>rota</th><th>o que faz</th><th>auth / erros</th></tr></thead>
+    <tbody>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/auth/request</span></td><td>Emite e envia o magic link; <code>devUrl</code> na resposta só em dev sem provider.</td><td>pública · 400 e-mail inválido</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/auth/verify?token=</span></td><td>Consome o link, abre sessão JWT, redireciona (nunca JSON).</td><td>redirect <code>/?auth_error=invalid|expired</code></td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/auth/logout</span></td><td>Limpa o cookie (JWT expira sozinho).</td><td>pública, idempotente</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/auth/providers</span></td><td><code>{google: boolean}</code> — o modal esconde o botão.</td><td>pública</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/auth/google</span> · <span class="mono">/callback</span></td><td>Hop OIDC (PKCE S256, state em cookies 10 min) → mesma resolução de conta do magic link.</td><td>erros por redirect <code>/?auth_error=google_*</code></td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/me</span></td><td>Snapshot da identidade. Anônimo → <strong>200 com body <code>null</code></strong>, não 401.</td><td>pública</td></tr>
+      <tr><td><span class="m m-patch">PATCH</span> <span class="mono">/api/me</span></td><td>Nome/instrumentos (rename reescreve os caches denormalizados).</td><td>401 · 400 validação</td></tr>
+      <tr><td><span class="m m-post">POST</span> <span class="mono">/api/me/email</span></td><td>Troca de e-mail com prova de posse (link para a caixa nova).</td><td>401 · 400 · <strong>409</strong> e-mail de outra conta</td></tr>
+      <tr><td><span class="m m-get">GET</span> <span class="mono">/api/me/overview</span></td><td>Inbox do revezamento (owned/following/propostas).</td><td>401</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><span class="callout-label">matriz de autorização real</span>
+  <p>O modelo geral é "escrever exige identidade", mas <strong>seis escritas fogem da regra</strong> (resquícios do M1 ou decisões de fricção mínima): upload de revisão, revert, scaffold, preview, materialize e declarar slot aceitam anônimo. Duas delas merecem atenção: <code>POST /materialize</code> é destrutivo em música viva (apaga e recria a grade — o guard "só sem grade" vive nos callers, não na rota) e <code>POST /revert</code> não tem gate no servidor (o botão some da UI para não-donos, mas a rota aceita qualquer um). Candidatas óbvias a endurecimento antes de abrir o produto.</p></div>
+</section>
+
+<section id="deploy">
+  <div class="eyebrow">operação</div>
+  <h2>build &amp; deploy</h2>
+  <h3>build — por que <code>--webpack</code></h3>
+  <p>O alphaTab precisa de Web Workers, Audio Worklets e assets estáticos (fonte Bravura, soundfont SONiVOX). O plugin oficial <code>@coderline/alphatab-webpack</code> resolve tudo isso, mas é de webpack — então <code>next dev</code>/<code>next build</code> rodam com <code>--webpack</code> (não o Turbopack padrão do Next 16). Em <code>next.config.mjs</code>: o plugin entra só no client build (<code>!isServer</code>) com <code>assetOutputDir: public/</code> (o Next serve <code>/font/</code> e <code>/soundfont/</code> — gitignored, gerados, nunca commitar); <code>serverExternalPackages: ["@coderline/alphatab"]</code> mantém o pacote fora do bundle do servidor, onde ele roda como módulo Node puro para o canônico.</p>
+  <pre><code>npm run dev     # next dev --webpack -p 4000
+npm run build   # prisma generate && next build --webpack
+npm start       # next start -p ${PORT:-4000}  (expansão POSIX — Render/Linux)
+npm run db:seed # tsx prisma/seed.ts</code></pre>
+  <h3>dev local</h3>
+  <p>Postgres via <code>docker-compose.yml</code>: postgres:16, porta <strong>55432</strong> (evita colisão com Postgres nativos), credenciais attacca/attacca/attacca_dev, e <code>name: attacca</code> fixado de propósito — sem isso, renomear a pasta (ainda GitSong) criaria volume novo e o banco dev "sumiria". <code>DATABASE_URL=postgresql://attacca:attacca@localhost:55432/attacca_dev</code>. Sob TLS corporativo, <code>NODE_OPTIONS=--use-system-ca</code> resolve <code>UNABLE_TO_VERIFY_LEAF_SIGNATURE</code>. Após mudar o schema, reiniciar o <code>next dev</code> (client Prisma em memória fica velho → 500).</p>
+  <h3>produção — Render + Neon</h3>
+  <p><code>render.yaml</code>: build <code>npm install && npm run build</code>; start <code>npx prisma migrate deploy && npm start</code> (migrações automáticas a cada deploy); health check em <code>/</code>. Host Node persistente de propósito (webpack + alphaTab server-side — não serverless). Neon fornece o Postgres serverless (free tier). Free tier do Render tem cold start — os forms mostram "servidor acordando" após 10 s.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>env</th><th>papel</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">DATABASE_URL</td><td>Postgres (Neon com <code>sslmode=require</code>; local: docker-compose).</td></tr>
+      <tr><td class="mono">GS_AUTH_SECRET</td><td>Assina o JWT de sessão (HS256). Fallback: <code>GS_COOKIE_SECRET</code> → default inseguro de dev.</td></tr>
+      <tr><td class="mono">GS_COOKIE_SECRET</td><td>Legado: HMAC do cookie antigo <code>gs_uid</code> (ponte de migração) + fallback do JWT.</td></tr>
+      <tr><td class="mono">APP_URL</td><td>URL pública absoluta (links de e-mail, redirect URI do Google) — obrigatória atrás de proxy.</td></tr>
+      <tr><td class="mono">RESEND_API_KEY · EMAIL_FROM</td><td>Envio real de e-mail; sem chave = modo dev (link no console + <code>devUrl</code>).</td></tr>
+      <tr><td class="mono">GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET</td><td>Google sign-in; vazios = botão escondido. Redirect URI exato: <code>${APP_URL}/api/auth/google/callback</code>.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="invariantes">
+  <div class="eyebrow">operação</div>
+  <h2>invariantes &amp; pegadinhas</h2>
+  <p>O checklist do que não pode quebrar — as regras que várias partes do código assumem — e as armadilhas conhecidas, todas observadas no código real.</p>
+  <h3>invariantes (quebrar = corromper o produto)</h3>
+  <ul>
+    <li><strong>Append-only em <code>CellContribution</code></strong>: nunca UPDATE em conteúdo; editar = linha nova + repoint; recusar = status. A autoria por pedaço deriva disso.</li>
+    <li><strong>Documento sempre válido</strong>: todo aceite/save remonta a música inteira com os candidatos como overrides e importa no alphaTab antes de gravar.</li>
+    <li><strong>Zerar <code>acceptedContributionId</code> antes de deletar contribuições</strong> (FK NoAction) — padrão obrigatório em delete de música, remoção de compasso e re-materialização.</li>
+    <li><strong>Música com grade nunca é re-materializada pelo fluxo normal</strong> — re-materializar apaga o revezamento.</li>
+    <li><strong>Histórico imutável</strong>: reverter cria revisão nova; snapshot só no aceite de proposta de terceiro (o handoff), nunca em save direto ou operação estrutural.</li>
+    <li><strong>Comparações de fragmento sempre normalizadas</strong> (linhas trimadas, vazias fora) — em submit, conflito e diff. Comparação crua = "bug dos 103 compassos".</li>
+    <li><strong>Conflito M3 nunca se resolve sozinho</strong>: escolha humana por compasso ou 409.</li>
+    <li><strong>alphaTab nunca no topo de módulo client</strong> (import dinâmico no useEffect); no servidor, sempre via <code>serverExternalPackages</code>; nunca parsear alphaTex semanticamente à mão.</li>
+    <li><strong>Percussão nunca renderiza com <code>StaveProfile.Tab</code></strong>; clave normalizada para neutra em todo <code>scoreLoaded</code>.</li>
+    <li><strong>A surface do alphaTab nunca sai do DOM</strong> enquanto a instância vive (headless = fora da tela, não desmontada).</li>
+    <li><strong>Corda alphaTex (1 = aguda) ≠ corda do modelo alphaTab (1 = grave)</strong>: conversão <code>tex = total + 1 − model</code> em todo ponto de contato.</li>
+    <li><strong>Renomear usuário reescreve os caches</strong> <code>authorName/ownerName</code> — o vínculo real é o id.</li>
+    <li><strong>Notificações/e-mail best-effort</strong>: nunca podem falhar a ação de domínio.</li>
+    <li><strong>Denormalizações de <code>Notification</code> são congeladas de propósito</strong>; as de autoria não.</li>
+  </ul>
+  <h3>pegadinhas conhecidas (dívidas conscientes e armadilhas)</h3>
+  <ul>
+    <li><code>POST /materialize</code> sem auth nem guarda e <code>POST /revert</code> sem gate no servidor — os buracos mais sérios da matriz de autorização (gate só na UI).</li>
+    <li>Violação de gate sai como <strong>400, não 403</strong> (os gates lançam <code>Error</code> comum): cliente não distingue "sem permissão" de "input inválido" pelo status.</li>
+    <li>Atomicidade desigual: <code>acceptContribution</code>/<code>acceptTrackProposals</code> são transacionais, mas <code>submitTrackContent</code> grava num loop sem transação e <code>addCellContribution</code> faz create + repoint em duas chamadas; upload + materialização usam compensação manual (delete no catch).</li>
+    <li>Sequências calculadas fora de transação (<code>Revision.number</code>, slug): corrida termina em erro barulhento no unique, não em corrupção — mas termina em erro.</li>
+    <li><code>baseContributionId</code> null (linhas pré-M3) pode dar falso positivo de conflito — seguro, só pede um olhar humano.</li>
+    <li>Dev local: o schema atual (String[], Bytes) <strong>não roda mais em SQLite</strong>, apesar do CLAUDE.md/.env.example ainda citarem <code>dev.db</code>; use o Postgres do docker-compose.</li>
+    <li>Trocar o tema não repinta players alphaTab já montados (<code>alphaTabResources</code> é lido na montagem); prefs de player têm evento vivo, tema não.</li>
+    <li><code>globals.css</code> referencia <code>var(--fg)</code> em <code>.btn-secondary</code>/<code>.btn-ghost</code>, token que nunca é definido (o correto é <code>--text</code>).</li>
+    <li><code>INSTRUMENT_PRESETS</code> é importado por dois caminhos (<code>@/lib/tracks</code> re-exporta <code>@/lib/instrument-presets</code>) — mesmo objeto, mas confira antes de mexer.</li>
+    <li>Doc-comments desatualizados: <code>deleteMeasure</code> ("registrado no histórico" — não gera snapshot) e a rota <code>/materialize</code> ("not wired into uploads yet" — upload já materializa).</li>
+    <li>Rascunho de <code>/songs/new</code> vive em sessionStorage: sobrevive ao login na mesma aba, morre se o magic link abrir em outra.</li>
+    <li><code>saveRevisionFile</code> (storage.ts) é órfã <em>de propósito</em> (o upload grava blob no banco desde 2026-06-16) — não "religar" achando que é código morto por acidente.</li>
+    <li>Warning de hidratação: testar primeiro em janela anônima (extensão Bitdefender injeta atributos pré-hidratação; é o motivo do <code>suppressHydrationWarning</code> no layout).</li>
+    <li>Remover as regras <code>.at-*</code> do globals.css deixa o cursor de playback invisível (o alphaTab injeta os elementos sem estilo).</li>
+    <li><code>playWhenReady</code> do editor é um poll de ~6 s sobre o soundfont — se demorar mais, o play silenciosamente não acontece.</li>
+    <li>Fora de escopo declarado (ADR 0004): rate-limit no request de login, anti-enumeração, revogação server-side de sessão, exclusão de conta (o caminho será anonimizar — o histórico imutável não permite apagar).</li>
+    <li>Limites atuais do editor: vozes 1+ são opacas (edita-se a voz 0); bateria com 2 vozes cai para modo texto; add/remover compasso é só do dono (estrutural-como-proposta precisa de design próprio — compassos têm identidade por id, insert+delete ≠ edição).</li>
+  </ul>
+</section>
+
+<section id="mapa">
+  <div class="eyebrow">operação</div>
+  <h2>mapa do repositório</h2>
+  <ul class="filelist">
+    <li><span class="path">prisma/schema.prisma · migrations/ · seed.ts</span><span>10 modelos em 4 camadas; baseline Postgres consolidada + 4 migrações aditivas; seed com 4 músicas demo pelo caminho de código real.</span></li>
+    <li><span class="path">src/lib/canonical.ts · format.ts</span><span>bytes → alphaTex canônico (server-only); validação de extensão de upload.</span></li>
+    <li><span class="path">src/lib/alphatex-grid.ts</span><span>decompose/toNormalized/assemble — documento ⇄ grade; o mesmo código provado no spike.</span></li>
+    <li><span class="path">src/lib/materialize.ts</span><span>materializeSongGrid (transação) · assembleSongAlphaTex (+overrides, validado) · snapshotGrid (best-effort).</span></li>
+    <li><span class="path">src/lib/cells.ts · track-content.ts · tracks.ts · measures.ts · linediff.ts</span><span>núcleo de colaboração: primitivas por célula, autoria por trilha, propostas/conflitos M3, slots/completude, estrutura de compassos, diff LCS.</span></li>
+    <li><span class="path">src/lib/identity.ts · google.ts · email.ts · profile.ts · identity-events.ts</span><span>magic link + JWT, Google OIDC, e-mail provider-agnóstico, perfil/overview, evento client de perfil.</span></li>
+    <li><span class="path">src/lib/notifications.ts</span><span>eventos do ciclo assíncrono + SongWatch, tudo best-effort.</span></li>
+    <li><span class="path">src/lib/alphatex-editor.ts · drum-grid.ts</span><span>libs puras dos editores (parser/serializer, capacidade, mutações imutáveis; grade de bateria MIDI GM).</span></li>
+    <li><span class="path">src/lib/theme.ts · player-prefs.ts · instruments.ts · instrument-presets.ts · templates.ts · slug.ts · storage.ts · prisma.ts</span><span>tema + ponte de cores do alphaTab; prefs de player; famílias GM; presets; templates de scaffold; slug; storage legado; singleton Prisma.</span></li>
+    <li><span class="path">src/app/api/**</span><span>31+ route handlers finos (ver referência de API).</span></li>
+    <li><span class="path">src/app/page.tsx · songs/new · songs/[id] · songs/[id]/edit · songs/[id]/compare · settings</span><span>home-mural; criação; página da música (5 abas); editor; comparação snapshot × células; configurações.</span></li>
+    <li><span class="path">src/components/AlphaTabPlayer.tsx · TabSnippet.tsx</span><span>player universal (3 layouts, handle imperativo, highlight verde) e tablatura render-only dos conflitos.</span></li>
+    <li><span class="path">src/components/SongTabs.tsx · PlayerPanel · ProposalsPanel · HistoryPanel · CollabPanel · CompletenessPanel · ContribPanel</span><span>as abas da página da música.</span></li>
+    <li><span class="path">src/components/TrackEditor.tsx · TabEditor.tsx · DrumGridEditor.tsx</span><span>orquestrador do /edit + os dois editores.</span></li>
+    <li><span class="path">src/components/IdentityWidget · AuthModal · NotificationBell · SettingsClient · WelcomeInstrumentsModal · FollowButton · ShareButton · DeleteSongButton · UploadForm · HomeTabs</span><span>shell de identidade, sino, configurações, ações da música, mural.</span></li>
+    <li><span class="path">docs/adr/0001..0004</span><span>formato canônico · modelo de células · primeiro revezamento real (revisada pós-teste) · identidade durável.</span></li>
+    <li><span class="path">docs/brand/ · CLAUDE.md · CONTEXTO.md</span><span>mockups de referência da marca; memória do projeto; log narrativo de sessões.</span></li>
+    <li><span class="path">spikes/</span><span>a cadeia de prova (roundtrip, struct, cellslice, assemble, verify-materialize) — assemble.ts importa o código de produção.</span></li>
+    <li><span class="path">next.config.mjs · render.yaml · docker-compose.yml · storage/</span><span>integração alphaTab/webpack; deploy Render; Postgres dev; uploads legados (gitignored).</span></li>
+  </ul>
+</section>
+
+
+
+<footer class="doc-footer">
+  <span>attacca · documentação técnica gerada a partir do código em 2026-07-23</span>
+  <span>fonte: repositório GitSong (rebranding attacca) · commit f11a9fc</span>
+</footer>
+
+</div></main>
+</div>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc nav a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+  function setActive(id) {
+    links.forEach(function (a) { a.classList.remove('active'); });
+    if (map[id]) map[id].classList.add('active');
+  }
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) setActive(e.target.id); });
+  }, { rootMargin: '-10% 0px -70% 0px' });
+  sections.forEach(function (s) { observer.observe(s); });
+})();
+</script>
