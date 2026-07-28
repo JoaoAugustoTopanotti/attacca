@@ -536,9 +536,61 @@ O raciocínio que levou à decisão (mantido como contexto):
   materializada só vira revisão (nunca re-materializa — apagaria o revezamento).
   Músicas sem dono (`ownerId null`, seeds/legado) = **abertas**: qualquer identificado
   salva direto (badge "música aberta (sem dono) — salva direto").
+- **Efeitos + bend com distância + afinação/andamento (2026-07-27)** —
+  (1) `NoteEffect` ganhou `x` (nota morta — o "X" da tab), `pm`, `nh`, `ac`, `hac`,
+  `st`, `g` (todos sem parâmetro; o exporter emite exatamente esses tokens, provado no
+  1.8.3). ⚠️ `extractEffectsAndSuffix` virou **ciente de tokens**: exporter e nosso
+  serializer escrevem TODOS os efeitos num grupo único (`{v pm x}`) — classificar
+  grupo a grupo perdia o estado dos toggles e duplicava efeitos ao reeditar; tokens
+  não reconhecidos são re-unidos num grupo opaco (guarda `PARAM_KEYWORDS` p/ args de
+  `slur`/`acc`/`lf`/`rf`). (2) **Bend por distância** (`noteBendQuarters`/`setBend`
+  substituem o toggle): valor em QUARTOS de tom (2=½, 4=full, 6=1½ — botões ½/1/1½ na
+  toolbar; clicar de novo remove). ⚠️ O exporter reescreve nosso `b (0 N)` como
+  `be (bend 0 0 60 N)` — o leitor reconhece essa forma como a mesma distância (senão
+  todo bend virava "custom" após save+materialização); curva real multi-ponto = "B*"
+  (custom), substituível mas não decomposto. (3) **Afinação da trilha** e **andamento**
+  = operações ESTRUTURAIS do dono (`src/lib/structure.ts`, validam o documento inteiro
+  remontado via `assembleSongAlphaTex(…, transform)` antes de persistir): rotas POST
+  `/tracks/[order]/tuning` ({tuning: tokens aguda→grave, mesmo nº de cordas — casas
+  ficam, altura muda}) e `/api/songs/[id]/tempo` ({bpm}, escreve `\tempo` no header
+  global e limpa o do compasso 1; automações de tempo no meio ficam). Helpers puros de
+  afinação em `src/lib/tuning.ts` (client-safe: presets Drop D/Eb/DADGAD…, nomes
+  canônicos em bemol como o alphaTab). ⚠️ Dois formatos de `\tuning` no header:
+  declareTrack (`\tuning E4 B3…`) e exporter (`\tuning (Eb4…) { label "…" }` —
+  multi-linha; a reescrita remove o bloco de label junto). UI no `TrackEditor`
+  (dono): popover de afinação (preset ou corda a corda, grid 3 colunas) + pill
+  "♩= bpm" (`.tempo-ctl`/`.tempo-input`, sem spinners); mudança estrutural salva
+  a edição pendente antes (nunca descarta) e remonta o editor (`structEpoch` na
+  key). `getTrackContent` devolve `track.tuning` e `song.tempo`. Refinos
+  2026-07-28: **afinação desenhada na tablatura estilo Songsterr** — letras por
+  corda à esquerda do 1º compasso (overlay `.tab-editor-tuning-label`, posicionado
+  por `stringGeometry`; o texto "Guitar Standard Tuning" do alphaTab é desligado
+  via `notation.elements: new Map([[NotationElement.GuitarTuning, false]])`).
+  **Andamento no MEIO da música**: `setMeasureTempo` (structure.ts) escreve/remove
+  `\tempo N` no structPrefix do compasso (rota `/tempo` aceita `{bpm, measure}`;
+  bpm null remove; compasso 1 delega pro inicial e não pode ficar sem); UI =
+  botão "♩=" no grupo Comp. da toolbar do TabEditor (popover "a partir do
+  compasso N", Aplicar/Remover; botão aceso = compasso tem mudança) **+ as
+  próprias marcas ♩=N na partitura são CLICÁVEIS** (overlay
+  `.tab-editor-tempo-mark`, dono) — clicou, abre o popover daquele compasso.
+  **Andamento é OTIMISTA e leve (revisão pós-feedback: "travadinha")**: o
+  `applyTempoAt` atualiza o estado local na hora e NÃO recarrega a trilha nem
+  remonta o editor (tempo não toca células → sem dirty-save/loadTrack); o
+  TabEditor re-renderiza **em-place** quando header/meta/tempo mudam (effect de
+  assinatura estrutural → `api.tex()`, mantém cursor e histórico — `structEpoch`
+  na key foi removido); só o player headless recarrega (áudio novo). Widget da
+  barra = botão compacto "♩ N" com popover (padrão do de afinação).
+  ⚠️ `serializeForRender` ganhou `initialTempo` (o tempo inicial vive no header
+  GLOBAL, não no da trilha — sem injetar, o editor não desenhava a marca do
+  compasso 1); metadado global exige o terminador `.` na linha seguinte. **Presets**:
+  Violão (aço) GM 25 e Violão (náilon) GM 24; "Guitarra" corrigida 25→27 (limpa —
+  soava violão de aço; trilhas já declaradas guardam o próprio `\instrument`).
+  ⚠️ `declareTrack` escapa o label no regex de numeração ("Violão (aço)" tem
+  metacaracteres).
 - ⚠️ **Limites atuais**: vozes 1+ são opacas (edita-se a voz 0); percussão sem editor
   visual; add/remover compasso é só do dono (estrutural-como-proposta precisa de design
-  próprio: compassos têm IDENTIDADE por id, não por índice — insert+delete ≠ edição).
+  próprio: compassos têm IDENTIDADE por id, não por índice — insert+delete ≠ edição);
+  mudar o Nº de cordas de uma trilha não existe (afinação exige mesmo nº de cordas).
 
 ## 9. Estrutura
 ```
@@ -561,14 +613,17 @@ storage/  # uploads (gitignored)
 
 ## 10. Como rodar
 
-### Dev local (SQLite)
+### Dev local (Postgres em Docker — desde 2026-07; SQLite aposentado)
 ```
 npm install                                   # use --use-system-ca se houver TLS corp.
-# .env já tem DATABASE_URL=file:./dev.db e GS_COOKIE_SECRET=dev-insecure-change-me
-npx prisma db push                            # aplica schema no dev.db sem migração (dev only)
-npm run db:seed                               # música demo tocável (AlphaTex)
+# ⚠️ ABRIR O DOCKER DESKTOP primeiro (sem o engine, nada sobe) e então:
+docker compose up -d                          # attacca-dev-db (host 55432; dados no volume attacca_pgdata)
+# .env: DATABASE_URL="postgresql://attacca:attacca@localhost:55432/attacca_dev"
 npm run dev                                    # http://localhost:4000  (webpack)
 ```
+> "Can't reach database server at localhost:55432" = Docker Desktop fechado (o
+> container tem restart: unless-stopped — sobe sozinho quando o engine liga).
+> Porta 55432 no host de propósito: 5432/5433 já têm Postgres nativos nesta máquina.
 > Nota TLS corporativo: se algo falhar com `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, rode com
 > `NODE_OPTIONS=--use-system-ca` (Node usa o trust store do Windows).
 
