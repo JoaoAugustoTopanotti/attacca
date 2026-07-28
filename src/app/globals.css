@@ -1782,6 +1782,71 @@ label {
 }
 .tab-editor-inline-add:disabled { cursor: not-allowed; opacity: .25; }
 
+/* Afinação por corda no início da tablatura (estilo Songsterr) — overlay,
+   uma letra por linha do tab, alinhada à direita encostando no 1º compasso. */
+.tab-editor-tuning-label {
+  position: absolute;
+  width: 22px; text-align: right;
+  transform: translateY(-50%);
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+  color: var(--sub);
+  pointer-events: none; user-select: none;
+  z-index: 4;
+}
+
+/* Andamento — pill "♩= [n] bpm" (barra do editor e popover por compasso). */
+.tempo-ctl {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 10px; flex-shrink: 0;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  font-size: 0.8rem; color: var(--sub); white-space: nowrap;
+}
+.tempo-input {
+  width: 42px; background: transparent; border: none;
+  color: var(--text); font-family: var(--mono); font-size: 0.8rem;
+  text-align: right; padding: 0;
+}
+.tempo-input:focus { outline: none; }
+.tempo-input::-webkit-outer-spin-button,
+.tempo-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tempo-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* Alvo clicável sobre a marca ♩=N desenhada na partitura (dono): invisível,
+   ganha contorno no hover para se anunciar como editável. */
+.tab-editor-tempo-mark {
+  position: absolute;
+  width: 64px; height: 22px;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  cursor: pointer; z-index: 6; padding: 0;
+}
+.tab-editor-tempo-mark:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* Popover "andamento a partir do compasso N" (toolbar do editor, dono). */
+.tab-editor-tempo-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  display: flex; flex-direction: column; gap: 7px; min-width: 230px;
+}
+.tab-editor-tempo-pop-label { font-size: 0.72rem; color: var(--sub); white-space: nowrap; }
+.tab-editor-tempo-pop-row { display: flex; gap: 6px; align-items: center; }
+
+/* Popover de afinação — grade de 3 colunas (rótulo / nota / oitava) para as
+   linhas ficarem alinhadas independente da largura dos rótulos. */
+.tuning-grid {
+  display: grid; grid-template-columns: max-content 1fr max-content;
+  gap: 4px 8px; align-items: center;
+}
+.tuning-grid-label { font-size: 0.72rem; color: var(--sub); white-space: nowrap; }
+.tuning-grid select {
+  height: 28px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 7px;
+  font-family: inherit; font-size: 0.8rem; padding: 0 6px;
+}
+
 /* Viewport: área scrollável onde o alphaTab renderiza.
    Scroll mantido, mas a barra é escondida (fica feia sobre a tablatura). */
 .tab-editor-viewport {

@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   type BeatDuration,
+  type BendAmount,
   type EditorBeat,
   type EditorCursor,
   type EditorModel,
@@ -23,19 +24,20 @@ import {
   measureUsed64,
   moveBeat,
   moveNoteToString,
-  noteHasBend,
+  noteBendQuarters,
   parseTrackTex,
   replaceBeatsInMeasure,
   serializeForRender,
   serializeModel,
   setBeatDots,
   setBeatDuration,
+  setBend,
   setNote,
   setRest,
-  toggleBend,
   toggleEffect,
 } from "@/lib/alphatex-editor";
 import { alphaTabResources, readTheme } from "@/lib/theme";
+import { splitTuningToken, tuningTokensFromHeader } from "@/lib/tuning";
 
 // ── Tipos alphaTab (importados dinamicamente) ──────────────────────────────────
 type AlphaTabModule = typeof import("@coderline/alphatab");
@@ -58,6 +60,19 @@ const EFFECTS: Array<{ value: NoteEffect; label: string; title: string }> = [
   { value: "sl", label: "/",  title: "Slide (desliza até a próxima nota)"             },
   { value: "v",  label: "~",  title: "Vibrato"                                        },
   { value: "lr", label: "LR", title: "Let ring (deixa soar)"                          },
+  { value: "x",  label: "X",  title: "Nota morta/abafada (corda sem pressionar até o traste)" },
+  { value: "pm", label: "PM", title: "Palm mute (abafada com a palma da mão)"         },
+  { value: "nh", label: "NH", title: "Harmônico natural"                              },
+  { value: "ac", label: ">",  title: "Acento"                                         },
+  { value: "st", label: "st", title: "Staccato (nota curta e destacada)"              },
+  { value: "g",  label: "g",  title: "Ghost note (nota fantasma, mais fraca)"         },
+];
+
+// Distâncias de bend oferecidas na toolbar (valor em QUARTOS de tom do alphaTab).
+const BEND_CHOICES: Array<{ quarters: number; label: string; title: string }> = [
+  { quarters: 2, label: "½",  title: "Bend de meio tom" },
+  { quarters: 4, label: "1",  title: "Bend de um tom (full)" },
+  { quarters: 6, label: "1½", title: "Bend de um tom e meio" },
 ];
 
 // Nomes de cordas (string 1 = mais aguda, convenção alphaTex)
@@ -162,6 +177,8 @@ type Props = {
   trackHeader?: string | null;
   /** Estrutura por compasso (fórmula de compasso, \ts/\tempo…) — render + capacidade. */
   measureMeta?: MeasureMeta[];
+  /** Andamento inicial da música (bpm) — desenha a marca ♩=N do compasso 1. */
+  initialTempo?: number | null;
   /** Clique num beat → pede seek da música completa para este tick. */
   onSeek?: (tick: number) => void;
   /** Percussão usa notação própria — força edição em texto (sem modo visual). */
@@ -172,6 +189,8 @@ type Props = {
   onAddMeasure?: (afterMeasureIndex: number) => void;
   /** Remover o compasso measureIndex (todas as trilhas). */
   onDeleteMeasure?: (measureIndex: number) => void;
+  /** Definir/remover (bpm null) o andamento A PARTIR do compasso measureIndex. */
+  onSetMeasureTempo?: (measureIndex: number, bpm: number | null) => void;
   /** Mensagem de erro vinda do TrackEditor. */
   error?: string | null;
   /** Mensagem de sucesso/info vinda do TrackEditor. */
@@ -196,11 +215,13 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     trackStringCount = 6,
     trackHeader,
     measureMeta,
+    initialTempo,
     onSeek,
     percussion = false,
     canEditStructure = false,
     onAddMeasure,
     onDeleteMeasure,
+    onSetMeasureTempo,
     error,
     info,
   },
@@ -234,6 +255,15 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // Botão "+" ao final de cada compasso (inserir logo depois), mais intuitivo
   // que ter que selecionar um beat e usar o botão da toolbar.
   const [addSlots, setAddSlots] = useState<{ x: number; y: number; measureIndex: number }[]>([]);
+  // Letras da afinação por corda à esquerda do 1º compasso (estilo Songsterr).
+  const [tuningLabels, setTuningLabels] = useState<{ x: number; y: number; label: string }[]>([]);
+  // Popover "andamento a partir deste compasso" (dono).
+  const [tempoPopOpen, setTempoPopOpen] = useState(false);
+  const [tempoPopVal, setTempoPopVal] = useState("");
+  // Alvos clicáveis sobre as marcas ♩=N desenhadas na partitura (dono).
+  const [tempoMarks, setTempoMarks] = useState<
+    { x: number; y: number; measureIndex: number; bpm: number }[]
+  >([]);
 
   // Refs para evitar closures obsoletas nos event handlers do alphaTab
   const modelRef  = useRef<EditorModel>(model);
@@ -261,10 +291,12 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // Contexto de render + callbacks sempre atuais (handlers registrados uma vez).
   const trackHeaderRef = useRef(trackHeader);
   const measureMetaRef = useRef(measureMeta);
+  const initialTempoRef = useRef(initialTempo);
   const onSeekRef = useRef(onSeek);
   const stringCountRef = useRef(trackStringCount);
   trackHeaderRef.current = trackHeader;
   measureMetaRef.current = measureMeta;
+  initialTempoRef.current = initialTempo;
   onSeekRef.current = onSeek;
   stringCountRef.current = trackStringCount;
   // Último alphaTex EMITIDO por nós — distingue mudança externa (refetch/aceite)
@@ -280,8 +312,26 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     return serializeForRender(m, {
       trackHeader: trackHeaderRef.current,
       structPrefixes: measureMetaRef.current?.map((mm) => mm.structPrefix),
+      initialTempo: initialTempoRef.current,
     });
   }, []);
+
+  // ── Mudança ESTRUTURAL vinda do pai (afinação, andamento, meta) ─────────────
+  // O alphaTex das células não muda, então o effect de "mudança externa" não
+  // dispara — re-renderiza o alphaTab EM-PLACE (sem remontar: mantém cursor,
+  // histórico e é rápido — remontar o editor inteiro era a "travadinha").
+  const structSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sig =
+      `${trackHeader ?? ""}©${initialTempo ?? ""}©` +
+      (measureMeta ?? [])
+        .map((m) => `${m.tsNum}/${m.tsDen}:${m.structPrefix ?? ""}`)
+        .join("|");
+    if (structSigRef.current !== null && structSigRef.current !== sig) {
+      apiRef.current?.tex(renderTex(modelRef.current));
+    }
+    structSigRef.current = sig;
+  }, [trackHeader, measureMeta, initialTempo, renderTex]);
 
   // Cursor de playback: o pai encaminha o tick do player headless (a música
   // completa) para cá; setar tickPosition move o cursor do editor sem tocar áudio.
@@ -338,6 +388,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           scale: 1.0,
           // Cores da tablatura seguem o tema attacca (o alphaTab não herda CSS).
           resources: alphaTabResources(readTheme()),
+        },
+        notation: {
+          // O texto "Guitar Standard Tuning" sai — a afinação vira letras por
+          // corda à esquerda do 1º compasso (overlay, estilo Songsterr).
+          elements: new Map([[at.NotationElement.GuitarTuning, false]]),
         },
         player: {
           enablePlayer:          true,
@@ -1112,8 +1167,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     applyModel(toggleEffect(mod, cur.measureIndex, cur.beatIndex, string, effect));
   }
 
-  // Bend é separado (mora no suffix opaco, com pontos), não é um NoteEffect simples.
-  function handleBendToggle() {
+  // Bend é separado (mora no suffix, com pontos): clicar numa distância aplica-a;
+  // clicar na distância já ativa remove o bend.
+  function handleBendSet(quarters: number) {
     if (disabled) return;
     const cur = cursorRef.current;
     const mod = modelRef.current;
@@ -1122,7 +1178,16 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     if (!beat || beat.notes.length === 0) return;
     const string = targetString(beat, cur.string);
     if (string !== cur.string) setCursor({ ...cur, string });
-    applyModel(toggleBend(mod, cur.measureIndex, cur.beatIndex, string));
+    const current = noteBendQuarters(mod, cur.measureIndex, cur.beatIndex, string);
+    applyModel(
+      setBend(
+        mod,
+        cur.measureIndex,
+        cur.beatIndex,
+        string,
+        current === quarters ? null : quarters,
+      ),
+    );
   }
 
   // Beat selecionado e se ele tem nota (efeitos só fazem sentido sobre notas).
@@ -1137,21 +1202,31 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     return selectedBeat.notes.find((n) => n.string === string)?.effects ?? [];
   }
   const effects = activeEffects();
-  const bendActive =
+  const bendAmount: BendAmount =
     !!cursor && !!selectedBeat && selectedHasNotes
-      ? noteHasBend(
+      ? noteBendQuarters(
           model,
           cursor.measureIndex,
           cursor.beatIndex,
           targetString(selectedBeat, cursor.string),
         )
-      : false;
+      : null;
 
   // ── Duração "exibida" na toolbar ───────────────────────────────────────────
   const displayDuration: BeatDuration = cursor
     ? (model.measures[cursor.measureIndex]?.beats[cursor.beatIndex]?.duration ?? duration)
     : duration;
   const dotState: 0 | 1 | 2 = selectedBeat ? beatDots(selectedBeat) : 0;
+
+  // ── Andamento do compasso selecionado (lido do structPrefix) ───────────────
+  // O exporter escreve `\tempo (120 hide)`; à mão escreve-se `\tempo 120`.
+  const cursorMeasureTempo: number | null = (() => {
+    if (!cursor) return null;
+    const m = measureMeta?.[cursor.measureIndex]?.structPrefix?.match(
+      /\\tempo\s*\(?\s*(\d+)/i,
+    );
+    return m ? Number(m[1]) : null;
+  })();
 
   // ── Estado de preenchimento do compasso selecionado ────────────────────────
   const fill = (() => {
@@ -1316,6 +1391,79 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     setMeasureFlags(flags);
   }, [apiReady, raw, renderEpoch, model, measureMeta]);
 
+  // ── Letras da afinação à esquerda do 1º compasso (estilo Songsterr) ─────────
+  useEffect(() => {
+    if (!apiReady || raw) {
+      setTuningLabels([]);
+      return;
+    }
+    const tokens = tuningTokensFromHeader(trackHeader);
+    const api = apiRef.current;
+    const lookup = api?.boundsLookup;
+    const firstBeat = api?.score?.tracks?.[0]?.staves?.[0]?.bars?.[0]?.voices?.[0]?.beats?.[0];
+    const bb = firstBeat && lookup ? lookup.findBeat(firstBeat) : null;
+    if (!tokens || !bb) {
+      setTuningLabels([]);
+      return;
+    }
+    const offX = surfaceRef.current?.offsetLeft ?? 0;
+    const offY = surfaceRef.current?.offsetTop ?? 0;
+    const barVB = (bb as unknown as BeatBoundsLike).barBounds.visualBounds;
+    const { topY, spacing } = stringGeometry(
+      bb as unknown as BeatBoundsLike,
+      tokens.length,
+    );
+    // Corda 1 (aguda) = token 0 = linha de cima; encosta no início do compasso.
+    setTuningLabels(
+      tokens.map((t, i) => ({
+        x: offX + barVB.x - 24,
+        y: offY + topY + i * spacing,
+        label: splitTuningToken(t).note,
+      })),
+    );
+  }, [apiReady, raw, renderEpoch, model, trackHeader]);
+
+  // ── Marcas de andamento (♩=N) clicáveis ─────────────────────────────────────
+  // A forma intuitiva de editar/remover uma mudança de andamento: clicar na
+  // própria marca desenhada na partitura (dono). O alvo é um overlay
+  // transparente sobre a região da marca (acima do início do compasso).
+  useEffect(() => {
+    if (!apiReady || raw || !canEditStructure) {
+      setTempoMarks([]);
+      return;
+    }
+    const api = apiRef.current;
+    const lookup = api?.boundsLookup;
+    const bars = api?.score?.tracks?.[0]?.staves?.[0]?.bars;
+    if (!lookup || !bars) {
+      setTempoMarks([]);
+      return;
+    }
+    const offX = surfaceRef.current?.offsetLeft ?? 0;
+    const offY = surfaceRef.current?.offsetTop ?? 0;
+    const marks: { x: number; y: number; measureIndex: number; bpm: number }[] = [];
+    const visibleTempo = (prefix: string | null | undefined): number | null => {
+      const m = prefix?.match(/\\tempo\s*(\(?)\s*(\d+)([^\n]*)/i);
+      if (!m) return null;
+      if (m[1] && /\bhide\b/i.test(m[3] ?? "")) return null; // \tempo (N hide)
+      return Number(m[2]);
+    };
+    model.measures.forEach((_, i) => {
+      let bpm = visibleTempo(measureMeta?.[i]?.structPrefix);
+      // Compasso 1 sem \tempo próprio: a marca vem do tempo inicial injetado.
+      if (bpm === null && i === 0 && initialTempo && !/\\tempo\b/i.test(measureMeta?.[0]?.structPrefix ?? "")) {
+        bpm = initialTempo;
+      }
+      if (bpm === null) return;
+      const beat = bars[i]?.voices?.[0]?.beats?.[0];
+      const bb = beat ? lookup.findBeat(beat) : null;
+      if (!bb) return;
+      const barVB = bb.barBounds.visualBounds;
+      marks.push({ x: offX + barVB.x - 2, y: offY + barVB.y - 34, measureIndex: i, bpm });
+    });
+    setTempoMarks(marks);
+  }, [apiReady, raw, canEditStructure, renderEpoch, model, measureMeta, initialTempo]);
+
   // ── Botão "+" ao final de cada compasso ─────────────────────────────────────
   useEffect(() => {
     if (!apiReady || raw || !canEditStructure) {
@@ -1427,15 +1575,37 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 {ef.label}
               </button>
             ))}
-            <button
-              type="button"
-              className={`tab-editor-btn${bendActive ? " effect-active" : ""}`}
-              title="Bend — full bend (tom inteiro). Clique de novo para remover."
-              onClick={handleBendToggle}
-              disabled={disabled || !cursor || !selectedHasNotes}
-            >
-              B
-            </button>
+          </div>
+
+          <div className="tab-editor-toolbar-sep" />
+
+          {/* Bend com distância: ½ / 1 / 1½ tom. Bend importado com curva
+              própria aparece como "B*" (clicar substitui pela distância). */}
+          <span className="tab-editor-toolbar-label">Bend</span>
+          <div className="tab-editor-toolbar-group">
+            {BEND_CHOICES.map((b) => (
+              <button
+                key={b.quarters}
+                type="button"
+                className={`tab-editor-btn${bendAmount === b.quarters ? " effect-active" : ""}`}
+                title={`${b.title}. Clique de novo para remover.`}
+                onClick={() => handleBendSet(b.quarters)}
+                disabled={disabled || !cursor || !selectedHasNotes}
+              >
+                {b.label}
+              </button>
+            ))}
+            {(bendAmount === "custom" ||
+              (typeof bendAmount === "number" &&
+                !BEND_CHOICES.some((b) => b.quarters === bendAmount))) && (
+              <span
+                className="tab-editor-btn effect-active"
+                title="Bend importado com curva própria — escolher uma distância substitui a curva"
+                style={{ cursor: "default" }}
+              >
+                B*
+              </span>
+            )}
           </div>
 
           <div className="tab-editor-toolbar-sep" />
@@ -1514,6 +1684,81 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 >
                   −
                 </button>
+                {/* Andamento a partir do compasso selecionado (♩ = bpm).
+                    Comp. 1 = andamento inicial; compassos seguintes = mudança
+                    no meio da música (automação \tempo, preservada no grid). */}
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <button
+                    type="button"
+                    className={`tab-editor-btn${cursorMeasureTempo !== null ? " effect-active" : ""}`}
+                    title="Andamento a partir do compasso selecionado"
+                    onClick={() => {
+                      if (!cursor) return;
+                      setTempoPopVal(
+                        cursorMeasureTempo !== null ? String(cursorMeasureTempo) : "",
+                      );
+                      setTempoPopOpen((o) => !o);
+                    }}
+                    disabled={disabled || !cursor}
+                  >
+                    ♩=
+                  </button>
+                  {tempoPopOpen && cursor && (
+                    <div className="tab-editor-tempo-pop">
+                      <span className="tab-editor-tempo-pop-label">
+                        a partir do compasso {cursor.measureIndex + 1}
+                      </span>
+                      <div className="tab-editor-tempo-pop-row">
+                        <span className="tempo-ctl">
+                          ♩=
+                          <input
+                            type="number"
+                            className="tempo-input"
+                            min={20}
+                            max={400}
+                            value={tempoPopVal}
+                            placeholder="120"
+                            autoFocus
+                            onChange={(e) => setTempoPopVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && tempoPopVal.trim()) {
+                                setTempoPopOpen(false);
+                                onSetMeasureTempo?.(cursor.measureIndex, Number(tempoPopVal));
+                              }
+                              if (e.key === "Escape") setTempoPopOpen(false);
+                            }}
+                            aria-label="Andamento (bpm)"
+                          />
+                          bpm
+                        </span>
+                        <button
+                          type="button"
+                          className="tab-editor-btn"
+                          disabled={!tempoPopVal.trim()}
+                          onClick={() => {
+                            setTempoPopOpen(false);
+                            onSetMeasureTempo?.(cursor.measureIndex, Number(tempoPopVal));
+                          }}
+                        >
+                          Aplicar
+                        </button>
+                        {cursorMeasureTempo !== null && cursor.measureIndex > 0 && (
+                          <button
+                            type="button"
+                            className="tab-editor-btn"
+                            title="Remover a mudança de andamento deste compasso"
+                            onClick={() => {
+                              setTempoPopOpen(false);
+                              onSetMeasureTempo?.(cursor.measureIndex, null);
+                            }}
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1613,6 +1858,18 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           />
         )}
 
+        {/* Afinação por corda no início da tablatura (estilo Songsterr) */}
+        {!raw &&
+          tuningLabels.map((t, i) => (
+            <span
+              key={i}
+              className="tab-editor-tuning-label"
+              style={{ left: t.x, top: t.y }}
+            >
+              {t.label}
+            </span>
+          ))}
+
         {/* Badges de compasso fora do tempo ("falta 1/4" / "passa 1/8") */}
         {!raw &&
           measureFlags.map((f, i) => (
@@ -1623,6 +1880,30 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             >
               {f.label}
             </span>
+          ))}
+
+        {/* Marcas ♩=N clicáveis: clicar abre o popover de andamento do compasso */}
+        {!raw &&
+          tempoMarks.map((tm) => (
+            <button
+              key={tm.measureIndex}
+              type="button"
+              className="tab-editor-tempo-mark"
+              title={`Andamento: ${tm.bpm} bpm a partir do compasso ${tm.measureIndex + 1} — clique para mudar`}
+              style={{ left: tm.x, top: tm.y }}
+              disabled={disabled}
+              onClick={() => {
+                const cur = cursorRef.current;
+                setCursor({
+                  measureIndex: tm.measureIndex,
+                  beatIndex: 0,
+                  string: cur?.string ?? 1,
+                });
+                setSelAnchor(null);
+                setTempoPopVal(String(tm.bpm));
+                setTempoPopOpen(true);
+              }}
+            />
           ))}
 
         {/* Botão "+" ao final de cada compasso — inserir um vazio logo depois */}

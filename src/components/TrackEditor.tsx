@@ -1,27 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import AlphaTabPlayer, { type AlphaTabPlayerHandle } from "@/components/AlphaTabPlayer";
 import TabEditor, { type MeasureMeta, type TabEditorHandle } from "@/components/TabEditor";
 import DrumGridEditor from "@/components/DrumGridEditor";
+import {
+  NOTE_OPTIONS,
+  TUNING_PRESETS,
+  splitTuningToken,
+  tuningSummary,
+} from "@/lib/tuning";
 
 type Me = { id: string; displayName: string } | null;
 type Content = {
-  track: { id: string; order: number; name: string; isPercussion: boolean };
+  track: {
+    id: string;
+    order: number;
+    name: string;
+    isPercussion: boolean;
+    /** Afinação atual (tokens aguda → grave); null = sem afinação editável. */
+    tuning: string[] | null;
+  };
   measureCount: number;
   alphaTex: string;
   trackHeader: string | null;
   measures: MeasureMeta[];
-  song: { ownerId: string | null; ownerName: string | null };
+  song: { ownerId: string | null; ownerName: string | null; tempo: number | null };
 };
-
-/** Nº de cordas real, extraído da \tuning do header da trilha (ex.: baixo = 4). */
-function stringCountFromHeader(header: string | null): number | null {
-  const m = header?.match(/\\tuning\s*\(([^)]+)\)/);
-  if (!m) return null;
-  const n = m[1].trim().split(/\s+/).length;
-  return n >= 3 && n <= 8 ? n : null;
-}
 
 type Preset = { key: string; label: string };
 
@@ -50,6 +55,15 @@ export default function TrackEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  // ── Afinação e andamento (estrutura musical; só o dono) ──
+  const [tuningOpen, setTuningOpen] = useState(false);
+  const [tuningDraft, setTuningDraft] = useState<string[]>([]);
+  const [tuningBusy, setTuningBusy] = useState(false);
+  const [tuningError, setTuningError] = useState<string | null>(null);
+  const [tempoDraft, setTempoDraft] = useState("");
+  const [tempoBusy, setTempoBusy] = useState(false);
+  const [tempoOpen, setTempoOpen] = useState(false);
 
   // Player external-control state
   const playerRef = useRef<AlphaTabPlayerHandle>(null);
@@ -147,6 +161,9 @@ export default function TrackEditor({
     const json: Content = await res.json();
     setContent(json);
     setText(json.alphaTex);
+    setTempoDraft(json.song.tempo != null ? String(json.song.tempo) : "");
+    setTuningOpen(false);
+    setTempoOpen(false);
   }, [songId, trackOrder]);
 
   useEffect(() => { loadTrack(); }, [loadTrack]);
@@ -249,6 +266,117 @@ export default function TrackEditor({
     } finally {
       setBusy(false);
     }
+  }
+
+  // ── Estrutura: afinação da trilha e andamento (dono) ────────────────────────
+  // Como nas operações de compasso: edição pendente é SALVA antes (nunca
+  // descartada) — o loadTrack pós-mudança substituiria o buffer local.
+  function openTuning() {
+    if (!content?.track.tuning) return;
+    setTuningDraft(
+      content.track.tuning.map((t) => {
+        const { note, octave } = splitTuningToken(t);
+        return `${note}${octave}`;
+      }),
+    );
+    setTuningError(null);
+    setTuningOpen((o) => !o);
+  }
+
+  async function applyTuning() {
+    if (tuningBusy) return;
+    setTuningBusy(true);
+    setTuningError(null);
+    try {
+      if (dirty) await saveContent();
+      const res = await fetch(
+        `/api/songs/${songId}/tracks/${trackOrder}/tuning`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tuning: tuningDraft }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao mudar a afinação.");
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      // loadTrack traz o header novo; o TabEditor re-renderiza em-place
+      // (assinatura estrutural), sem remontar.
+      await loadTrack();
+      setInfo(`Afinação atualizada: ${tuningSummary(json.tuning)}.`);
+    } catch (e) {
+      setTuningError(e instanceof Error ? e.message : "Erro.");
+    } finally {
+      setTuningBusy(false);
+    }
+  }
+
+  // measure 0 = andamento inicial; N>0 = mudança a partir daquele compasso
+  // (bpm null remove a mudança). OTIMISTA: o estado local muda na hora (o
+  // editor re-renderiza em-place, sem remontar — era a "travadinha") e o POST
+  // confirma por trás; erro reverte. Andamento não toca células, então não há
+  // buffer a salvar nem trilha a recarregar.
+  async function applyTempoAt(measure: number, bpm: number | null) {
+    if (tempoBusy || !content) return;
+    const prev = content;
+    const stripTempo = (s: string | null) =>
+      (s ?? "")
+        .split(/\r?\n/)
+        .filter((l) => !/^\s*\\tempo\b/i.test(l))
+        .join("\n")
+        .trim();
+    setContent({
+      ...content,
+      measures: content.measures.map((m, i) => {
+        if (i !== measure) return m;
+        const base = stripTempo(m.structPrefix);
+        // Compasso 1: o tempo inicial vive no header global (song.tempo) — o
+        // structPrefix fica sem \tempo, como o servidor deixa.
+        const next =
+          measure === 0 || bpm === null ? base : `${base}\n\\tempo ${bpm}`.trim();
+        return { ...m, structPrefix: next || null };
+      }),
+      song: {
+        ...content.song,
+        tempo: measure === 0 && bpm !== null ? bpm : content.song.tempo,
+      },
+    });
+    if (measure === 0 && bpm !== null) setTempoDraft(String(bpm));
+    setTempoBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/songs/${songId}/tempo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bpm, measure }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao mudar o andamento.");
+      // Só o ÁUDIO precisa recarregar (o /assembled mudou) — em segundo plano.
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      setInfo(
+        bpm === null
+          ? `Mudança de andamento removida do compasso ${measure + 1}.`
+          : measure === 0
+            ? `Andamento: ${json.tempo} bpm.`
+            : `Andamento: ${json.tempo} bpm a partir do compasso ${measure + 1}.`,
+      );
+    } catch (e) {
+      setContent(prev); // reverte o otimismo
+      setTempoDraft(prev.song.tempo != null ? String(prev.song.tempo) : "");
+      setError(e instanceof Error ? e.message : "Erro.");
+    } finally {
+      setTempoBusy(false);
+    }
+  }
+
+  function applyTempo() {
+    const bpm = Number(tempoDraft);
+    if (!content || !tempoDraft.trim() || bpm === content.song.tempo) return;
+    setTempoOpen(false);
+    applyTempoAt(0, bpm);
   }
 
   // ── Estrutura: adicionar/remover compasso (dono; afeta todas as trilhas) ────
@@ -398,6 +526,158 @@ export default function TrackEditor({
           )}
         </div>
 
+        {/* Afinação da trilha (dono; trilhas de corda). O popover edita corda a
+            corda ou por preset; as casas existentes continuam, soando na altura nova. */}
+        {isOwner && content?.track.tuning && (
+          <div className="add-track">
+            <button
+              type="button"
+              className="add-track-btn"
+              onClick={openTuning}
+              aria-expanded={tuningOpen}
+              title="Afinação das cordas desta trilha"
+            >
+              afinação · {tuningSummary(content.track.tuning)}
+            </button>
+            {tuningOpen && (
+              <div className="add-track-pop" style={{ minWidth: 260 }}>
+                {(TUNING_PRESETS[tuningDraft.length] ?? []).length > 0 && (
+                  <div className="add-track-row" style={{ marginBottom: 8 }}>
+                    <select
+                      value=""
+                      aria-label="Preset de afinação"
+                      onChange={(e) => {
+                        const p = (TUNING_PRESETS[tuningDraft.length] ?? []).find(
+                          (x) => x.label === e.target.value,
+                        );
+                        if (p) setTuningDraft([...p.tokens]);
+                      }}
+                    >
+                      <option value="">escolher um preset…</option>
+                      {(TUNING_PRESETS[tuningDraft.length] ?? []).map((p) => (
+                        <option key={p.label} value={p.label}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {/* Grid de 3 colunas fixas — rótulo, nota, oitava — para as
+                    linhas ficarem alinhadas (rótulos de largura variável
+                    desalinhavam os selects). */}
+                <div className="tuning-grid">
+                  {tuningDraft.map((token, i) => {
+                    const { note, octave } = splitTuningToken(token);
+                    return (
+                      <Fragment key={i}>
+                        <span className="tuning-grid-label">
+                          corda {i + 1}
+                          {i === 0 ? " · aguda" : i === tuningDraft.length - 1 ? " · grave" : ""}
+                        </span>
+                        <select
+                          value={note}
+                          aria-label={`Nota da corda ${i + 1}`}
+                          onChange={(e) =>
+                            setTuningDraft((d) =>
+                              d.map((t, k) => (k === i ? `${e.target.value}${octave}` : t)),
+                            )
+                          }
+                        >
+                          {NOTE_OPTIONS.map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={octave}
+                          aria-label={`Oitava da corda ${i + 1}`}
+                          onChange={(e) =>
+                            setTuningDraft((d) =>
+                              d.map((t, k) => (k === i ? `${note}${e.target.value}` : t)),
+                            )
+                          }
+                        >
+                          {[0, 1, 2, 3, 4, 5].map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      </Fragment>
+                    );
+                  })}
+                </div>
+                <div className="add-track-row" style={{ marginTop: 8 }}>
+                  <button type="button" onClick={applyTuning} disabled={tuningBusy}>
+                    {tuningBusy ? "…" : "Aplicar afinação"}
+                  </button>
+                </div>
+                <p className="add-track-hint">
+                  As casas escritas continuam as mesmas — a trilha passa a soar na
+                  afinação nova (vale para todo mundo).
+                </p>
+                {tuningError && (
+                  <div className="form-error" style={{ marginTop: 4 }}>{tuningError}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Andamento inicial (dono) — botão compacto, mesmo padrão do de
+            afinação. No meio da música: clicar numa marca ♩=N da partitura
+            (ou o botão ♩= da toolbar com um compasso selecionado). */}
+        {isOwner && content && (
+          <div className="add-track">
+            <button
+              type="button"
+              className="add-track-btn"
+              onClick={() => {
+                setTempoDraft(
+                  content.song.tempo != null ? String(content.song.tempo) : "",
+                );
+                setTempoOpen((o) => !o);
+              }}
+              aria-expanded={tempoOpen}
+              title="Andamento inicial da música"
+            >
+              ♩ {content.song.tempo ?? "—"}
+            </button>
+            {tempoOpen && (
+              <div className="add-track-pop" style={{ minWidth: 230 }}>
+                <div className="tab-editor-tempo-pop-row">
+                  <span className="tempo-ctl">
+                    ♩=
+                    <input
+                      type="number"
+                      className="tempo-input"
+                      min={20}
+                      max={400}
+                      value={tempoDraft}
+                      placeholder="120"
+                      autoFocus
+                      onChange={(e) => setTempoDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") applyTempo();
+                        if (e.key === "Escape") setTempoOpen(false);
+                      }}
+                      aria-label="Andamento inicial (bpm)"
+                    />
+                    bpm
+                  </span>
+                  <button
+                    type="button"
+                    className="add-track-btn"
+                    onClick={applyTempo}
+                    disabled={tempoBusy || !tempoDraft.trim()}
+                  >
+                    {tempoBusy ? "…" : "Aplicar"}
+                  </button>
+                </div>
+                <p className="add-track-hint">
+                  Para mudar o andamento no meio da música, clique na marca ♩=N
+                  na partitura — ou selecione um compasso e use o ♩= da toolbar.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {content && ownerName && (
           <span className={`edit-role-badge${isOwner ? " owner" : ""}`}>
             {isOwner ? "dono — salva direto" : `proposta · revisada por ${ownerName}`}
@@ -465,7 +745,7 @@ export default function TrackEditor({
               alphaTex={text}
               onChange={setText}
               disabled={!me}
-              trackStringCount={stringCountFromHeader(content.trackHeader) ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
+              trackStringCount={content.track.tuning?.length ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
               trackHeader={content.trackHeader}
               measureMeta={content.measures}
               onSeek={seekPlayer}
@@ -473,6 +753,8 @@ export default function TrackEditor({
               canEditStructure={isOwner && !!me}
               onAddMeasure={addMeasureAfter}
               onDeleteMeasure={removeMeasure}
+              onSetMeasureTempo={applyTempoAt}
+              initialTempo={content.song.tempo}
               error={error}
               info={info}
             />
