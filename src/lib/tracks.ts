@@ -81,7 +81,9 @@ export async function declareTrack(
   if (custom) {
     label = `${preset.label} — ${custom}`;
   } else {
-    const sameLabel = new RegExp(`^${preset.label}( \\d+)?$`);
+    // Escape: rótulos como "Violão (aço)" têm metacaracteres de regex.
+    const escaped = preset.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const sameLabel = new RegExp(`^${escaped}( \\d+)?$`);
     const count = existing.filter((t) => sameLabel.test(t.name)).length;
     label = count ? `${preset.label} ${count + 1}` : preset.label;
   }

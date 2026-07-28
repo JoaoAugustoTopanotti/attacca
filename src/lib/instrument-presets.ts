@@ -11,8 +11,13 @@ export type InstrumentPreset = {
 };
 
 export const INSTRUMENT_PRESETS: InstrumentPreset[] = [
-  { key: "guitar", label: "Guitarra", program: 25, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
-  { key: "guitar7", label: "Guitarra 7 cordas", program: 25, tuning: "E4 B3 G3 D3 A2 E2 B1", isPercussion: false },
+  // GM: 24 = violão náilon, 25 = violão aço, 27 = guitarra limpa. A "Guitarra"
+  // usava 25 (soava violão de aço) — corrigida para 27; trilhas já declaradas
+  // guardam o próprio \instrument e não mudam.
+  { key: "guitar", label: "Guitarra", program: 27, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
+  { key: "acoustic", label: "Violão (aço)", program: 25, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
+  { key: "nylon", label: "Violão (náilon)", program: 24, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
+  { key: "guitar7", label: "Guitarra 7 cordas", program: 27, tuning: "E4 B3 G3 D3 A2 E2 B1", isPercussion: false },
   { key: "bass", label: "Baixo", program: 33, tuning: "G2 D2 A1 E1", isPercussion: false },
   { key: "bass5", label: "Baixo 5 cordas", program: 33, tuning: "G2 D2 A1 E1 B0", isPercussion: false },
   { key: "piano", label: "Piano/Teclado", program: 0, tuning: null, isPercussion: false },
