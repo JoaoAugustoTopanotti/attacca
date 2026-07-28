@@ -192,6 +192,10 @@ export async function assembleSongAlphaTex(
   // Optional per-cell body overrides (keyed by cellId) — lets callers validate a
   // candidate edit before committing it.
   overrides?: Map<string, string>,
+  // Optional structural mutation (headers/structPrefixes) applied to the
+  // normalized grid before assembly — lets tuning/tempo edits validate the
+  // WHOLE document before persisting (see src/lib/structure.ts).
+  transform?: (norm: NormalizedGrid) => void,
 ): Promise<{ alphaTex: string; valid: boolean; error?: string }> {
   const [song, measures, tracks, cells] = await Promise.all([
     prisma.song.findUnique({ where: { id: songId } }),
@@ -218,6 +222,7 @@ export async function assembleSongAlphaTex(
     })),
   };
 
+  transform?.(norm);
   const alphaTex = assembleFromNormalized(norm);
 
   // Validate through the official importer.

@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex, snapshotGrid } from "@/lib/materialize";
+import { readSongTempo, tuningTokensFromHeader } from "@/lib/structure";
 import {
   watchSong,
   notifyProposalReceived,
@@ -103,6 +104,8 @@ export async function getTrackContent(songId: string, trackOrder: number) {
       // Percussão usa notação própria ("Kick (hit)".8) que o editor visual não
       // modela — a UI cai para edição em texto.
       isPercussion: track.isPercussion,
+      // Afinação atual (tokens, aguda → grave) — null = sem afinação editável.
+      tuning: tuningTokensFromHeader(track.headerFragment),
     },
     measureCount: measures.length,
     alphaTex: bars.join(BAR_SEP),
@@ -118,6 +121,8 @@ export async function getTrackContent(songId: string, trackOrder: number) {
     song: {
       ownerId: song?.ownerId ?? null,
       ownerName: song?.owner?.displayName ?? null,
+      // Andamento inicial (bpm) — editável pelo dono na barra do editor.
+      tempo: readSongTempo(song?.headerFragment, measures[0]),
     },
   };
 }
