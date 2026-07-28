@@ -39,11 +39,19 @@ export type BeatDuration = 1 | 2 | 4 | 8 | 16 | 32 | 64;
 
 /**
  * Efeitos de nota EDITÁVEIS por toggle — todos sem parâmetros, então o round-trip
- * é sem perda. Bend (`b`) ficou de fora de propósito: precisa de pontos
- * (`{b (0 4)}`) e um toggle achataria a curva real → bends são preservados opacos
- * em `note.suffix`, não editáveis aqui.
+ * é sem perda (o AlphaTexExporter emite exatamente estes tokens: `x` = nota
+ * morta/abafada, `pm` = palm mute, `nh` = harmônico natural, `ac`/`hac` = acento,
+ * `st` = staccato, `g` = ghost note). Bend (`b`) fica fora de propósito: precisa
+ * de pontos (`{b (0 4)}`) → tem API própria (noteBendQuarters/setBend) e mora em
+ * `note.suffix`; bends importados com curva real (`be …`) são preservados opacos.
  */
-export type NoteEffect = "h" | "p" | "sl" | "v" | "lr";
+export type NoteEffect =
+  | "h" | "p" | "sl" | "v" | "lr"
+  | "x" | "pm" | "nh" | "ac" | "hac" | "st" | "g";
+
+const NOTE_EFFECTS = new Set<NoteEffect>([
+  "h", "p", "sl", "v", "lr", "x", "pm", "nh", "ac", "hac", "st", "g",
+]);
 
 export type EditorNote = {
   fret: number;    // 0–24
@@ -223,26 +231,20 @@ function splitBraceGroups(suffix: string): string[] {
   return groups;
 }
 
-/** Se o grupo `{...}` é um efeito conhecido (ignorando parâmetros), retorna-o. */
-function effectOf(group: string): NoteEffect | null {
-  const inner = group
-    .replace(/^\{|\}$/g, "")
-    .replace(/\(.*\)/, "")
-    .trim()
-    .toLowerCase();
-  if (
-    inner === "h" ||
-    inner === "p" ||
-    inner === "sl" ||
-    inner === "v" ||
-    inner === "lr"
-  ) {
-    return inner as NoteEffect;
-  }
-  return null;
-}
+/**
+ * Propriedades de nota cujo PARÂMETRO é um ident/número solto (não entre
+ * parênteses): um token de efeito logo depois delas é argumento, não efeito.
+ * (Args entre parênteses viram um token "(...)", que nunca colide.)
+ */
+const PARAM_KEYWORDS = new Set(["slur", "acc", "lf", "rf"]);
 
-/** Separa efeitos editáveis (extraídos) das anotações opacas (preservadas). */
+/**
+ * Separa efeitos editáveis (extraídos) das anotações opacas (preservadas).
+ * CIENTE DE TOKENS: o exporter (e o nosso serializer) escrevem TODAS as
+ * propriedades da nota num único grupo `{v pm x}` — classificar grupo a grupo
+ * perdia o estado dos toggles (e duplicava efeitos ao reeditar). Os tokens não
+ * reconhecidos são re-unidos num único grupo opaco, na ordem original.
+ */
 function extractEffectsAndSuffix(rawSuffix: string): {
   effects: NoteEffect[];
   suffix: string;
@@ -251,11 +253,22 @@ function extractEffectsAndSuffix(rawSuffix: string): {
   const effects: NoteEffect[] = [];
   const kept: string[] = [];
   for (const g of splitBraceGroups(rawSuffix)) {
-    const eff = effectOf(g);
-    if (eff) effects.push(eff);
-    else kept.push(g);
+    const tokens = splitTopLevelTokens(g.slice(1, -1));
+    for (let i = 0; i < tokens.length; i++) {
+      const lt = tokens[i].toLowerCase();
+      const prev = i > 0 ? tokens[i - 1].toLowerCase() : "";
+      if (
+        NOTE_EFFECTS.has(lt as NoteEffect) &&
+        !PARAM_KEYWORDS.has(prev) &&
+        !effects.includes(lt as NoteEffect)
+      ) {
+        effects.push(lt as NoteEffect);
+      } else {
+        kept.push(tokens[i]);
+      }
+    }
   }
-  return { effects, suffix: kept.join("") };
+  return { effects, suffix: kept.length ? `{${kept.join(" ")}}` : "" };
 }
 
 /**
@@ -543,6 +556,10 @@ export type RenderContext = {
   /** Measure.structPrefix por compasso (\ts, \tempo, \section…) — dá fórmula de
    *  compasso e andamento reais, alinhando os ticks com a música completa. */
   structPrefixes?: (string | null | undefined)[];
+  /** Andamento inicial da música (bpm). O tempo inicial mora no header GLOBAL
+   *  do documento (não no header da trilha) — sem isto o editor não desenharia
+   *  a marca ♩=N do compasso 1. Ignorado se o compasso 1 já tem \tempo próprio. */
+  initialTempo?: number | null;
 };
 
 /**
@@ -555,6 +572,11 @@ export function serializeForRender(model: EditorModel, ctx?: RenderContext): str
   const tails = model.measures.map((m) => splitTailVoices(m.tail));
   const nVoices = Math.max(1, ...tails.map((t) => t.voices.length + 1));
   const out: string[] = [];
+  const struct0 = ctx?.structPrefixes?.[0] ?? "";
+  if (ctx?.initialTempo && !/\\tempo\b/i.test(struct0)) {
+    // Metadado GLOBAL exige o terminador "." antes da notação começar.
+    out.push(`\\tempo ${ctx.initialTempo}`, ".");
+  }
   const header = ctx?.trackHeader?.trim();
   if (header) out.push(header);
 
@@ -964,38 +986,84 @@ export function moveNoteToString(
   return next;
 }
 
-/** Um grupo `{b …}` é um bend (ignorando os pontos entre parênteses). */
-function isBendGroup(group: string): boolean {
-  return (
-    group.replace(/^\{|\}$/g, "").replace(/\(.*\)/, "").trim().toLowerCase() === "b"
-  );
-}
+// ── Bend com distância ─────────────────────────────────────────────────────────
+// O valor do bend no alphaTab é em QUARTOS DE TOM: 2 = ½ tom, 4 = 1 tom ("full"),
+// 6 = 1½ tom. O nosso editor escreve o bend simples de 2 pontos `{b (0 N)}`;
+// bends importados vêm como `be (tipo estilo pontos…)` ou com curva multi-ponto —
+// esses são "custom": preservados opacos, substituíveis mas não decompostos.
 
-/** True se a nota da corda tem um bend (importado ou adicionado no editor). */
-export function noteHasBend(
+/** Distância do bend: quartos de tom (2/4/6…), "custom" (curva importada) ou null. */
+export type BendAmount = number | "custom" | null;
+
+/** Lê o bend da nota da corda: N quartos de tom, "custom" ou null (sem bend). */
+export function noteBendQuarters(
   model: EditorModel,
   measureIndex: number,
   beatIndex: number,
   string: number,
-): boolean {
+): BendAmount {
   const note = model.measures[measureIndex]?.beats[beatIndex]?.notes.find(
     (n) => n.string === string,
   );
-  if (!note?.suffix) return false;
-  return splitBraceGroups(note.suffix).some(isBendGroup);
+  if (!note?.suffix) return null;
+  for (const g of splitBraceGroups(note.suffix)) {
+    const tokens = splitTopLevelTokens(g.slice(1, -1));
+    for (let i = 0; i < tokens.length; i++) {
+      const lt = tokens[i].toLowerCase();
+      if (lt !== "b" && lt !== "be") continue;
+      const args = tokens[i + 1];
+      if (args?.startsWith("(")) {
+        const parts = args.slice(1, -1).trim().split(/\s+/);
+        const idents = parts.filter((p) => !/^-?\d/.test(p)).map((p) => p.toLowerCase());
+        const nums = parts.filter((p) => /^-?\d/.test(p)).map(Number);
+        // Nosso formato simples: b (0 N).
+        if (lt === "b" && idents.length === 0 && nums.length === 2 && nums[0] === 0) {
+          return nums[1];
+        }
+        // O exporter re-escreve b (0 N) como be (bend 0 0 60 N) — pares
+        // offset/valor (0,0)→(60,N), tipo "bend", estilo default. Mesmo bend.
+        if (
+          lt === "be" &&
+          (idents.length === 0 || (idents.length === 1 && idents[0] === "bend")) &&
+          nums.length === 4 && nums[0] === 0 && nums[1] === 0 && nums[2] === 60
+        ) {
+          return nums[3];
+        }
+      }
+      return "custom";
+    }
+  }
+  return null;
+}
+
+/** Remove os tokens de bend (`b`/`be` + seus pontos) do sufixo da nota. */
+function stripBendTokens(suffix: string | undefined): string[] {
+  const kept: string[] = [];
+  for (const g of splitBraceGroups(suffix ?? "")) {
+    const tokens = splitTopLevelTokens(g.slice(1, -1));
+    for (let i = 0; i < tokens.length; i++) {
+      const lt = tokens[i].toLowerCase();
+      if (lt === "b" || lt === "be") {
+        if (tokens[i + 1]?.startsWith("(")) i++; // pula os pontos do bend
+        continue;
+      }
+      kept.push(tokens[i]);
+    }
+  }
+  return kept;
 }
 
 /**
- * Ativa/desativa um BEND na nota. Bend não é um efeito por-toggle simples (tem
- * pontos), então mora em `note.suffix` opaco: ativar adiciona um bend padrão de
- * tom inteiro `{b (0 4)}`; desativar remove qualquer `{b …}`. Bends importados
- * (com pontos próprios) são preservados — desativar só os apaga a pedido.
+ * Define o bend da nota: `quarters` em quartos de tom (2 = ½, 4 = full, 6 = 1½)
+ * ou null para remover. Substitui qualquer bend existente (inclusive um
+ * importado "custom" — a curva antiga é descartada só aqui, a pedido).
  */
-export function toggleBend(
+export function setBend(
   model: EditorModel,
   measureIndex: number,
   beatIndex: number,
   string: number,
+  quarters: number | null,
 ): EditorModel {
   const next = cloneModel(model);
   const beat = next.measures[measureIndex]?.beats[beatIndex];
@@ -1003,11 +1071,9 @@ export function toggleBend(
   const note = beat.notes.find((n) => n.string === string);
   if (!note) return model;
 
-  const groups = note.suffix ? splitBraceGroups(note.suffix) : [];
-  const had = groups.some(isBendGroup);
-  const kept = groups.filter((g) => !isBendGroup(g));
-  if (!had) kept.push("{b (0 4)}"); // bend padrão: full bend (tom inteiro)
-  note.suffix = kept.length ? kept.join("") : undefined;
+  const tokens = stripBendTokens(note.suffix);
+  if (quarters !== null) tokens.push(`b (0 ${quarters})`);
+  note.suffix = tokens.length ? `{${tokens.join(" ")}}` : undefined;
   return next;
 }
 
