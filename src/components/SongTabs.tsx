@@ -25,17 +25,17 @@ export default function SongTabs({
   const [checked, setChecked] = useState(false);
   const [view, setView] = useState<string>(initialRevisions[0]?.id ?? "live");
   const [meId, setMeId] = useState<string | null>(null);
-  // Propostas pendentes visíveis para mim — alimenta o badge na aba Propostas.
+  // Propostas pendentes visíveis para mim; alimenta o badge da aba Propostas.
   const [pendingProposals, setPendingProposals] = useState<
     { authorId: string | null }[]
   >([]);
 
-  // Dono = criador (ADR 0003); música sem dono (ownerId null) é aberta para
-  // qualquer IDENTIFICADO (anônimo nunca é dono — mesma regra do ProposalsPanel;
-  // sem isso o badge de propostas aparecia até deslogado em música aberta).
+  // O dono é o criador; música sem dono é aberta a qualquer pessoa
+  // identificada. Anônimo nunca conta como dono, senão o badge de propostas
+  // apareceria até deslogado numa música aberta.
   const isOwner = !!meId && (!ownerId || ownerId === meId);
 
-  // Contagem que o usuário veria na aba: dono vê todas; colaborador só as suas.
+  // Contagem exibida na aba: o dono vê todas, o colaborador só as suas.
   const pendingCount = isOwner
     ? pendingProposals.length
     : pendingProposals.filter((p) => p.authorId && p.authorId === meId).length;
@@ -47,9 +47,8 @@ export default function SongTabs({
       .catch(() => {});
   }, []);
 
-  // Deep-link a tab from the URL hash (a notification lands you right on it,
-  // e.g. #propostas for the owner reviewing a proposal). Also react to later
-  // hash changes on the same page.
+  // Abre a aba indicada pelo hash da URL, para uma notificação levar direto ao
+  // lugar certo (#propostas, #colaborar), e acompanha mudanças posteriores.
   useEffect(() => {
     const TAB_IDS: Tab[] = [
       "player",
@@ -93,7 +92,7 @@ export default function SongTabs({
       const data = await res.json();
       setPendingProposals(data?.proposals ?? []);
     } catch {
-      /* best-effort — badge é informativo */
+      /* best-effort: o badge é apenas informativo */
     }
   }, [songId]);
 
@@ -120,7 +119,7 @@ export default function SongTabs({
     else alert(data?.error ?? "Falha ao reverter.");
   }
 
-  // Histórico → player principal: seleciona a versão e leva o usuário ao Player.
+  // Do Histórico para o player: seleciona a versão e leva à aba Player.
   function viewInPlayer(revId: string) {
     setView(revId);
     setActive("player");
@@ -130,8 +129,8 @@ export default function SongTabs({
     { id: "player", label: "Player" },
     { id: "colaborar", label: "Colaborar" },
     { id: "propostas", label: "Propostas" },
-    // Histórico é visível a todos (é o revezamento acontecendo); só o Reverter
-    // é do dono — gate dentro do HistoryPanel.
+    // O Histórico é visível a todos, porque é o revezamento acontecendo; só o
+    // botão Reverter é restrito ao dono, dentro do HistoryPanel.
     { id: "historico", label: "Histórico" },
     { id: "contribuidores", label: "Contribuidores" },
   ];
@@ -156,7 +155,7 @@ export default function SongTabs({
         ))}
       </nav>
 
-      {/* tab content area — fills the rest of the shell */}
+      {/* Área de conteúdo da aba: ocupa o restante do shell */}
       <div className="song-tab-content">
         {active === "player" && (
           <PlayerPanel

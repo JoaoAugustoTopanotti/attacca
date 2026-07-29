@@ -4,7 +4,7 @@ import { getCellByCoords } from "@/lib/cells";
 type Params = { params: Promise<{ songId: string }> };
 
 // GET /api/songs/:songId/cell?track=<order>&measure=<order>
-// Returns the cell at those grid coordinates with its contribution history.
+// Devolve a célula nessas coordenadas com o histórico de contribuições.
 export async function GET(request: Request, { params }: Params) {
   const { songId } = await params;
   const url = new URL(request.url);

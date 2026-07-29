@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import { INSTRUMENT_PRESETS } from "@/lib/instrument-presets";
 import { emitMeChanged } from "@/lib/identity-events";
 
-/** Passo único de boas-vindas, logo depois do primeiro login (?welcome=1 e
- *  conta ainda sem instrumentos): "o que você toca?". É este dado que faz o
- *  mural destacar "precisa do seu instrumento" — pedir na entrada, uma vez,
- *  e depois editar em Configurações. Pular é sempre possível. */
+/** Passo único de boas-vindas, logo após o primeiro login: "o que você toca?".
+ *  É esse dado que faz o mural destacar "precisa do seu instrumento", por isso
+ *  é pedido na entrada. Sempre pulável, e depois editável em Configurações. */
 export default function WelcomeInstrumentsModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -52,7 +51,7 @@ export default function WelcomeInstrumentsModal({ onClose }: { onClose: () => vo
       return;
     }
     emitMeChanged(data);
-    // O mural (server component) ordena e destaca pelo que você toca.
+    // O mural é um server component e ordena pelo que a pessoa toca.
     router.refresh();
     onClose();
   }

@@ -4,9 +4,9 @@ import { readRevisionFile } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
-// GET /api/revisions/:id/file — raw score content for the alphaTab player.
-// - source "alphatex": returns the AlphaTex text (text/plain)
-// - source "file":     returns the stored bytes (application/octet-stream)
+// GET /api/revisions/:id/file — conteúdo bruto da partitura para o alphaTab.
+// - source "alphatex": devolve o texto AlphaTex (text/plain)
+// - source "file":     devolve os bytes guardados (application/octet-stream)
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
 
@@ -31,12 +31,12 @@ export async function GET(_request: Request, { params }: Params) {
       },
     });
 
-  // Preferred: blob stored in the DB (deploy-friendly).
+  // Caminho preferido: blob guardado no banco, sem depender do disco.
   if (revision.blob) {
     return octet(revision.blob);
   }
 
-  // Legacy fallback: bytes on disk (pre-DB-blob rows, local only).
+  // Fallback legado: bytes em disco, de revisões anteriores ao blob no banco.
   if (revision.storedPath) {
     try {
       const buffer = await readRevisionFile(revision.storedPath);

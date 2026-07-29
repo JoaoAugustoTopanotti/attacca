@@ -19,11 +19,11 @@ export default function HistoryPanel({
 }: {
   revisions: RevisionDTO[];
   revertTo: (id: string) => Promise<void>;
-  /** Só o dono reverte (o Histórico em si é visível a todos). */
+  /** Só o dono reverte; o Histórico em si é visível a todos. */
   canRevert: boolean;
-  /** Versão atualmente carregada no player ("live" = versão viva). */
+  /** Versão carregada no player; "live" é a grade viva. */
   view: string;
-  /** Pede ao player principal para tocar esta versão (e vai para a aba Player). */
+  /** Pede ao player principal para tocar esta versão e abre a aba Player. */
   onView: (id: string) => void;
 }) {
   if (revisions.length === 0) {

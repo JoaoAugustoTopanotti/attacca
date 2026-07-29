@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-// Copies the song's URL to the clipboard. Primary sharing mechanism for the relay.
+// Copia a URL da música para a área de transferência: é assim que o convite ao
+// revezamento circula.
 export default function ShareButton({ songId }: { songId: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -13,7 +14,7 @@ export default function ShareButton({ songId }: { songId: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard blocked (e.g. non-HTTPS): prompt user to copy manually.
+      // Clipboard bloqueado (fora de HTTPS, por exemplo): pede a cópia manual.
       window.prompt("Copie o link:", url);
     }
   }

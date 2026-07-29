@@ -6,9 +6,9 @@ import { blankAlphaTex, attaccaTemplateAlphaTex } from "@/lib/templates";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// POST /api/songs/:songId/scaffold — start a song without an upload: creates
-// a starter revision (blank or the attacca template) and materializes the
-// grid right away, the same way an uploaded file does.
+// POST /api/songs/:songId/scaffold — começa uma música sem upload: cria uma
+// revisão inicial (em branco ou a partir do modelo) e materializa a grade na
+// hora, do mesmo jeito que um arquivo enviado faria.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
 

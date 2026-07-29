@@ -19,7 +19,7 @@ type CellResponse = {
     acceptedContributionId: string | null;
     contributions: Contribution[];
   };
-  // Maintainer model: the SONG owner (creator) is the accept authority.
+  // Modelo de maintainer: quem aceita é o dono da música, seu criador.
   song: { id: string; ownerId: string | null; ownerName: string | null };
 };
 
@@ -60,7 +60,7 @@ export default function CellEditor({
   const acceptedId = data?.cell.acceptedContributionId ?? null;
   const reviewContrib = data?.cell.contributions.find((c) => c.id === reviewId) ?? null;
 
-  // Maintainer gate: the song owner accepts. Legacy/no owner = open.
+  // Só o dono aceita; música sem dono é aberta a qualquer identificado.
   const ownerName = data?.song.ownerName ?? null;
   const ownerId = data?.song.ownerId ?? null;
   const isOwner = !!me && (!ownerId || ownerId === me.id);
@@ -150,8 +150,8 @@ export default function CellEditor({
     }
   }
 
-  // Player shows the accepted document, or a PREVIEW with the reviewed
-  // contribution swapped in (without accepting it).
+  // O player mostra o documento aceito ou uma pré-visualização com a
+  // contribuição em revisão no lugar, sem aceitá-la.
   const previewing = reviewContrib && reviewContrib.id !== acceptedId;
   const playerUrl = previewing
     ? `/api/songs/${songId}/assembled?cell=${data!.cell.id}&contribution=${reviewContrib!.id}&v=${playerVersion}`

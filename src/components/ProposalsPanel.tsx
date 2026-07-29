@@ -17,11 +17,11 @@ type Proposal = {
   authorId: string | null;
   authorName: string;
   count: number;
-  /** M3 — compassos onde a música mudou desde a proposta (mesma célula). */
+  /** Compassos que mudaram na música desde que a proposta foi escrita. */
   conflicts: number;
 };
-/** M3 — um compasso em conflito: as duas versões, lado a lado.
- *  ts/structPrefix vêm junto para renderizar o compasso como tablatura. */
+/** Um compasso em conflito, com as duas versões lado a lado. `ts` e
+ *  `structPrefix` acompanham para renderizar o compasso como tablatura. */
 type ConflictBar = {
   measureOrder: number;
   bar: number;
@@ -38,10 +38,10 @@ type ProposalsResponse = {
 
 const keyOf = (p: Proposal) => `${p.trackOrder}::${p.authorId ?? p.authorName}`;
 
-// Assinatura canônica de um beat, para comparar current × proposed.
+// Assinatura canônica de um beat, para comparar a versão atual e a proposta.
 const sig = (b: EditorBeat) => JSON.stringify(b);
 
-/** Índices (dentro de `pro`) que são novos/mudados (não casam via LCS com `cur`). */
+/** Índices em `pro` que são novos ou mudados, isto é, não casam por LCS com `cur`. */
 function addedIndices(cur: string[], pro: string[]): number[] {
   const n = cur.length;
   const m = pro.length;
@@ -61,7 +61,7 @@ function addedIndices(cur: string[], pro: string[]): number[] {
   return added;
 }
 
-/** Beats a destacar ("measureIndex:beatIndex") = os que mudaram na proposta. */
+/** Beats a destacar, no formato "measureIndex:beatIndex": os que a proposta mudou. */
 function computeHighlights(current: string, proposed: string): string[] {
   const cm = parseTrackTex(current).measures;
   const pm = parseTrackTex(proposed).measures;
@@ -87,9 +87,9 @@ type Detail = {
   isPercussion: boolean;
 } | null;
 
-/** Documento alphaTex renderizável de UM compasso em conflito — a mesma via do
- *  editor visual (parseTrackTex + serializeForRender), com a fórmula de
- *  compasso explícita (um compasso solto herdaria o 4/4 padrão). */
+/** Documento alphaTex renderizável de um compasso em conflito, pela mesma via do
+ *  editor visual. A fórmula de compasso vai explícita: um compasso solto seria
+ *  lido como 4/4 por padrão. */
 function conflictBarTex(
   fragment: string,
   c: ConflictBar,
@@ -111,9 +111,9 @@ export default function ProposalsPanel({
   onReviewed,
 }: {
   songId: string;
-  /** Aceitar cria um snapshot no histórico — avisa o pai para recarregar. */
+  /** Aceitar cria um snapshot no histórico: avisa o pai para recarregar. */
   refreshRevisions: () => Promise<void>;
-  /** Aceitar/recusar muda a fila — avisa o pai para atualizar o badge da aba. */
+  /** Aceitar ou recusar muda a fila: avisa o pai para atualizar o badge da aba. */
   onReviewed?: () => void;
 }) {
   const [me, setMe] = useState<Me>(null);
@@ -123,7 +123,7 @@ export default function ProposalsPanel({
   const [info, setInfo] = useState<string | null>(null);
   const [open, setOpen] = useState<Proposal | null>(null);
   const [detail, setDetail] = useState<Detail>(null); // null = carregando
-  // M3 — escolha do dono por compasso em conflito (measureOrder → versão).
+  // Escolha do dono por compasso em conflito (measureOrder → versão).
   const [choices, setChoices] = useState<Record<number, "current" | "proposed">>({});
 
   const load = useCallback(async () => {
@@ -179,7 +179,7 @@ export default function ProposalsPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // M3: as escolhas por compasso em conflito acompanham o aceite.
+          // As escolhas por compasso em conflito acompanham o aceite.
           body: JSON.stringify({ authorId: p.authorId, action, resolutions: choices }),
         },
       );

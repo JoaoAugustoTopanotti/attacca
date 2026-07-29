@@ -1,33 +1,33 @@
-// Decompose a comments-annotated alphaTex export into a (track × measure) grid,
-// and reassemble it back. PROVEN logic shared by spikes/assemble.ts and the
-// materialization service — what we prove and what we ship are the same code.
+// Decompõe um export alphaTex anotado com comentários numa grade
+// (trilha × compasso) e o remonta de volta. Mesmo código usado pelo spike e pelo
+// serviço de materialização: o que foi provado é o que roda em produção.
 //
-// Pure string processing (no alphaTab dep). The caller uses alphaTab to produce
-// the comments-annotated export (AlphaTexExporter, comments=true) and to validate
-// the reassembled result (ScoreLoader.loadAlphaTex).
+// Processamento de string puro (sem dependência do alphaTab). Quem chama usa o
+// alphaTab para gerar o export anotado (AlphaTexExporter, comments=true) e para
+// validar o resultado remontado (ScoreLoader.loadAlphaTex).
 //
-// Facts the spike established:
-//  - the exporter emits "// Masterbar N Metadata" only when structure changes →
-//    split bars by the top-level "|", not by markers; markers only locate the
-//    end of a track header;
-//  - MULTIPLE VOICES are written as parallel "voice runs" separated by "\voice"
-//    (voice 0 implicit, then "\voice" before voice 1, 2, …). A cell = one
-//    (track, measure) holding ALL voices of that bar, so we split a track into
-//    voice runs, index bars within each run, and TRANSPOSE on reassembly
-//    (outer loop = voice, inner loop = measure).
+// Duas particularidades do formato exportado:
+//  - o exporter só emite "// Masterbar N Metadata" quando a estrutura muda, por
+//    isso os compassos são divididos pelo "|" de nível superior, não pelos
+//    marcadores; os marcadores servem apenas para achar o fim do header;
+//  - VÁRIAS VOZES são escritas como blocos paralelos separados por "\voice"
+//    (voz 0 implícita, depois "\voice" antes da voz 1, 2, …). Uma célula é um
+//    par (trilha, compasso) com TODAS as vozes daquele compasso, então a trilha
+//    é dividida em blocos de voz e TRANSPOSTA na remontagem: laço externo = voz,
+//    laço interno = compasso.
 
 export type GridTrack = {
   header: string[];
-  voices: string[][][]; // voices[voiceIndex][barIndex] = token lines
+  voices: string[][][]; // voices[voz][compasso] = linhas de tokens
 };
 export type Grid = { globalHeader: string[]; tracks: GridTrack[] };
 
-/** DB-shaped view: structure shared per measure, multi-voice notes per cell. */
+/** Visão no formato do banco: estrutura por compasso, notas multi-voz por célula. */
 export type NormalizedGrid = {
   globalHeader: string;
   tracks: { headerFragment: string }[];
   measures: { structPrefix: string }[];
-  // cell body = the bar's voices joined by a "\voice" line (real alphaTex token).
+  // Corpo da célula = as vozes do compasso unidas por uma linha "\voice".
   cells: { trackIndex: number; measureIndex: number; body: string }[];
 };
 
@@ -38,8 +38,9 @@ const isBarStartMarker = (t: string) =>
   /^\/\/ (Masterbar \d+ Metadata|Bar \d+ Metadata|Bar \d+ \/ Voice)/.test(t);
 const nonEmpty = (l: string) => l.trim() !== "";
 
-// Masterbar-level directives = shared scaffold (Measure.structPrefix). Everything
-// else (clef, ks, accidentals, ottava, simile, barlines, notes) stays per cell.
+// Diretivas de masterbar = andaime compartilhado (Measure.structPrefix). Todo o
+// resto (clave, armadura, acidentes, ottava, simile, barras, notas) fica na
+// célula, porque varia por trilha.
 const MASTERBAR_DIRECTIVES = [
   "\\ts",
   "\\tempo",
@@ -61,14 +62,14 @@ export function isMasterbarLine(line: string): boolean {
   );
 }
 
-/** Parse a comments-annotated alphaTex export into a voice-aware grid. */
+/** Converte o export alphaTex anotado numa grade ciente de vozes. */
 export function decompose(annotatedTex: string): Grid {
   const lines = annotatedTex.split(/\r?\n/);
   const globalHeader: string[] = [];
   const tracks: GridTrack[] = [];
   let cur: GridTrack | null = null;
   let mode: "global" | "trackHeader" | "bars" = "global";
-  let run: string[][] = []; // bars of the current voice run
+  let run: string[][] = []; // compassos do bloco de voz atual
   let bar: string[] = [];
 
   const flushBar = () => {
@@ -104,15 +105,15 @@ export function decompose(annotatedTex: string): Grid {
     }
     if (mode === "trackHeader") {
       if (isBarStartMarker(t)) {
-        mode = "bars"; // first bar of voice 0 begins here
+        mode = "bars"; // aqui começa o primeiro compasso da voz 0
       } else {
         if (!isComment(line)) cur!.header.push(line);
         continue;
       }
     }
-    // bars mode
+    // Modo "bars".
     if (isVoiceSep(line)) {
-      flushRun(); // end current voice run, start the next voice
+      flushRun(); // fecha o bloco de voz atual e começa o próximo
       continue;
     }
     if (isBarSep(line)) {
@@ -137,7 +138,7 @@ const splitVoices = (body: string): string[] =>
     [[]],
   ).map((v) => v.filter(nonEmpty).join("\n"));
 
-/** Grid → DB-shaped normalized form (structPrefix from track 0 voice 0). */
+/** Grade → forma normalizada do banco (structPrefix vem da trilha 0, voz 0). */
 export function toNormalized(grid: Grid): NormalizedGrid {
   const t0 = grid.tracks[0];
   const nBars = t0?.voices[0]?.length ?? 0;
@@ -152,8 +153,8 @@ export function toNormalized(grid: Grid): NormalizedGrid {
   const cells: NormalizedGrid["cells"] = [];
   grid.tracks.forEach((tr, trackIndex) => {
     for (let measureIndex = 0; measureIndex < nBars; measureIndex++) {
-      // collect this bar across all voice runs; drop masterbar lines (they live
-      // on the Measure), keep per-voice bar-meta + notes.
+      // Junta este compasso em todos os blocos de voz. As linhas de masterbar
+      // saem (vivem no Measure); metadados por voz e notas ficam.
       const voiceBodies = tr.voices.map((voiceRun) =>
         (voiceRun[measureIndex] ?? [])
           .filter((l) => nonEmpty(l) && !isMasterbarLine(l))
@@ -172,7 +173,8 @@ export function toNormalized(grid: Grid): NormalizedGrid {
   };
 }
 
-/** Rebuild full alphaTex from the normalized form (transposes voices). */
+/** Reconstrói o alphaTex completo a partir da forma normalizada, transpondo as
+ *  vozes de volta para blocos paralelos. */
 export function assembleFromNormalized(n: NormalizedGrid): string {
   const out: string[] = [];
   if (nonEmpty(n.globalHeader)) out.push(n.globalHeader);
@@ -181,7 +183,7 @@ export function assembleFromNormalized(n: NormalizedGrid): string {
 
   n.tracks.forEach((tr, trackIndex) => {
     if (nonEmpty(tr.headerFragment)) out.push(tr.headerFragment);
-    // voice count is constant per track; read it from the first measure's cell.
+    // O nº de vozes é constante na trilha: basta ler da célula do 1º compasso.
     const nVoices = splitVoices(byCell.get(`${trackIndex},0`) ?? "").length || 1;
     for (let v = 0; v < nVoices; v++) {
       if (v > 0) out.push(VOICE_LINE);
@@ -190,7 +192,7 @@ export function assembleFromNormalized(n: NormalizedGrid): string {
         const struct = v === 0 ? n.measures[m].structPrefix : "";
         const body = voices[v] ?? "";
         const chunk = [struct, body].filter(nonEmpty).join("\n");
-        out.push(nonEmpty(chunk) ? chunk : "r.1"); // empty bar → whole rest
+        out.push(nonEmpty(chunk) ? chunk : "r.1"); // compasso vazio = pausa inteira
         if (m < n.measures.length - 1) out.push("|");
       }
     }
@@ -198,12 +200,14 @@ export function assembleFromNormalized(n: NormalizedGrid): string {
   return out.join("\n");
 }
 
-/** Shared-structure reassembly straight from a Grid (= the production path). */
+/** Remontagem com estrutura compartilhada direto de uma Grid — o caminho usado
+ *  em produção. */
 export function assembleSeparated(grid: Grid): string {
   return assembleFromNormalized(toNormalized(grid));
 }
 
-/** Per-voice-run flat reassembly (rejoin as-is). Sanity check. */
+/** Remontagem plana, bloco de voz a bloco de voz, sem normalizar. Serve como
+ *  verificação de sanidade do decompose. */
 export function assembleFull(grid: Grid): string {
   const out: string[] = [];
   out.push(...grid.globalHeader.filter(nonEmpty));

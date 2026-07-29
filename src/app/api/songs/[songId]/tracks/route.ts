@@ -4,13 +4,14 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET — the instrument presets available to declare.
+// GET — os presets de instrumento disponíveis para declarar.
 export async function GET() {
   return NextResponse.json(INSTRUMENT_PRESETS);
 }
 
 // POST /api/songs/:songId/tracks  body: { presetKey, name? }
-// Declares an instrument the song needs as an empty, unclaimed track slot.
+// Declara um instrumento de que a música precisa como um slot de trilha vazio
+// e sem dono.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
   let body: { presetKey?: unknown; name?: unknown };

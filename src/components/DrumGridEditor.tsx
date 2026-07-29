@@ -52,22 +52,21 @@ const BRUSHES: { key: Brush; label: string; hint: string }[] = [
 
 const BAR_SEP = "\n|\n";
 
-// Semínima do alphaTab = 960 ticks → semibreve = 3840 (o mesmo TPW da grade).
+// Semínima do alphaTab = 960 ticks, logo a semibreve = 3840 — o TPW da grade.
 const TICKS_PER_WHOLE = 3840;
 
-// Clipboard de compassos em escopo de MÓDULO (convenção do TabEditor):
-// sobrevive à troca de trilha/música na sessão — dá para copiar o groove de
-// uma bateria e colar em outra.
+// Clipboard de compassos em escopo de módulo: sobrevive à troca de trilha e de
+// música na sessão, permitindo copiar um groove de uma bateria para outra.
 let drumClipboard: Bar[] | null = null;
 
-// Texto original de cada compasso + se a grade o tocou. Compasso NÃO tocado
-// re-emite o texto original intacto: sem isso, um clique numa célula
-// re-serializava a trilha inteira na notação da grade e TODO compasso contava
-// como "mudado" no save (o bug dos "103 compassos", agora na bateria).
+// Texto original de cada compasso e se a grade o tocou. Compasso não tocado
+// re-emite o texto original intacto; sem isso, um clique numa célula
+// re-serializaria a trilha inteira na notação da grade e todo compasso contaria
+// como alterado no save.
 type BarOrigin = { text: string; touched: boolean };
 
-// Undo/redo: fotos de (bars + origins + resolução). Guardar referências é
-// barato — as mutações clonam só o beat tocado (convenção do TabEditor).
+// Undo/redo: fotos de bars, origins e resolução. A resolução entra na foto
+// porque desfazer uma troca de resolução serializaria durações erradas sem ela.
 type Snapshot = { bars: Bar[]; origs: BarOrigin[]; res: DrumResolution };
 
 function parseAll(
@@ -152,25 +151,25 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
   const [textMode, setTextMode] = useState(false);
   const [warn, setWarn] = useState<string | null>(null);
   const [addLaneOpen, setAddLaneOpen] = useState(false);
-  // Menu "preencher a cada N" (botão direito no nome da peça) — midi da linha.
+  // Menu "preencher a cada N", aberto com o botão direito no nome da peça.
   const [laneMenu, setLaneMenu] = useState<number | null>(null);
-  // Seleção de compassos (âncora↔cabeça, clique/Shift+clique no cabeçalho).
+  // Seleção de compassos por clique e Shift+clique no cabeçalho.
   const [sel, setSel] = useState<{ anchor: number; head: number } | null>(null);
-  // Posição de playback (célula da coluna do cursor) — vinda do player headless.
+  // Posição de playback vinda do player headless: acende a coluna atual.
   const [playPos, setPlayPos] = useState<
     { bar: number; beat: number; cell: number } | null
   >(null);
   const lastEmittedRef = useRef<string | null>(null);
   const origsRef = useRef<BarOrigin[]>([]);
-  // Pilhas de undo/redo, zeradas em mudança externa (convenção do TabEditor).
+  // Pilhas de undo/redo, zeradas a cada mudança externa do texto.
   const histRef = useRef<{ past: Snapshot[]; future: Snapshot[] }>({
     past: [],
     future: [],
   });
-  // Arrasto de pintura em curso: peça (linha) + estado alvo decidido na 1ª célula
-  // (célula tinha nota → arrasto apaga; vazia → pinta), convenção FL Studio.
+  // Arrasto de pintura em curso: a linha e o estado-alvo decidido na primeira
+  // célula, pela convenção do FL Studio — célula com nota apaga, vazia pinta.
   const dragRef = useRef<{ midi: number; brush: Brush; add: boolean } | null>(null);
-  // Refs sempre atuais para handlers registrados uma vez (seekTick, pointerup).
+  // Refs sempre atuais para os handlers registrados uma única vez.
   const barsRef = useRef<Bar[]>([]);
   const resRef = useRef(res);
   resRef.current = res;
@@ -202,9 +201,8 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
   );
 
   // ── Cursor de reprodução ────────────────────────────────────────────────────
-  // Mesma interface do TabEditor: o TrackEditor encaminha o tick do player
-  // headless; aqui o tick vira (compasso, tempo, célula) pela fórmula de
-  // compasso — a coluna acesa acompanha a música.
+  // O TrackEditor encaminha o tick do player headless e ele vira (compasso,
+  // tempo, célula) pela fórmula de compasso, acendendo a coluna atual.
   useImperativeHandle(ref, () => ({
     seekTick: (tick: number) => {
       const curBars = barsRef.current;
@@ -239,12 +237,12 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     },
   }), []);
 
-  // (Re)parse when the external text changes (not our own emit).
+  // Reprocessa quando o texto externo muda, ignorando o eco do próprio emit.
   useEffect(() => {
     if (alphaTex === lastEmittedRef.current) return;
     const parsed = parseAll(alphaTex, res, measureMeta);
-    // O texto externo é a nova BASE: cada compasso guarda seu texto original e
-    // só re-serializa depois de ser tocado na grade.
+    // O texto externo vira a nova base: cada compasso guarda seu texto original
+    // e só re-serializa depois de ser tocado na grade.
     origsRef.current = (parsed?.raws ?? []).map((text) => ({
       text,
       touched: false,
@@ -271,7 +269,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alphaTex, measureMeta]);
 
-  // Compassos não tocados re-emitem o texto original; tocados, a grade.
+  // Compasso não tocado re-emite o texto original; tocado, sai da grade.
   const buildTex = useCallback((next: Bar[], r: DrumResolution) => {
     const origs = origsRef.current;
     return next
@@ -326,9 +324,10 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     restoreSnapshot(s);
   };
 
-  // ── Pintura (célula) ────────────────────────────────────────────────────────
-  // Clona só o compasso/beat tocado (imutável para o React); lê barsRef (não o
-  // state) para não perder pinceladas num arrasto rápido entre re-renders.
+  // ── Pintura de célula ───────────────────────────────────────────────────────
+  // Clona só o compasso e o beat tocados, para o React ver imutabilidade. Lê
+  // `barsRef` em vez do state, senão um arrasto rápido perderia pinceladas
+  // entre re-renders.
   function applyCellChange(
     barIdx: number,
     beatIdx: number,
@@ -353,8 +352,8 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     emit(next, resRef.current);
   }
 
-  /** Leva a célula ao estado-alvo `add` do pincel (idempotente — seguro num
-   *  arrasto que repassa pela mesma célula). */
+  /** Leva a célula ao estado-alvo do pincel. Idempotente, para um arrasto que
+   *  passa duas vezes pela mesma célula não alternar o resultado. */
   function paintCell(
     barIdx: number,
     beatIdx: number,
@@ -384,7 +383,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
       } else if (b === "flam") {
         mod.flam = add;
       }
-      if (!cur && !add) return; // tirar modificador de célula vazia = nada
+      if (!cur && !add) return; // tirar modificador de célula vazia não faz nada
       cell.set(midi, mod);
     });
   }
@@ -399,7 +398,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     if (disabled) return;
     if (e.button !== 0 && e.button !== 2) return;
     const cur = barsRef.current[barIdx]?.beats[beatIdx]?.cells[cellIdx]?.get(midi);
-    // Botão direito = apagar o golpe (FL Studio), qualquer que seja o pincel.
+    // Botão direito apaga o golpe, qualquer que seja o pincel (convenção FL).
     const b: Brush = e.button === 2 ? "note" : brush;
     const add =
       e.button === 2
@@ -418,11 +417,11 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
 
   function dragOver(barIdx: number, beatIdx: number, cellIdx: number, midi: number) {
     const d = dragRef.current;
-    if (!d || d.midi !== midi) return; // pintura corre pela MESMA linha (peça)
+    if (!d || d.midi !== midi) return; // o arrasto pinta só a linha de origem
     paintCell(barIdx, beatIdx, cellIdx, midi, d.brush, d.add);
   }
 
-  // Fim do arrasto: solta em qualquer lugar da janela.
+  // Fim do arrasto, mesmo quando o ponteiro é solto fora da grade.
   useEffect(() => {
     const up = () => {
       dragRef.current = null;
@@ -431,7 +430,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     return () => window.removeEventListener("pointerup", up);
   }, []);
 
-  // ── Preencher a cada N (botão direito no nome da peça) ──────────────────────
+  // ── Preencher a linha inteira a cada N células ──────────────────────────────
   function fillLane(midi: number, mode: "beat" | "half" | "cell" | "clear") {
     pushHistory();
     const next = barsRef.current.map((bar, bi) => {
@@ -492,7 +491,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     const next = barsRef.current.map((bar, bi) => {
       if (!inSel(bi)) return bar;
       markTouched(bi);
-      // Zera os golpes mas preserva as diretivas opacas do compasso.
+      // Zera os golpes preservando as diretivas opacas do compasso.
       return { ...emptyBar(tsNumOf(bi), resRef.current, tsDenOf(bi)), prefix: bar.prefix };
     });
     applyBars(next);
@@ -500,7 +499,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
   }
 
   /** Cola `src` a partir do compasso `at`, conformando cada um à fórmula do
-   *  destino; devolve quantos couberam. Preserva o prefixo do DESTINO. */
+   *  destino e preservando o prefixo do destino. Devolve quantos couberam. */
   function pasteBarsAt(src: Bar[], at: number): number {
     const cur = barsRef.current;
     const n = Math.min(src.length, cur.length - at);
@@ -537,8 +536,8 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     if (n > 0) setSel({ anchor: selRange.from, head: selRange.from + n - 1 });
   }
 
-  /** Ctrl+D (convenção TabEditor/MuseScore): repete a seleção logo adiante e
-   *  move a seleção para a cópia — apertar de novo continua preenchendo. */
+  /** Repete a seleção logo adiante e move a seleção para a cópia, de modo que
+   *  apertar Ctrl+D de novo continue preenchendo. */
   function duplicateSel() {
     if (!selRange || disabled) return;
     const src: Bar[] = [];
@@ -638,8 +637,8 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
   }
 
   function changeRes(r: DrumResolution) {
-    // Golpe que não cai exato na nova subdivisão vai se mover (destrutivo) —
-    // avisar antes. Só os compassos de fato alterados contam como tocados.
+    // Golpe que não cai exato na nova subdivisão será movido: pede confirmação
+    // antes. Só os compassos de fato alterados contam como tocados.
     const cur = barsRef.current;
     const lossyBars = cur.map((bar, bi) => {
       const tsDen = tsDenOf(bi);
@@ -704,7 +703,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     setTextMode(false);
   }
 
-  // ── Modo texto (fallback / escape hatch) ──
+  // ── Modo texto: saída para o que a grade não modela ──
   if (textMode) {
     return (
       <div className="drum-editor">
@@ -845,7 +844,7 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
 
       <div className="drum-scroll">
         <div className="drum-table">
-          {/* Cabeçalho: compasso + tempos (com toggle de quiáltera "3") */}
+          {/* Cabeçalho: número do compasso e tempos, com o toggle de quiáltera */}
           <div className="drum-row drum-row--head">
             <div className="drum-lane-label drum-lane-label--head" />
             {bars.map((bar, bi) => (

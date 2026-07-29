@@ -9,9 +9,9 @@ import {
   safeRedirectPath,
 } from "@/lib/identity";
 
-// GET /api/auth/verify?token=...  — consume the magic link, start a JWT session,
-// then redirect home (or wherever the token asked, e.g. an email change lands
-// back on /settings). Errors redirect home with ?auth_error=<code>.
+// GET /api/auth/verify?token= — consome o magic link, abre a sessão JWT e
+// redireciona para o destino pedido pelo token (a home, por padrão).
+// Em caso de erro, volta para a home com ?auth_error=<código>.
 export async function GET(request: Request) {
   const base = appBaseUrl(request);
   const token = new URL(request.url).searchParams.get("token");
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const destination = safeRedirectPath(result.redirectTo) ?? "/?welcome=1";
   const res = NextResponse.redirect(`${base}${destination}`);
   res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions());
-  // Retire the legacy cookie now that identity is durable.
+  // Aposenta o cookie legado: a identidade agora é durável.
   res.cookies.set(LEGACY_IDENTITY_COOKIE, "", { path: "/", maxAge: 0 });
   return res;
 }

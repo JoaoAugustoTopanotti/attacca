@@ -22,9 +22,8 @@ export default function SettingsClient({
   user: MeSnapshot;
   presets: Preset[];
 }) {
-  // O perfil salvo vive aqui: cada save atualiza esta cópia (para o botão voltar
-  // a ficar inerte) e avisa o header, que mostra o nome — nada disso deve exigir
-  // um F5 do usuário.
+  // Cópia local do perfil salvo. Cada save a atualiza (para o botão voltar a
+  // ficar inerte) e avisa o header, que mostra o nome, sem exigir recarregar.
   const [me, setMe] = useState<MeSnapshot>(user);
 
   function onSaved(next: MeSnapshot) {
@@ -84,7 +83,8 @@ function ProfileSection({
     setName(data.displayName);
     onSaved(data);
     setFeedback("Nome atualizado.");
-    // O nome também assina as contribuições renderizadas no servidor.
+    // O nome também assina as contribuições renderizadas no servidor, então a
+    // página precisa ser revalidada.
     router.refresh();
   }
 
@@ -127,7 +127,7 @@ function EmailSection({ currentEmail }: { currentEmail: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
 
-  // Voltando do link de confirmação (o e-mail só troca depois de provado).
+  // Retorno do link de confirmação: o e-mail só troca depois de comprovado.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("email") === "changed") {
@@ -259,8 +259,8 @@ function InstrumentsSection({
     setSelected(data.instruments);
     onSaved(data);
     setFeedback("Instrumentos atualizados.");
-    // O mural (server component) usa os instrumentos para marcar "precisa do seu
-    // instrumento" — refresh para ele já vir certo na próxima navegação.
+    // O mural é um server component e usa os instrumentos para marcar "precisa
+    // do seu instrumento": revalida para ele já vir certo na próxima navegação.
     router.refresh();
   }
 
@@ -299,12 +299,12 @@ function InstrumentsSection({
   );
 }
 
-// ── Aparência (localStorage) ────────────────────────────────────────────────
+// ── Aparência (preferência local, no localStorage) ──────────────────────────
 
 function AppearanceSection() {
   const [theme, setTheme] = useState<Theme | null>(null);
 
-  // Só depois da montagem: localStorage não existe no servidor.
+  // Só após a montagem: o localStorage não existe no servidor.
   useEffect(() => setTheme(readTheme()), []);
 
   function change(next: Theme) {
@@ -330,12 +330,12 @@ function AppearanceSection() {
   );
 }
 
-// ── Reprodução (localStorage) ───────────────────────────────────────────────
+// ── Reprodução (preferências locais, no localStorage) ───────────────────────
 
 function PlaybackSection() {
   const [prefs, setPrefs] = useState<PlayerPrefs | null>(null);
 
-  // Só depois da montagem: localStorage não existe no servidor.
+  // Só após a montagem: o localStorage não existe no servidor.
   useEffect(() => setPrefs(readPlayerPrefs()), []);
 
   function update(patch: Partial<PlayerPrefs>) {
@@ -457,7 +457,7 @@ function RangeField({
   );
 }
 
-// ── Conta (minhas músicas, seguindo, propostas) ─────────────────────────────
+// ── Conta: minhas músicas, quem eu sigo e as propostas em aberto ────────────
 
 function AccountSection() {
   const [data, setData] = useState<AccountOverview | null>(null);

@@ -1,4 +1,4 @@
-// Shared DTO for revision data — passed from server to client components.
+// DTO de revisão compartilhado entre server e client components.
 export type RevisionDTO = {
   id: string;
   number: number;

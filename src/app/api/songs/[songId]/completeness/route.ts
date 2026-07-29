@@ -3,8 +3,8 @@ import { songCompleteness } from "@/lib/tracks";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET /api/songs/:songId/completeness — per-track and overall % via the honest
-// metric (cell has an accepted contribution or not).
+// GET /api/songs/:songId/completeness — percentual por trilha e geral, pela
+// métrica honesta: a célula tem contribuição aceita ou não.
 export async function GET(_request: Request, { params }: Params) {
   const { songId } = await params;
   const result = await songCompleteness(songId);

@@ -1,10 +1,10 @@
-// Declared instrumentation (M2 incompleteness). A song declares the instruments
-// it NEEDS as track SLOTS that can be born empty and unclaimed — the empty,
-// unclaimed slot is the invitation ("falta baixo, isso eu faço"). Claiming +
-// declared slots + the wall are the same triangle.
+// Instrumentação declarada. A música declara os instrumentos de que PRECISA
+// como slots de trilha, que nascem vazios e sem dono. O slot vazio é o convite
+// ("falta baixo, isso eu faço") — o grid sozinho enxerga lacunas dentro de uma
+// trilha, mas não sabe que uma trilha inteira está faltando.
 //
-// Light preset list (not an instrument ontology). When auth/real instruments
-// arrive this can grow, but it stays a flat list mapped to a track header.
+// A lista de presets é deliberadamente leve, não uma ontologia de instrumentos:
+// uma lista plana mapeada para o header da trilha.
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -17,9 +17,9 @@ import { INSTRUMENT_PRESETS, type InstrumentPreset } from "@/lib/instrument-pres
 export { INSTRUMENT_PRESETS, type InstrumentPreset };
 
 /**
- * The GM family a preset belongs to ("Baixo", "Guitarra/Violão", …). Matching an
- * imported track to a declared instrument has to go through the family, not the
- * exact program: a guitar in a .gp file is often 29 (overdriven), not our 25.
+ * Família GM de um preset ("Baixo", "Guitarra/Violão"). O casamento entre uma
+ * trilha importada e um instrumento declarado passa pela família, não pelo
+ * program exato: guitarra num `.gp` costuma vir 29 (overdriven), não 25.
  */
 export function presetFamily(key: string): string | null {
   const preset = INSTRUMENT_PRESETS.find((p) => p.key === key);
@@ -28,24 +28,24 @@ export function presetFamily(key: string): string | null {
 
 function buildHeaderFragment(name: string, p: InstrumentPreset): string {
   const safe = name.replace(/"/g, "");
-  // Percussão precisa de "\instrument percussion" (canal 9, pauta de bateria) —
-  // "\instrument 0" criaria uma trilha de PIANO, e a notação de percussão
-  // ("Kick (hit)".4, números MIDI) não funcionaria nela.
+  // Percussão exige "\instrument percussion" (canal 9, pauta de bateria):
+  // "\instrument 0" criaria uma trilha de piano, onde a notação de percussão
+  // ("Kick (hit)".4, números MIDI) não funciona.
   const lines = [
     `\\track "${safe}"`,
     p.isPercussion ? `\\instrument percussion` : `\\instrument ${p.program}`,
   ];
-  // Clave neutra (‖) para bateria — o importer alphaTex deixaria clave de sol.
-  // (O player também normaliza no render, cobrindo trilhas antigas/imports.)
+  // Clave neutra (‖) para bateria: sem isto o importer alphaTex deixa clave de
+  // sol. O player também normaliza no render, cobrindo trilhas antigas.
   if (p.isPercussion) lines.push(`\\clef n`);
   if (p.tuning) lines.push(`\\tuning ${p.tuning}`);
   return lines.join("\n");
 }
 
 /**
- * Declare a new instrument as a track SLOT: creates the track + one empty cell
- * per measure (no accepted contribution → reads 0% on the wall, until someone
- * fills it). Born unclaimed. Transactional.
+ * Declara um instrumento como slot de trilha: cria a trilha e uma célula vazia
+ * por compasso. Sem contribuição aceita, o slot lê 0% no mural até alguém
+ * preenchê-lo. Nasce sem dono e é criado numa transação.
  */
 export async function declareTrack(
   songId: string,
@@ -74,14 +74,14 @@ export async function declareTrack(
   const order = existing.reduce((max, t) => Math.max(max, t.order), -1) + 1;
 
   // Nome estilo Songsterr: tipo + apelido ("Guitarra — Fender do Mick"). Sem
-  // apelido, numera a repetição ("Guitarra", "Guitarra 2", …) para o seletor
-  // de trilhas nunca mostrar dois nomes iguais.
+  // apelido, numera a repetição para o seletor de trilhas nunca exibir dois
+  // nomes iguais.
   const custom = name?.trim();
   let label: string;
   if (custom) {
     label = `${preset.label} — ${custom}`;
   } else {
-    // Escape: rótulos como "Violão (aço)" têm metacaracteres de regex.
+    // Rótulos como "Violão (aço)" têm metacaracteres de regex.
     const escaped = preset.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const sameLabel = new RegExp(`^${escaped}( \\d+)?$`);
     const count = existing.filter((t) => sameLabel.test(t.name)).length;
@@ -106,15 +106,14 @@ export async function declareTrack(
         tuning: preset.tuning,
         instrument: preset.program,
         isPercussion: preset.isPercussion,
-        ownerName: null, // born unclaimed = the invitation
+        ownerName: null, // nasce sem dono: é isso que faz do slot um convite
       },
     }),
     prisma.cell.createMany({ data: cellRows }),
   ]);
 
-  // A newly declared gap is the mural's call to action — tell the followers
-  // ("agora falta baixo"). The declarer starts following so they hear when it
-  // gets delivered.
+  // A lacuna recém-declarada é a chamada do mural: avisa quem segue a música
+  // ("agora falta baixo"). Quem declarou passa a seguir para saber da entrega.
   if (actor) await watchSong(actor.id, songId);
   const song = await prisma.song.findUnique({
     where: { id: songId },
@@ -135,8 +134,8 @@ export type TrackCompleteness = {
   id: string;
   name: string;
   ownerName: string | null;
-  /** GM family ("Baixo", "Bateria/Percussão"…) — matches against the instruments
-   *  a person declared in their settings. */
+  /** Família GM ("Baixo", "Bateria/Percussão"), casada com os instrumentos que
+   *  a pessoa declarou tocar nas configurações. */
   family: string;
   done: number;
   total: number;
@@ -146,13 +145,13 @@ export type SongCompleteness = {
   measureCount: number;
   percent: number;
   tracks: TrackCompleteness[];
-  missing: string[]; // track names with 0% (declared but untranscribed)
+  missing: string[]; // nomes das trilhas em 0% (declaradas, não transcritas)
 };
 
 /**
- * Completeness by the honest metric: a cell counts as DONE iff it has an accepted
- * contribution (a transcribed rest counts — silence is music). An untouched
- * declared slot reads 0%; an imported full song reads 100%.
+ * Completude pela métrica honesta: uma célula só conta como pronta se tem
+ * contribuição aceita — pausa transcrita conta, silêncio é música. Slot
+ * declarado e intocado lê 0%; import completo lê 100%.
  */
 export async function songCompleteness(songId: string): Promise<SongCompleteness> {
   const [tracks, measureCount] = await Promise.all([
@@ -186,9 +185,9 @@ export async function songCompleteness(songId: string): Promise<SongCompleteness
     measureCount,
     percent: totalCells ? Math.round((doneCells / totalCells) * 100) : 0,
     tracks: perTrack,
-    // Deduplicado: duas trilhas vazias de mesmo nome viram um "falta" só
-    // (a lista é texto de convite, não inventário — e nomes repetidos
-    // quebravam a key do React no mural).
+    // Deduplicado: duas trilhas vazias de mesmo nome viram um "falta" só. A
+    // lista é texto de convite, não inventário, e nomes repetidos colidiriam
+    // como key do React no mural.
     missing: [...new Set(perTrack.filter((t) => t.done === 0).map((t) => t.name))],
   };
 }

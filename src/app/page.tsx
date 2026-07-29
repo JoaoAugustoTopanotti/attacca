@@ -3,10 +3,10 @@ import { songCompleteness, presetFamily, INSTRUMENT_PRESETS } from "@/lib/tracks
 import { getCurrentUser } from "@/lib/identity";
 import HomeTabs from "@/components/HomeTabs";
 
-// Always read fresh from the DB (no static caching of the song list).
+// Sempre lê do banco: a lista de músicas não pode ficar em cache estático.
 export const dynamic = "force-dynamic";
 
-// Songs at or above this threshold of completeness go to "Tocar".
+// Músicas com esta completude ou mais aparecem na aba "Tocar".
 const TOCAR_THRESHOLD = 80;
 
 export default async function HomePage() {
@@ -34,10 +34,10 @@ export default async function HomePage() {
 
   for (let i = 0; i < songs.length; i++) {
     const c = completeness[i];
-    // As famílias GM por música alimentam os filtros do mural. "needsYou"
-    // ("precisa do seu instrumento") é derivado no cliente a partir de
-    // missingFamilies × instrumentos declarados — assim editar as tags na
-    // própria home atualiza os destaques sem refetch.
+    // As famílias GM por música alimentam os filtros do mural. O "precisa do
+    // seu instrumento" é derivado no client cruzando `missingFamilies` com os
+    // instrumentos declarados, para editar as tags na home atualizar os
+    // destaques sem novo fetch.
     const item: SongItem = {
       id: songs[i].id,
       title: songs[i].title,

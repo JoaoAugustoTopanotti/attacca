@@ -1,7 +1,7 @@
-// Track-level authoring — the natural unit for the relay ("I'll do the bass"),
-// instead of cell-by-cell. You edit a whole track's tab at once; under the hood
-// it decomposes into the proven per-cell contributions (append-only, gated by
-// the song owner). Cell-level remains the storage/merge granularity.
+// Autoria por TRILHA — a unidade natural do revezamento ("eu faço o baixo").
+// A trilha inteira é editada como um alphaTex e decomposta em contribuições por
+// célula (append-only, aceite gateado pelo dono da música). A célula continua
+// sendo a granularidade de armazenamento e de merge.
 
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex, snapshotGrid } from "@/lib/materialize";
@@ -19,10 +19,10 @@ const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 const BAR_SEP = "\n|\n";
 
 /**
- * Normaliza um fragmento de compasso para COMPARAÇÃO: linhas trimadas, vazias
- * fora. O conteúdo vindo do exporter é indentado; o editor visual re-serializa
- * sem indentação — sem normalizar, TODO compasso contava como "mudado" e cada
- * proposta/save duplicava a trilha inteira (o bug dos "103 compassos").
+ * Normaliza um fragmento de compasso para comparação: linhas trimadas, vazias
+ * descartadas. O exporter indenta e o editor visual re-serializa sem indentação;
+ * sem normalizar, todo compasso contaria como "mudado" e cada save duplicaria a
+ * trilha inteira em contribuições de ruído.
  */
 const normalizeFragment = (s: string) =>
   s
@@ -32,12 +32,12 @@ const normalizeFragment = (s: string) =>
     .join("\n");
 
 /**
- * M3 — conflito de mesma célula. A contribuição guarda seu "merge base"
- * (o que estava aceito quando ela foi escrita); conflito = o aceito atual já é
- * OUTRO e o conteúdo difere de verdade (normalizado). Nunca resolvemos
- * automático: o dono escolhe compasso a compasso.
- * Linhas legadas (base null escrito antes do M3) podem ler como conflito mesmo
- * sem corrida real — falso positivo seguro: só pede um olhar humano a mais.
+ * Detecta conflito de mesma célula. A contribuição guarda seu merge base (o que
+ * estava aceito quando foi escrita); há conflito quando o aceito atual já é
+ * outro e o conteúdo normalizado difere. Nunca resolvido automaticamente: o
+ * dono escolhe compasso a compasso.
+ * Contribuições antigas, sem base gravado, podem gerar falso positivo — seguro,
+ * apenas pede um olhar humano a mais.
  */
 function isConflicting(
   proposal: { baseContributionId: string | null; alphaTex: string },
@@ -58,7 +58,7 @@ function isConflicting(
 /** Escolha humana por compasso em conflito: fica a versão atual ou a proposta. */
 export type ConflictResolutions = Record<number, "current" | "proposed">;
 
-/** Aceite chegou com conflitos sem escolha — a rota devolve 409, a UI pede a escolha. */
+/** Aceite tentado com conflitos sem resolução. A rota traduz em HTTP 409. */
 export class UnresolvedConflictsError extends Error {
   constructor(public readonly bars: number[]) {
     super(
@@ -77,7 +77,7 @@ function assertOwner(
   }
 }
 
-/** The whole track as one editable alphaTex (accepted cell bodies joined by "|"). */
+/** A trilha inteira como um alphaTex editável (células aceitas unidas por "|"). */
 export async function getTrackContent(songId: string, trackOrder: number) {
   const [song, track, measures] = await Promise.all([
     prisma.song.findUnique({ where: { id: songId }, include: { owner: true } }),
@@ -101,17 +101,16 @@ export async function getTrackContent(songId: string, trackOrder: number) {
       id: track.id,
       order: track.order,
       name: track.name,
-      // Percussão usa notação própria ("Kick (hit)".8) que o editor visual não
-      // modela — a UI cai para edição em texto.
+      // Percussão usa notação própria ("Kick (hit)".8): a UI abre o editor de
+      // grade em vez do editor de tablatura.
       isPercussion: track.isPercussion,
-      // Afinação atual (tokens, aguda → grave) — null = sem afinação editável.
+      // Afinação atual (tokens, aguda → grave); null = sem afinação editável.
       tuning: tuningTokensFromHeader(track.headerFragment),
     },
     measureCount: measures.length,
     alphaTex: bars.join(BAR_SEP),
-    // Contexto para o RENDER fiel no editor visual (não afeta a submissão):
-    // header real da trilha (afinação/instrumento) + estrutura por compasso
-    // (fórmula de compasso, andamento) — ver serializeForRender.
+    // Contexto para o render fiel no editor visual (não afeta a submissão):
+    // header real da trilha + estrutura por compasso. Ver serializeForRender.
     trackHeader: track.headerFragment ?? null,
     measures: measures.map((m) => ({
       tsNum: m.tsNumerator,
@@ -121,16 +120,17 @@ export async function getTrackContent(songId: string, trackOrder: number) {
     song: {
       ownerId: song?.ownerId ?? null,
       ownerName: song?.owner?.displayName ?? null,
-      // Andamento inicial (bpm) — editável pelo dono na barra do editor.
+      // Andamento inicial em bpm, editável pelo dono na barra do editor.
       tempo: readSongTempo(song?.headerFragment, measures[0]),
     },
   };
 }
 
 /**
- * Submit a whole-track edit. Splits by "|" into per-bar fragments, validates the
- * resulting document, then writes one cell contribution per CHANGED bar
- * (accepted if you own the song, proposed otherwise). Append-only throughout.
+ * Envia a edição de uma trilha inteira. Divide por "|" em fragmentos de
+ * compasso, valida o documento resultante e grava uma contribuição por compasso
+ * alterado — aceita se quem envia é o dono, proposta caso contrário.
+ * Append-only: nada é sobrescrito.
  */
 export async function submitTrackContent(
   songId: string,
@@ -164,7 +164,8 @@ export async function submitTrackContent(
 
   const isOwner = !song?.ownerId || song.ownerId === actor.id;
 
-  // Validate the candidate document (this track's bars overridden) before writing.
+  // Valida o documento candidato antes de gravar: edição inválida é rejeitada
+  // sem tocar no banco, então a música nunca fica num estado que não remonta.
   const overrides = new Map<string, string>();
   measures.forEach((m, i) => {
     const c = cellByMeasure.get(m.id);
@@ -175,8 +176,8 @@ export async function submitTrackContent(
     throw new Error(`Ficaria inválido${error ? `: ${error}` : "."}`);
   }
 
-  // Write a contribution per CHANGED, non-empty bar. A comparação é
-  // NORMALIZADA (whitespace/indentação fora) — só conteúdo real conta.
+  // Uma contribuição por compasso alterado e não vazio. A comparação é
+  // normalizada: só diferença real de conteúdo conta como mudança.
   let changed = 0;
   for (let i = 0; i < measures.length; i++) {
     const cell = cellByMeasure.get(measures[i].id);
@@ -184,7 +185,7 @@ export async function submitTrackContent(
     const body = fragments[i];
     const bodyN = normalizeFragment(body);
     const currentN = normalizeFragment(cell.acceptedContribution?.alphaTex ?? "");
-    if (bodyN === "" || bodyN === currentN) continue; // skip empty / unchanged
+    if (bodyN === "" || bodyN === currentN) continue; // vazio ou inalterado
 
     const created = await prisma.cellContribution.create({
       data: {
@@ -193,7 +194,7 @@ export async function submitTrackContent(
         authorName: actor.displayName,
         alphaTex: body,
         status: isOwner ? "accepted" : "proposed",
-        // M3: merge base — o aceito sobre o qual esta edição foi escrita.
+        // Merge base: o aceito sobre o qual esta edição foi escrita.
         baseContributionId: cell.acceptedContributionId,
       },
     });
@@ -206,13 +207,11 @@ export async function submitTrackContent(
     changed++;
   }
 
-  // Histórico só registra o handoff entre pessoas (proposta de outro aceita —
-  // ver acceptTrackProposals), não cada save do próprio dono: senão compor do
-  // zero (várias saves + compassos adicionados) enche o Histórico de "mudanças"
-  // que não são passos de revezamento nenhum, só o dono editando sozinho.
+  // Sem snapshot aqui de propósito: o Histórico registra só o handoff entre
+  // pessoas (ver acceptTrackProposals), não cada save do próprio dono.
 
-  // Fecha o ciclo assíncrono: quem trabalha numa música passa a segui-la, e uma
-  // proposta avisa o dono na hora (não depende de ele recarregar a aba).
+  // Fecha o ciclo assíncrono: quem trabalha na música passa a segui-la, e a
+  // proposta avisa o dono sem depender de ele recarregar a página.
   if (changed > 0) {
     await watchSong(actor.id, songId);
     if (!isOwner) {
@@ -232,9 +231,9 @@ export async function submitTrackContent(
 }
 
 /**
- * Preview (read-only): assemble the full song with this track's bars replaced by
- * an UNSAVED local edit. Lets the editor play "what you're seeing" before saving.
- * Nothing is written.
+ * Remonta a música inteira com os compassos desta trilha substituídos por uma
+ * edição local ainda não salva, para o editor tocar o que está na tela.
+ * Somente leitura: nada é gravado.
  */
 export async function previewTrackContent(
   songId: string,
@@ -265,8 +264,8 @@ export async function previewTrackContent(
   return assembleSongAlphaTex(songId, overrides);
 }
 
-/** Cell overrides (cellId → alphaTex) for an author's proposals in a track —
- *  used to PREVIEW the document as it would be if accepted. */
+/** Overrides (cellId → alphaTex) das propostas de um autor numa trilha, para
+ *  pré-visualizar o documento como ficaria se fossem aceitas. */
 export async function proposalOverrides(
   songId: string,
   trackOrder: number,
@@ -281,7 +280,7 @@ export async function proposalOverrides(
   return new Map(props.map((p) => [p.cellId, p.alphaTex]));
 }
 
-/** Proposed vs current content of a track (for the owner's review screen). */
+/** Conteúdo proposto × atual de uma trilha, para a tela de revisão do dono. */
 export async function getProposalContent(
   songId: string,
   trackOrder: number,
@@ -315,10 +314,9 @@ export async function getProposalContent(
     );
   });
 
-  // M3 — compassos onde a música mudou por baixo da proposta: mostrar as duas
-  // versões lado a lado; o dono escolhe (nada de merge automático "esperto").
-  // ts/structPrefix acompanham para a UI renderizar o compasso como TABLATURA
-  // (mesma via do editor visual), não como alphaTex cru.
+  // Compassos que mudaram por baixo da proposta: vão lado a lado para o dono
+  // escolher. `ts`/`structPrefix` acompanham porque, sem eles, a UI renderizaria
+  // um compasso solto como 4/4 em vez da fórmula real.
   const conflicts = measures.flatMap((m) => {
     const cell = byMeasure.get(m.id);
     const prop = cell && propByCell.get(cell.id);
@@ -346,8 +344,8 @@ export async function getProposalContent(
   };
 }
 
-/** Pending track proposals grouped by (track, author) — the owner's review queue.
- *  `conflicts` = compassos onde a música mudou desde a proposta (M3). */
+/** Propostas pendentes agrupadas por (trilha, autor) — a fila de revisão do dono.
+ *  `conflicts` = compassos que mudaram na música desde a proposta. */
 export async function pendingTrackProposals(songId: string) {
   const props = await prisma.cellContribution.findMany({
     where: { status: "proposed", cell: { songId } },
@@ -402,11 +400,11 @@ async function loadOwnedSong(songId: string, actor: Actor) {
 }
 
 /**
- * Owner accepts all of an author's pending proposals in a track (batch).
- * M3: se algum compasso mudou por baixo da proposta (conflito de mesma célula),
- * o aceite EXIGE uma escolha humana por compasso (`resolutions`, chaveada pelo
- * order do compasso): "proposed" = entra a proposta; "current" = fica a versão
- * atual (a contribuição em conflito vira `rejected`, preservada no histórico).
+ * O dono aceita, de uma vez, todas as propostas pendentes de um autor na trilha.
+ * Havendo conflito de mesma célula, o aceite exige escolha humana por compasso
+ * (`resolutions`, chaveada pelo order do compasso): "proposed" faz a proposta
+ * entrar; "current" mantém a versão atual e marca a contribuição em conflito
+ * como `rejected`, preservada no histórico.
  */
 export async function acceptTrackProposals(
   songId: string,
@@ -426,7 +424,7 @@ export async function acceptTrackProposals(
   });
   if (props.length === 0) return { accepted: 0, rejected: 0 };
 
-  // Conflitos sem escolha barram o aceite — nunca sobrescrever em silêncio.
+  // Conflito sem escolha barra o aceite: nada é sobrescrito em silêncio.
   const unresolved = props.filter(
     (p) => isConflicting(p, p.cell) && !resolutions[p.cell.measure.order],
   );
@@ -441,12 +439,12 @@ export async function acceptTrackProposals(
   );
   const drop = props.filter((p) => !keep.includes(p));
 
-  // Tudo resolvido a favor da versão atual = na prática uma recusa.
+  // Tudo resolvido a favor da versão atual equivale a uma recusa.
   if (keep.length === 0) {
     return rejectTrackProposals(songId, trackOrder, authorId, actor);
   }
 
-  // Validate the document with the KEPT proposals applied.
+  // Valida o documento com as propostas mantidas já aplicadas.
   const overrides = new Map(keep.map((p) => [p.cellId, p.alphaTex]));
   const { valid, error } = await assembleSongAlphaTex(songId, overrides);
   if (!valid) throw new Error(`Aceitar deixaria inválido${error ? `: ${error}` : "."}`);
@@ -477,16 +475,16 @@ export async function acceptTrackProposals(
 
   const keptCells = new Set(keep.map((p) => p.cellId)).size;
 
-  // The accepted proposal is now part of the live grid → record a history
-  // snapshot crediting the collaborator who proposed it.
+  // A proposta entrou na grade viva: registra o snapshot de histórico creditando
+  // quem propôs. Este é o passo de revezamento que o Histórico mostra.
   await snapshotGrid(
     songId,
     props[0].authorName,
     `${track.name} — ${pluralBars(keptCells)} (proposta de ${props[0].authorName})`,
   );
 
-  // Close the loop: the proposer learns it was accepted; the song's followers
-  // learn the track was delivered (the mural moved).
+  // Fecha o ciclo: o proponente sabe que foi aceito e quem segue a música sabe
+  // que a trilha foi entregue.
   const songTitle = song?.title ?? track.name;
   await notifyProposalReviewed({
     authorId,
@@ -511,7 +509,7 @@ export async function acceptTrackProposals(
   return { accepted: keptCells, rejected: drop.length };
 }
 
-/** Owner rejects all of an author's pending proposals in a track (batch). */
+/** O dono recusa, de uma vez, as propostas pendentes de um autor na trilha. */
 export async function rejectTrackProposals(
   songId: string,
   trackOrder: number,
@@ -526,7 +524,7 @@ export async function rejectTrackProposals(
     data: { status: "rejected" },
   });
 
-  // Tell the proposer their proposal was declined — no more silent limbo.
+  // Avisa o proponente: recusa sem aviso deixaria a proposta em limbo.
   if (result.count > 0) {
     await notifyProposalReviewed({
       authorId,

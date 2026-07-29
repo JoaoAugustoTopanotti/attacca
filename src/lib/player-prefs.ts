@@ -1,9 +1,9 @@
-// Player/reading preferences. These live in localStorage, NOT in the database:
-// they describe an apparatus ("nesta tela eu quero a tablatura maior"), not an
-// identity — so they need no migration, no round trip, and no account.
+// Preferências de reprodução e leitura. Vivem no localStorage, não no banco:
+// descrevem um aparelho ("nesta tela eu quero a tablatura maior"), não uma
+// identidade, então não exigem conta nem migração.
 //
-// The player reads them when it mounts and listens for PREFS_EVENT so a change in
-// the settings page is felt immediately by any player already on screen.
+// O player lê ao montar e escuta PREFS_EVENT, para uma mudança nas configurações
+// valer na hora em qualquer player já na tela.
 
 export type StaveProfile = "Tab" | "ScoreTab";
 
@@ -36,7 +36,7 @@ export const PREFS_EVENT = "gs:player-prefs";
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-/** Coerce whatever is in storage into a valid prefs object (never throws). */
+/** Converte o que estiver no storage num objeto de preferências válido. Nunca lança. */
 function coerce(raw: unknown): PlayerPrefs {
   const p = (raw ?? {}) as Partial<PlayerPrefs>;
   return {
@@ -49,7 +49,7 @@ function coerce(raw: unknown): PlayerPrefs {
   };
 }
 
-/** SSR-safe: returns the defaults on the server. */
+/** Seguro no SSR: devolve os padrões quando roda no servidor. */
 export function readPlayerPrefs(): PlayerPrefs {
   if (typeof window === "undefined") return DEFAULT_PLAYER_PREFS;
   try {
@@ -60,13 +60,13 @@ export function readPlayerPrefs(): PlayerPrefs {
   }
 }
 
-/** Persist and tell every mounted player to apply it right away. */
+/** Persiste e avisa os players montados para aplicarem na hora. */
 export function writePlayerPrefs(prefs: PlayerPrefs): PlayerPrefs {
   const next = coerce(prefs);
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* private mode / storage cheio: a preferência simplesmente não persiste */
+    /* modo privado ou storage cheio: a preferência não persiste */
   }
   window.dispatchEvent(new CustomEvent<PlayerPrefs>(PREFS_EVENT, { detail: next }));
   return next;

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-// The demand side of the mural: a learner who sees "falta baixo" follows the
-// song and gets told when it's delivered — instead of having to keep checking.
+// O lado da demanda no mural: quem vê "falta baixo" segue a música e é avisado
+// quando a trilha for entregue, em vez de ter que voltar para conferir.
 export default function FollowButton({ songId }: { songId: string }) {
   const [watching, setWatching] = useState(false);
   const [canWatch, setCanWatch] = useState(false);
@@ -29,12 +29,12 @@ export default function FollowButton({ songId }: { songId: string }) {
     }
     setBusy(true);
     const next = !watching;
-    setWatching(next); // optimistic
+    setWatching(next); // atualização otimista
     try {
       const res = await fetch(`/api/songs/${songId}/watch`, {
         method: next ? "POST" : "DELETE",
       });
-      if (!res.ok) setWatching(!next); // revert on failure
+      if (!res.ok) setWatching(!next); // reverte em caso de falha
     } catch {
       setWatching(!next);
     } finally {

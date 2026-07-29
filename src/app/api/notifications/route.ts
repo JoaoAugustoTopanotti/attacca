@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/identity";
 
-// GET /api/notifications — the current user's recent notifications + unread count.
-// Returns an empty feed (not 401) when not identified, so the bell can poll freely.
+// GET /api/notifications — notificações recentes e a contagem de não lidas.
+// Sem identidade devolve um feed vazio em vez de 401, para o sino poder fazer
+// polling sem tratar erro.
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ notifications: [], unread: 0 });

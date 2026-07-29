@@ -1,8 +1,7 @@
-// Materialization: turn a song's canonical alphaTex (an import) into the live
-// cell grid (Track / Measure / Cell / CellContribution). Derived data — safe to
-// re-run. Uses the SAME decompose/assemble code the spike proved
-// (src/lib/alphatex-grid). Manual/directed for now (one song at a time); NOT
-// wired into every upload yet.
+// Materialização: transforma o alphaTex canônico de uma música (vindo de um
+// import) na grade viva de células (Track / Measure / Cell / CellContribution).
+// Dado derivado, seguro de refazer. Usa o mesmo código de decompor/remontar de
+// src/lib/alphatex-grid.
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -32,8 +31,8 @@ export type MaterializeResult = {
 };
 
 /**
- * Build the cell grid for a song from its canonical alphaTex. Idempotent:
- * replaces any existing grid for the song, all-or-nothing in a transaction.
+ * Constrói a grade de células da música a partir do alphaTex canônico.
+ * Idempotente: substitui a grade existente, tudo-ou-nada numa transação.
  */
 export async function materializeSongGrid(
   songId: string,
@@ -56,8 +55,8 @@ export async function materializeSongGrid(
   const measureIds = norm.measures.map(() => randomUUID());
   const trackIds = norm.tracks.map(() => randomUUID());
 
-  // Typed scaffold read from the model (UI reads these; structPrefix carries the
-  // rest of the structure opaquely).
+  // Andaime tipado lido do modelo, que a UI consome; o resto da estrutura viaja
+  // opaco em `structPrefix`.
   const measureRows = norm.measures.map((mm, m) => {
     const mb = score.masterBars[m];
     const tempo =
@@ -84,8 +83,8 @@ export async function materializeSongGrid(
       tuning: null as string | null,
       instrument: pb?.program ?? null,
       isPercussion: pb?.primaryChannel === 9,
-      // Tracks start UNCLAIMED: incompleteness is an open invitation; each person
-      // claims the track they take. (Not auto-owned by the uploader.)
+      // Trilha nasce sem dono: a incompletude é um convite aberto, e não algo
+      // que já pertence a quem fez o upload.
       ownerName: null,
     };
   });
@@ -111,26 +110,26 @@ export async function materializeSongGrid(
 
   await prisma.$transaction(
     async (tx) => {
-      // Clear any existing grid (re-runnable). Order respects FK constraints.
+      // Limpa a grade existente. A ordem respeita as constraints de FK.
       await tx.cell.updateMany({ where: { songId }, data: { acceptedContributionId: null } });
       await tx.cellContribution.deleteMany({ where: { cell: { songId } } });
       await tx.cell.deleteMany({ where: { songId } });
       await tx.track.deleteMany({ where: { songId } });
       await tx.measure.deleteMany({ where: { songId } });
 
-      // Create the fresh grid.
+      // Cria a grade nova.
       await tx.measure.createMany({ data: measureRows });
       await tx.track.createMany({ data: trackRows });
       await tx.cell.createMany({ data: cellRows });
       await tx.cellContribution.createMany({ data: contribRows });
 
-      // Point each cell at its (single) accepted contribution in one statement.
+      // Aponta cada célula para sua contribuição aceita num único statement.
       await tx.$executeRawUnsafe(
         `UPDATE "Cell" SET "acceptedContributionId" = (SELECT "id" FROM "CellContribution" WHERE "CellContribution"."cellId" = "Cell"."id" LIMIT 1) WHERE "songId" = $1`,
         songId,
       );
 
-      // Persist the opaque global header on the Song for assembly.
+      // Guarda o header global opaco na Song, para a remontagem.
       await tx.song.update({
         where: { id: songId },
         data: { headerFragment: norm.globalHeader || null },
@@ -143,10 +142,9 @@ export async function materializeSongGrid(
 }
 
 /**
- * Freeze the current live grid as an immutable "snapshot" revision — so every
- * step of the relay (an accepted proposal, an owner edit) shows in the history
- * and stays playable. Best-effort: if the grid won't assemble, we skip silently
- * rather than block the edit. Returns the created revision number, or null.
+ * Congela a grade viva numa revisão imutável do tipo "snapshot", para que cada
+ * passo do revezamento apareça no histórico e continue tocável.
+ * Best-effort: se a grade não remontar, devolve null em vez de barrar a edição.
  */
 export async function snapshotGrid(
   songId: string,
@@ -184,17 +182,17 @@ export async function snapshotGrid(
 }
 
 /**
- * Reassemble a song's full alphaTex from its live cell grid (the derived
- * artifact). Validates by importing through alphaTab; returns the canonical text.
+ * Remonta o alphaTex completo da música a partir da grade viva de células — o
+ * artefato derivado. Valida importando pelo alphaTab e devolve o texto canônico.
  */
 export async function assembleSongAlphaTex(
   songId: string,
-  // Optional per-cell body overrides (keyed by cellId) — lets callers validate a
-  // candidate edit before committing it.
+  // Substituições de conteúdo por célula (chaveadas por cellId), para validar
+  // uma edição candidata antes de gravá-la.
   overrides?: Map<string, string>,
-  // Optional structural mutation (headers/structPrefixes) applied to the
-  // normalized grid before assembly — lets tuning/tempo edits validate the
-  // WHOLE document before persisting (see src/lib/structure.ts).
+  // Mutação estrutural (headers/structPrefixes) aplicada à grade normalizada
+  // antes da remontagem, para que edições de afinação e andamento validem o
+  // documento inteiro antes de persistir. Ver src/lib/structure.ts.
   transform?: (norm: NormalizedGrid) => void,
 ): Promise<{ alphaTex: string; valid: boolean; error?: string }> {
   const [song, measures, tracks, cells] = await Promise.all([
@@ -225,7 +223,7 @@ export async function assembleSongAlphaTex(
   transform?.(norm);
   const alphaTex = assembleFromNormalized(norm);
 
-  // Validate through the official importer.
+  // Valida pelo importer oficial do alphaTab.
   try {
     const alphaTab = await import("@coderline/alphatab");
     alphaTab.importer.ScoreLoader.loadAlphaTex(alphaTex);

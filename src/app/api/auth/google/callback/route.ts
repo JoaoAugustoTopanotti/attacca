@@ -20,8 +20,8 @@ import {
 
 const expire = { path: "/", maxAge: 0 };
 
-// GET /api/auth/google/callback?code=&state= — verify the hop, resolve the user
-// from the verified Google email, start a JWT session, and land them home.
+// GET /api/auth/google/callback?code=&state= — valida o retorno do Google,
+// resolve o usuário pelo e-mail verificado, abre a sessão JWT e volta para casa.
 export async function GET(request: Request) {
   const base = appBaseUrl(request);
   const fail = (code: string) => {
@@ -44,7 +44,8 @@ export async function GET(request: Request) {
   const expectedState = store.get(STATE_COOKIE)?.value;
   const verifier = store.get(VERIFIER_COOKIE)?.value;
 
-  // CSRF: the state echoed by Google must match the one we set on this browser.
+  // Proteção de CSRF: o state devolvido pelo Google precisa ser o que este
+  // navegador recebeu.
   if (!code || !state || !expectedState || !verifier || state !== expectedState) {
     return fail("google_state");
   }
@@ -57,8 +58,8 @@ export async function GET(request: Request) {
     return fail("google_failed");
   }
 
-  // Same email anchor as the magic link: Google just authenticates. A lingering
-  // legacy cookie lets this email attach to that existing account.
+  // Mesma âncora de e-mail do magic link: o Google apenas autentica. Um cookie
+  // legado remanescente permite anexar este e-mail à conta já existente.
   const claimUserId = await readLegacyCookieUserId();
   const user = await resolveUserForEmail({
     email: profile.email,
@@ -67,8 +68,9 @@ export async function GET(request: Request) {
   });
 
   const jwt = await signSessionToken(user.id);
-  // The cookie value may arrive percent-encoded ("%2Fsongs%2Fnew") depending on
-  // how it was set; decode before validating (idempotent for plain paths).
+  // O valor do cookie pode chegar percent-encoded ("%2Fsongs%2Fnew") conforme
+  // como foi gravado: decodifica antes de validar (idempotente para caminhos
+  // simples).
   let redirectRaw = store.get(REDIRECT_COOKIE)?.value ?? null;
   try {
     if (redirectRaw) redirectRaw = decodeURIComponent(redirectRaw);

@@ -2,7 +2,8 @@
 
 import type { RevisionDTO } from "@/components/SongWorkspace";
 
-// Deterministic dd/MM HH:mm so server-rendered and client-hydrated markup match.
+// Formato dd/MM HH:mm determinístico, para o markup do servidor e o da
+// hidratação no client baterem.
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const p = (n: number) => String(n).padStart(2, "0");
@@ -24,7 +25,7 @@ export default function RevisionList({
     return <p className="sub" style={{ padding: "12px 14px" }}>Nenhuma revisão ainda.</p>;
   }
 
-  // The current revision is the highest number; reverting to it is a no-op.
+  // A revisão atual é a de maior número; reverter para ela não faria nada.
   const currentNumber = Math.max(...revisions.map((r) => r.number));
 
   function handleRevert(r: RevisionDTO) {

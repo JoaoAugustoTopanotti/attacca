@@ -1,19 +1,19 @@
-// Light preset list (not an instrument ontology). Pure data, importable from
-// client components (the welcome step) and server code (declareTrack, profile)
-// alike — keep it free of prisma/node imports.
+// Lista leve de presets, não uma ontologia de instrumentos. Dado puro,
+// importável tanto de client components quanto do servidor (declareTrack,
+// profile) — manter sem imports de prisma ou de módulos do Node.
 
 export type InstrumentPreset = {
   key: string;
   label: string;
-  program: number; // GM
-  tuning: string | null; // alphaTex tokens, null = non-stringed (standard staff)
+  program: number; // programa General MIDI
+  tuning: string | null; // tokens alphaTex; null = sem cordas (pauta padrão)
   isPercussion: boolean;
 };
 
 export const INSTRUMENT_PRESETS: InstrumentPreset[] = [
-  // GM: 24 = violão náilon, 25 = violão aço, 27 = guitarra limpa. A "Guitarra"
-  // usava 25 (soava violão de aço) — corrigida para 27; trilhas já declaradas
-  // guardam o próprio \instrument e não mudam.
+  // Programas GM: 24 = violão náilon, 25 = violão aço, 27 = guitarra limpa.
+  // Trilhas já declaradas guardam o próprio \instrument e não mudam com edições
+  // desta lista.
   { key: "guitar", label: "Guitarra", program: 27, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
   { key: "acoustic", label: "Violão (aço)", program: 25, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },
   { key: "nylon", label: "Violão (náilon)", program: 24, tuning: "E4 B3 G3 D3 A2 E2", isPercussion: false },

@@ -4,10 +4,10 @@ import { readRevisionFile } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
-// POST /api/revisions/:id/revert — git-style revert.
-// Creates a NEW revision (next number) from the content of revision :id.
-// History stays immutable: the old revision is never changed or deleted.
-// Optional JSON body: { authorName? }.
+// POST /api/revisions/:id/revert — reverter no estilo git: cria uma revisão
+// nova a partir do conteúdo da revisão :id. O histórico é imutável, então a
+// revisão antiga nunca é alterada nem apagada.
+// Body JSON opcional: { authorName? }.
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
 
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: Params) {
       authorName = body.authorName.trim();
     }
   } catch {
-    // no/invalid body — keep default author
+    // body ausente ou inválido: mantém o autor padrão
   }
 
   const last = await prisma.revision.findFirst({
@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: Params) {
   const number = (last?.number ?? 0) + 1;
   const message = `Revertido para #${source.number}`;
 
-  // Inline (AlphaTex) revisions: just copy the text.
+  // Revisões inline (AlphaTex): basta copiar o texto.
   if (source.source === "alphatex") {
     const created = await prisma.revision.create({
       data: {
@@ -54,9 +54,9 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json(created, { status: 201 });
   }
 
-  // File-backed revisions: copy the bytes into a fresh stored file so each
-  // revision stays self-contained.
-  // Source bytes: prefer the DB blob, fall back to legacy disk.
+  // Revisões com arquivo: copia os bytes para um arquivo novo, mantendo cada
+  // revisão autocontida. A origem preferida é o blob no banco, com fallback
+  // para o disco legado.
   let bytes: Buffer | null = source.blob ? Buffer.from(source.blob) : null;
   if (!bytes && source.storedPath) {
     try {
@@ -82,8 +82,8 @@ export async function POST(request: Request, { params }: Params) {
       originalName: source.originalName,
       format: source.format,
       sizeBytes: source.sizeBytes,
-      blob: new Uint8Array(bytes), // copy the provenance blob (in DB)
-      alphaTex: source.alphaTex, // carry the canonical form along
+      blob: new Uint8Array(bytes), // cópia do blob de proveniência
+      alphaTex: source.alphaTex, // leva junto a forma canônica
     },
   });
 

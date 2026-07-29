@@ -3,8 +3,9 @@ import { materializeSongGrid } from "@/lib/materialize";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// POST /api/songs/:songId/materialize — (re)build the cell grid from the canonical
-// alphaTex. Manual/directed; idempotent. Not wired into uploads yet.
+// POST /api/songs/:songId/materialize — reconstrói a grade de células a partir
+// do alphaTex canônico. Idempotente e acionado manualmente; o upload tem o
+// próprio caminho de materialização.
 export async function POST(_request: Request, { params }: Params) {
   const { songId } = await params;
   try {

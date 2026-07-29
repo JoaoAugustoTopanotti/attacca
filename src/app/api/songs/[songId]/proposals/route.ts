@@ -4,9 +4,9 @@ import { pendingTrackProposals } from "@/lib/track-content";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET — pending proposals grouped by (track, author) + the song's owner.
-// The Propostas tab uses the owner to decide the view: the owner sees all
-// (review queue); a collaborator sees only their own submissions.
+// GET — propostas pendentes agrupadas por (trilha, autor), mais o dono da
+// música. A aba Propostas usa o dono para decidir a visão: ele vê a fila
+// inteira, e o colaborador vê apenas os próprios envios.
 export async function GET(_request: Request, { params }: Params) {
   const { songId } = await params;
   const song = await prisma.song.findUnique({

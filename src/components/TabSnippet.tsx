@@ -1,8 +1,8 @@
 "use client";
 
-// Tablatura estática (render-only): desenha um trecho alphaTex sem player.
-// Usado nos painéis de conflito (M3) — o dono compara as duas versões na
-// partitura, não em texto cru. Leve: sem soundfont, sem cursor, sem interação.
+// Tablatura estática: desenha um trecho alphaTex sem player. Usada nos painéis
+// de conflito, para o dono comparar as duas versões na partitura em vez de em
+// texto cru. Leve de propósito: sem soundfont, cursor ou interação.
 
 import { useEffect, useRef, useState } from "react";
 import { alphaTabResources, readTheme } from "@/lib/theme";
@@ -14,8 +14,8 @@ export default function TabSnippet({
 }: {
   /** Documento alphaTex renderizável de uma trilha (ver serializeForRender). */
   tex: string;
-  /** Percussão não tem tablatura de cordas: força pauta (o perfil "só tab"
-   *  quebra o layout do alphaTab — mesmo remendo do AlphaTabPlayer). */
+  /** Percussão não tem tablatura de cordas e força pauta: o perfil "só tab"
+   *  quebra o layout do alphaTab. */
   isPercussion?: boolean;
   /** Texto cru mostrado se o alphaTab não conseguir renderizar o trecho. */
   fallbackText?: string;
@@ -44,7 +44,7 @@ export default function TabSnippet({
       api = instance;
 
       instance.scoreLoaded.on((score) => {
-        // Pauta de percussão usa clave NEUTRA (‖) — o importer deixa G2.
+        // Pauta de percussão usa clave neutra (‖); o importer deixaria G2.
         score.tracks.forEach((t) =>
           t.staves.forEach((staff) => {
             if (!staff.isPercussion) return;
@@ -68,8 +68,8 @@ export default function TabSnippet({
     };
   }, [tex, isPercussion]);
 
-  // O surface fica sempre no DOM (o alphaTab segura a referência); no fallback
-  // ele só é escondido.
+  // O surface fica sempre no DOM, porque o alphaTab guarda a referência; no
+  // fallback ele é apenas escondido.
   return (
     <>
       {failed && (

@@ -5,9 +5,9 @@ import "./globals.css";
 import IdentityWidget from "@/components/IdentityWidget";
 import NotificationBell from "@/components/NotificationBell";
 
-// Tipografia da marca: Space Grotesk (títulos/wordmark), Inter (leitura),
-// JetBrains Mono (dados/rótulos). Expostas como CSS vars consumidas em
-// globals.css (--disp / --body / --mono).
+// Tipografia da marca: Space Grotesk (títulos e wordmark), Inter (leitura) e
+// JetBrains Mono (dados e rótulos), expostas como as CSS vars --disp, --body e
+// --mono que o globals.css consome.
 const disp = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
     "Transcrições musicais colaborativas — alguém começa, você continua.",
 };
 
-// Roda antes da pintura para evitar flash de tema: escuro é o padrão
-// (já vem no data-theme do <html>); só troca se a pessoa salvou "light".
+// Roda antes da pintura para evitar flash de tema. Escuro é o padrão, já no
+// data-theme do <html>; só troca se a pessoa tiver salvo "light".
 const themeBootstrap = `try{if(localStorage.getItem("attacca:theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`;
 
 export default function RootLayout({
@@ -36,8 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // suppressHydrationWarning: some browser extensions (e.g. Bitdefender)
-    // inject attributes into <html>/<body> before React hydrates.
+    // suppressHydrationWarning: algumas extensões de navegador injetam
+    // atributos em <html> e <body> antes de o React hidratar.
     <html
       lang="pt-BR"
       data-theme="dark"

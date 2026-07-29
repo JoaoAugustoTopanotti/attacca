@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { getCurrentUser } from "@/lib/identity";
 
-// GET /api/songs — list songs (newest first) with revision counts.
+// GET /api/songs — lista as músicas, da mais recente, com a contagem de revisões.
 export async function GET() {
   const songs = await prisma.song.findMany({
     orderBy: { updatedAt: "desc" },
@@ -12,9 +12,9 @@ export async function GET() {
   return NextResponse.json(songs);
 }
 
-// POST /api/songs — create a song. Body: { title, artist? }. Requires identity:
-// the creator owns the song (maintainer model), so an anonymous song would be
-// ownerless — no one to accept proposals or answer for it.
+// POST /api/songs — cria uma música. Body: { title, artist? }. Exige
+// identidade: quem cria vira dono, e uma música anônima ficaria sem ninguém
+// para aceitar propostas ou responder por ela.
 export async function POST(request: Request) {
   const me = await getCurrentUser();
   if (!me) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const artistValue =
     typeof artist === "string" && artist.trim() !== "" ? artist.trim() : null;
 
-  // Ensure a unique slug by appending a short suffix on collision.
+  // Garante slug único acrescentando um sufixo curto em caso de colisão.
   const base = slugify(title);
   let slug = base;
   for (let attempt = 0; attempt < 5; attempt++) {

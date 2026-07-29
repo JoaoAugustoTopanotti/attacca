@@ -4,7 +4,8 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string; trackOrder: string }> };
 
-// POST { tuning: string[] } — muda a afinação da trilha (dono; mesmo nº de cordas).
+// POST { tuning: string[] } — muda a afinação da trilha, mantendo o mesmo nº de
+// cordas. Restrito ao dono.
 export async function POST(request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   const user = await getCurrentUser();

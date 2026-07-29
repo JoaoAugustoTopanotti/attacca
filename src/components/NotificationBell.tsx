@@ -16,15 +16,15 @@ type Notif = {
   createdAt: string;
 };
 
-// Which tab of the song page to land on when a notification is opened.
+// Aba da página da música em que a notificação aterrissa.
 function hashForType(type: string): string {
   switch (type) {
     case "proposal_received":
-      return "#propostas"; // the owner goes straight to the review queue
+      return "#propostas"; // o dono cai direto na fila de revisão
     case "slot_declared":
-      return "#colaborar"; // "falta baixo" → go fill it
+      return "#colaborar"; // "falta baixo": leva a quem vai preencher
     default:
-      return ""; // accepted / rejected / progress → the player (hear it)
+      return ""; // aceite, recusa e progresso levam ao player
   }
 }
 
@@ -65,11 +65,11 @@ export default function NotificationBell() {
       setItems(data.notifications ?? []);
       setUnread(data.unread ?? 0);
     } catch {
-      /* offline / transient — keep the last state */
+      /* offline ou falha passageira: mantém o último estado */
     }
   }, []);
 
-  // Only show the bell to identified people (a notification needs an owner).
+  // O sino só aparece para quem está identificado: notificação tem destinatário.
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
@@ -84,7 +84,7 @@ export default function NotificationBell() {
     return () => clearInterval(t);
   }, [identified, load]);
 
-  // Close the dropdown on outside click.
+  // Fecha o dropdown ao clicar fora dele.
   useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
@@ -104,7 +104,7 @@ export default function NotificationBell() {
         body: JSON.stringify(ids ? { ids } : {}),
       });
     } catch {
-      /* best-effort */
+      /* best-effort: marcar como lida nunca bloqueia a navegação */
     }
   }
 

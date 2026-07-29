@@ -1,22 +1,21 @@
-// Afinação de cordas — helpers PUROS (sem prisma/DOM), compartilhados entre o
-// servidor (validação/reescrita do header, src/lib/structure.ts) e o client
+// Afinação de cordas — helpers puros (sem prisma nem DOM), compartilhados entre
+// o servidor (validação e reescrita do header, src/lib/structure.ts) e o client
 // (popover de afinação no TrackEditor).
 //
-// Formatos reais de `\tuning` num Track.headerFragment:
-//   - declareTrack:  `\tuning E4 B3 G3 D3 A2 E2`            (sem parênteses)
-//   - AlphaTexExporter (imports/materialização):
+// Dois formatos de `\tuning` convivem num Track.headerFragment:
+//   - declareTrack:  `\tuning E4 B3 G3 D3 A2 E2`  (sem parênteses)
+//   - AlphaTexExporter (imports e materialização):
 //       `\tuning (Eb4 Bb3 Gb3 Db3 Ab2 Eb2) {`
 //       `  label "Guitar Tune down ½ step"`
 //       `}`
-//     (parênteses + bloco de label opcional, possivelmente multi-linha)
+//     ou seja, parênteses mais um bloco de label opcional e multi-linha.
 
-/** Token de afinação alphaTex: nota (com # ou b opcional) + oitava. Ex.: E2, F#3, Eb4. */
+/** Token de afinação: nota (com # ou b opcional) + oitava. Ex.: E2, F#3, Eb4. */
 export const TUNING_TOKEN = /^[a-gA-G](#|b)?\d$/;
 
 /**
- * Tokens da `\tuning` atual de um header de trilha (aguda → grave), nos dois
- * formatos acima. null = trilha sem afinação de cordas (piano, percussão,
- * `\tuning piano/none/voice`).
+ * Tokens da `\tuning` de um header de trilha (aguda → grave), nos dois formatos
+ * acima. Devolve null para trilhas sem afinação de cordas (piano, percussão).
  */
 export function tuningTokensFromHeader(
   header: string | null | undefined,
@@ -33,16 +32,16 @@ export function tuningTokensFromHeader(
 }
 
 /**
- * Reescreve (ou insere) a linha `\tuning` de um header de trilha. Se a linha
- * atual abre um bloco `{ label "…" }` (formato do exporter), o bloco sai junto —
- * o rótulo descrevia a afinação antiga.
+ * Reescreve ou insere a linha `\tuning` de um header de trilha. Quando a linha
+ * atual abre um bloco `{ label "…" }`, o bloco sai junto: o rótulo descrevia a
+ * afinação antiga e ficaria mentindo.
  */
 export function headerWithTuning(header: string, tokens: string[]): string {
   const lines = header.split(/\r?\n/);
   const line = `\\tuning ${tokens.join(" ")}`;
   const idx = lines.findIndex((l) => /^\s*\\tuning\b/i.test(l));
   if (idx < 0) {
-    // Sem \tuning ainda: entra depois do \instrument (ou do \track).
+    // Sem `\tuning` ainda: entra depois do `\instrument` (ou do `\track`).
     const after = lines.findIndex((l) => /^\s*\\instrument\b/i.test(l));
     lines.splice((after >= 0 ? after : 0) + 1, 0, line);
     return lines.join("\n");
@@ -61,8 +60,8 @@ export function headerWithTuning(header: string, tokens: string[]): string {
 
 // ── Opções da UI ───────────────────────────────────────────────────────────────
 
-/** Nomes de nota nos valores canônicos do alphaTab (bemóis) — o exporter devolve
- *  estes mesmos nomes, então o select round-tripa limpo. */
+/** Nomes de nota nos valores canônicos do alphaTab (bemóis). São os mesmos que o
+ *  exporter devolve, então o select round-tripa sem conversão. */
 export const NOTE_OPTIONS = [
   "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
 ] as const;
@@ -71,8 +70,8 @@ const SHARP_TO_FLAT: Record<string, string> = {
   "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb",
 };
 
-/** Separa um token ("Eb4", "f#3") em { note, octave } com a nota normalizada
- *  para o nome canônico (bemol). */
+/** Separa um token ("Eb4", "f#3") em nota e oitava, normalizando a nota para o
+ *  nome canônico em bemol. */
 export function splitTuningToken(token: string): { note: string; octave: number } {
   const note = token.slice(0, -1);
   const octave = Number(token.slice(-1));
@@ -82,7 +81,7 @@ export function splitTuningToken(token: string): { note: string; octave: number 
 
 export type TuningPreset = { label: string; tokens: string[] };
 
-/** Presets por nº de cordas (aguda → grave), os nomes que o nicho usa. */
+/** Presets por nº de cordas (aguda → grave), com os nomes usados no nicho. */
 export const TUNING_PRESETS: Record<number, TuningPreset[]> = {
   6: [
     { label: "Padrão (E A D G B E)", tokens: ["E4", "B3", "G3", "D3", "A2", "E2"] },
@@ -108,7 +107,7 @@ export const TUNING_PRESETS: Record<number, TuningPreset[]> = {
   ],
 };
 
-/** Resumo compacto para o botão: grave → aguda, sem oitava. Ex.: "E A D G B E". */
+/** Resumo compacto para o botão: grave → aguda, sem oitava. Ex.: "E A D G B E" */
 export function tuningSummary(tokens: string[]): string {
   return tokens
     .slice()

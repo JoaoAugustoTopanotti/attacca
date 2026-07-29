@@ -1,7 +1,4 @@
-// SongWorkspace — the active component logic was moved to:
-//   PlayerPanel.tsx  (player tab, full-width)
-//   CollabPanel.tsx  (upload + history tab)
-//   ContribPanel.tsx (contributors tab)
-// This file is kept only as a re-export for the RevisionDTO type so that
-// existing imports from SongPage still compile.
+// A lógica deste componente foi dividida em PlayerPanel, CollabPanel e
+// ContribPanel. O arquivo permanece apenas como re-export do tipo RevisionDTO,
+// para os imports existentes continuarem válidos.
 export type { RevisionDTO } from "@/lib/song-types";

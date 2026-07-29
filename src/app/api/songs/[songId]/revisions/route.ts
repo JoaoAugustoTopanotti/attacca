@@ -7,7 +7,7 @@ import { materializeSongGrid } from "@/lib/materialize";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET /api/songs/:songId/revisions — revision history, newest first.
+// GET /api/songs/:songId/revisions — histórico de revisões, da mais nova.
 export async function GET(_request: Request, { params }: Params) {
   const { songId } = await params;
   const song = await prisma.song.findUnique({ where: { id: songId } });
@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: Params) {
   const revisions = await prisma.revision.findMany({
     where: { songId },
     orderBy: { number: "desc" },
-    // Exclude blob/alphaTex (large) from the list response.
+    // O blob e o alphaTex são grandes e ficam fora da listagem.
     select: {
       id: true,
       number: true,
@@ -33,8 +33,8 @@ export async function GET(_request: Request, { params }: Params) {
   return NextResponse.json(revisions);
 }
 
-// POST /api/songs/:songId/revisions — upload a file as a new revision.
-// multipart/form-data: file (required), authorName?, message?
+// POST /api/songs/:songId/revisions — envia um arquivo como nova revisão.
+// multipart/form-data: file (obrigatório), authorName?, message?
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
 
@@ -65,7 +65,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const authorRaw = form.get("authorName");
   const messageRaw = form.get("message");
-  // Prefer the signed-in identity (ADR 0003); fall back to the form field / anon.
+  // Prefere a identidade da sessão, caindo para o campo do formulário ou "anon".
   const me = await getCurrentUser();
   const authorName =
     me?.displayName ??
@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
-  // Next per-song revision number.
+  // Próximo número de revisão desta música.
   const last = await prisma.revision.findFirst({
     where: { songId },
     orderBy: { number: "desc" },
@@ -87,9 +87,9 @@ export async function POST(request: Request, { params }: Params) {
   });
   const number = (last?.number ?? 0) + 1;
 
-  // Derive the canonical alphaTex (versionable form). Sem canônico não há grade
-  // de colaboração — e uma música sem grade é um beco sem saída no site, então
-  // o upload é BARRADO aqui, não aceito pela metade.
+  // Deriva o alphaTex canônico, a forma versionável. Sem canônico não há grade
+  // de colaboração, e música sem grade é um beco sem saída: o upload é barrado
+  // aqui em vez de aceito pela metade.
   const alphaTex = await scoreBytesToAlphaTex(bytes);
   if (!alphaTex) {
     return NextResponse.json(
@@ -102,7 +102,7 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  // Provenance blob lives IN the DB (no disk dependency — deploy-friendly).
+  // O blob de proveniência vive no banco, sem depender de disco no deploy.
   const revision = await prisma.revision.create({
     data: {
       songId,
@@ -129,8 +129,8 @@ export async function POST(request: Request, { params }: Params) {
     },
   });
 
-  // Materializa a grade (trilha × compasso) DIRETO no upload — colaborar não
-  // depende mais de um passo manual. SÓ quando a música ainda não tem grade:
+  // Materializa a grade trilha×compasso já no upload, para colaborar não
+  // depender de um passo manual. Só quando a música ainda não tem grade:
   // re-materializar uma grade viva apagaria as contribuições do revezamento.
   const hasGrid = (await prisma.measure.count({ where: { songId } })) > 0;
   if (!hasGrid) {
@@ -149,7 +149,7 @@ export async function POST(request: Request, { params }: Params) {
     }
   }
 
-  // Touch the song so it sorts to the top of the list.
+  // Atualiza a música para ela subir ao topo da lista.
   await prisma.song.update({
     where: { id: songId },
     data: { updatedAt: new Date() },

@@ -1,22 +1,22 @@
-// Async loop — the relay must not depend on luck (someone reloading a tab).
-// In-app notifications close it: propose → owner is told; accept/reject → the
-// proposer is told; a delivery or a new gap → the song's followers are told.
+// Ciclo assíncrono do revezamento. Sem notificação, o dono só descobria uma
+// proposta se recarregasse a página, e no assíncrono real (dias entre passos) a
+// proposta apodrecia. Os eventos fecham o ciclo: propor avisa o dono;
+// aceitar/recusar avisa quem propôs; entrega ou nova lacuna avisa quem segue.
 //
-// No email/push yet: that arrives with the magic-link identity upgrade (ADR
-// 0003). Everything here is best-effort — a notification failure must NEVER
-// break the underlying action (accepting a proposal, declaring a slot). So the
-// low-level writers swallow their own errors.
+// Tudo é best-effort: falha de notificação nunca pode quebrar a ação por baixo
+// (aceitar uma proposta, declarar um slot), então os writers engolem o próprio
+// erro.
 
 import { prisma } from "@/lib/prisma";
 import { sendNotificationEmail } from "@/lib/email";
 
-/** Absolute base URL for links inside emails (no Request in this context). */
+/** URL base absoluta para os links dos e-mails (não há Request neste contexto). */
 function appBase(): string {
   const env = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL;
   return (env ?? "http://localhost:4000").replace(/\/$/, "");
 }
 
-// Human email subjects for the direct (createNotification) events.
+// Assuntos de e-mail dos eventos diretos (createNotification).
 const EMAIL_TITLES: Record<string, string> = {
   proposal_received: "Sua vez: nova proposta chegou",
   proposal_accepted: "Sua proposta foi aceita",
@@ -42,9 +42,9 @@ type BaseInput = {
   message: string;
 };
 
-/** Low-level: create one direct notification (in-app) and, when the recipient
- *  has a verified email, also send it by email — the durable "sua vez" channel.
- *  Skips silently on missing target/errors. */
+/** Cria uma notificação direta in-app e, se o destinatário tem e-mail
+ *  verificado, também envia por e-mail — o canal durável do "sua vez".
+ *  Falha em silêncio quando não há destinatário ou o banco recusa. */
 async function createNotification(input: BaseInput & { userId: string | null | undefined }) {
   if (!input.userId) return;
   try {
@@ -65,7 +65,7 @@ async function createNotification(input: BaseInput & { userId: string | null | u
     return;
   }
 
-  // Best-effort email — never blocks the underlying action.
+  // E-mail é best-effort: nunca bloqueia a ação que originou a notificação.
   try {
     const user = await prisma.user.findUnique({
       where: { id: input.userId },
@@ -85,7 +85,7 @@ async function createNotification(input: BaseInput & { userId: string | null | u
   }
 }
 
-/** Fan a notification out to every follower of a song, minus the excluded ids. */
+/** Distribui uma notificação a quem segue a música, menos os ids excluídos. */
 async function notifyWatchers(
   input: BaseInput & { exceptUserIds?: Array<string | null | undefined> },
 ) {
@@ -114,9 +114,10 @@ async function notifyWatchers(
   }
 }
 
-// ── Follow (SongWatch) ──────────────────────────────────────────────────────
+// ── Seguir uma música (SongWatch) ─────────────────────────────────────────────
 
-/** Idempotent follow — auto on interaction or via the explicit "Seguir" button. */
+/** Passa a seguir a música, de forma idempotente. Acionado automaticamente ao
+ *  interagir ou pelo botão "Seguir". */
 export async function watchSong(userId: string, songId: string) {
   try {
     await prisma.songWatch.upsert({
@@ -140,9 +141,9 @@ export async function isWatching(userId: string, songId: string) {
   return !!w;
 }
 
-// ── Domain events ───────────────────────────────────────────────────────────
+// ── Eventos de domínio ────────────────────────────────────────────────────────
 
-/** Scenario 1: a collaborator proposed a track change → tell the song owner. */
+/** Alguém propôs uma mudança de trilha: avisa o dono da música. */
 export async function notifyProposalReceived(args: {
   ownerId: string | null;
   songId: string;
@@ -152,7 +153,7 @@ export async function notifyProposalReceived(args: {
   proposerId: string;
   proposerName: string;
 }) {
-  if (!args.ownerId || args.ownerId === args.proposerId) return; // no owner / self
+  if (!args.ownerId || args.ownerId === args.proposerId) return; // sem dono ou é o próprio
   await createNotification({
     userId: args.ownerId,
     type: "proposal_received",
@@ -165,7 +166,7 @@ export async function notifyProposalReceived(args: {
   });
 }
 
-/** Scenario 2: the owner accepted or rejected a proposal → tell the proposer. */
+/** O dono aceitou ou recusou uma proposta: avisa quem propôs. */
 export async function notifyProposalReviewed(args: {
   authorId: string | null;
   reviewerId: string;
@@ -190,7 +191,7 @@ export async function notifyProposalReviewed(args: {
   });
 }
 
-/** Scenario 3a: a track was delivered (proposal accepted) → tell the followers. */
+/** Uma trilha foi entregue (proposta aceita): avisa quem segue a música. */
 export async function notifyTrackDelivered(args: {
   songId: string;
   songTitle: string;
@@ -198,7 +199,7 @@ export async function notifyTrackDelivered(args: {
   count: number;
   delivererId: string | null;
   delivererName: string;
-  reviewerId: string; // the owner who accepted — already knows
+  reviewerId: string; // o dono que aceitou; já sabe, então é excluído do fan-out
 }) {
   await notifyWatchers({
     type: "track_progress",
@@ -208,12 +209,12 @@ export async function notifyTrackDelivered(args: {
     trackName: args.trackName,
     count: args.count,
     message: `${args.trackName} avançou — ${args.delivererName} entregou ${pluralBars(args.count)}`,
-    // The deliverer gets a "proposal_accepted"; the reviewer did the accepting.
+    // Quem entregou já recebe "proposta aceita"; quem revisou fez o aceite.
     exceptUserIds: [args.delivererId, args.reviewerId],
   });
 }
 
-/** Scenario 3b: a new instrument gap was declared → tell the followers. */
+/** Uma nova lacuna de instrumento foi declarada: avisa quem segue a música. */
 export async function notifySlotDeclared(args: {
   songId: string;
   songTitle: string;

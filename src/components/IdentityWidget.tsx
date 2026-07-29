@@ -32,9 +32,9 @@ export default function IdentityWidget() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  // Acabou de entrar (?welcome=1): se a conta ainda não tem instrumentos,
-  // este é o momento de perguntar "o que você toca?" — uma vez, pulável;
-  // depois disso o lugar de editar é Configurações.
+  // Logo após entrar (?welcome=1): se a conta ainda não tem instrumentos, este
+  // é o momento de perguntar "o que você toca?", uma única vez e pulável.
+  // Depois disso, o lugar de editar é Configurações.
   const [justSignedIn, setJustSignedIn] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -45,8 +45,8 @@ export default function IdentityWidget() {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Salvou o perfil nas configurações → o nome/e-mail aqui em cima muda junto,
-  // sem F5 (este fetch acima só roda na montagem).
+  // Perfil salvo nas configurações atualiza nome e e-mail aqui na hora: o fetch
+  // acima só roda na montagem.
   useEffect(() => {
     function onMeChanged(event: Event) {
       setMe((event as CustomEvent<Me>).detail);
@@ -55,8 +55,8 @@ export default function IdentityWidget() {
     return () => window.removeEventListener(ME_EVENT, onMeChanged);
   }, []);
 
-  // A failed sign-in redirects here with ?auth_error=… — reopen the modal with
-  // the reason, then clean the URL so it doesn't stick around on refresh.
+  // Um login que falha redireciona para cá com ?auth_error=: reabre o modal com
+  // o motivo e limpa a URL, para o erro não reaparecer a cada refresh.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("auth_error");
@@ -96,7 +96,7 @@ export default function IdentityWidget() {
 
   if (!loaded) return null;
 
-  // ── Logged in ────────────────────────────────────────────────────────────
+  // ── Pessoa identificada ──────────────────────────────────────────────────
   if (me) {
     const showWelcome = justSignedIn && me.instruments.length === 0;
     return (
@@ -147,7 +147,7 @@ export default function IdentityWidget() {
     );
   }
 
-  // ── Signed out ───────────────────────────────────────────────────────────
+  // ── Sem identidade ───────────────────────────────────────────────────────
   return (
     <div className="identity">
       <button

@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// POST { afterOrder } — insere um compasso vazio após `afterOrder` (dono apenas).
+// POST { afterOrder } — insere um compasso vazio após `afterOrder`. Só o dono.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();
@@ -31,7 +31,7 @@ export async function POST(request: Request, { params }: Params) {
   }
 }
 
-// DELETE ?order=N — remove o compasso N (dono apenas).
+// DELETE ?order=N — remove o compasso N. Só o dono.
 export async function DELETE(request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();

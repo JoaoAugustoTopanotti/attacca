@@ -3,8 +3,9 @@ import { previewTrackContent } from "@/lib/track-content";
 
 type Params = { params: Promise<{ songId: string; trackOrder: string }> };
 
-// POST { alphaTex } — monta a música completa com a edição LOCAL desta trilha
-// aplicada (nada é gravado). Usado pelo play do editor: tocar o que se vê.
+// POST { alphaTex } — monta a música completa com a edição local desta trilha
+// aplicada, sem gravar nada. É o que faz o play do editor tocar o que está na
+// tela.
 export async function POST(request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   let body: { alphaTex?: unknown };

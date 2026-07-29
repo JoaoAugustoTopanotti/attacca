@@ -1,14 +1,14 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-// Uploaded score files live on disk under storage/ (gitignored) during dev.
-// This keeps binary uploads out of the database and out of /public.
+// Arquivos de partitura enviados ficam em disco sob storage/ (gitignored).
+// Mantém os uploads binários fora do banco e fora de /public.
 
 const STORAGE_ROOT = path.join(process.cwd(), "storage");
 
 function resolveInStorage(relativePath: string): string {
   const full = path.resolve(STORAGE_ROOT, relativePath);
-  // Guard against path traversal escaping the storage root.
+  // Impede que path traversal escape da raiz de storage.
   if (full !== STORAGE_ROOT && !full.startsWith(STORAGE_ROOT + path.sep)) {
     throw new Error("Invalid storage path");
   }
@@ -16,8 +16,8 @@ function resolveInStorage(relativePath: string): string {
 }
 
 /**
- * Save bytes for a revision and return the path relative to storage/.
- * Layout: storage/<songId>/<revisionId>.<extension>
+ * Grava os bytes de uma revisão e devolve o caminho relativo a storage/.
+ * Layout: storage/<songId>/<revisionId>.<extensão>
  */
 export async function saveRevisionFile(
   songId: string,
@@ -36,7 +36,7 @@ export async function readRevisionFile(relativePath: string): Promise<Buffer> {
   return fs.readFile(resolveInStorage(relativePath));
 }
 
-/** Remove every legacy on-disk file of a song (pre-DB-blob revisions). */
+/** Remove os arquivos em disco de uma música (revisões anteriores ao blob no banco). */
 export async function deleteSongFiles(songId: string): Promise<void> {
   await fs.rm(resolveInStorage(songId), { recursive: true, force: true });
 }

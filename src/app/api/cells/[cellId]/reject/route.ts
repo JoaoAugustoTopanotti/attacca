@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ cellId: string }> };
 
-// POST /api/cells/:cellId/reject  body: { contributionId }. Gated to track owner.
+// POST /api/cells/:cellId/reject  body: { contributionId }. Restrito ao dono.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
   const user = await getCurrentUser();

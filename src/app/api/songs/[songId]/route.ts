@@ -5,10 +5,10 @@ import { deleteSongFiles } from "@/lib/storage";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// DELETE /api/songs/[songId] — the owner deletes their song, for everyone.
-// GitHub-style guard: the body must repeat the exact song title (the UI gates
-// the button on it, and we re-check here — the click alone is never enough).
-// Ownerless songs (seeds/legacy) have no one entitled to erase shared work.
+// DELETE /api/songs/[songId] — o dono exclui a própria música, para todos.
+// Guarda no estilo do GitHub: o body precisa repetir o título exato, e o
+// servidor confere de novo — o clique na UI nunca basta.
+// Música sem dono não é excluível: ninguém responde pelo trabalho coletivo.
 export async function DELETE(request: Request, { params }: Params) {
   const { songId } = await params;
 
@@ -42,8 +42,8 @@ export async function DELETE(request: Request, { params }: Params) {
     );
   }
 
-  // Clear the accepted-contribution pointers first: that FK is NoAction (to
-  // avoid a cascade cycle), so a bare song delete could trip it mid-cascade.
+  // Limpa antes os ponteiros de contribuição aceita: essa FK é NoAction, para
+  // evitar ciclo de cascade, e o delete tropeçaria nela no meio do caminho.
   await prisma.$transaction([
     prisma.cell.updateMany({
       where: { songId },
@@ -52,11 +52,11 @@ export async function DELETE(request: Request, { params }: Params) {
     prisma.song.delete({ where: { id: songId } }),
   ]);
 
-  // Legacy on-disk uploads (pre-DB-blob revisions) — best-effort cleanup.
+  // Uploads legados em disco: limpeza best-effort.
   try {
     await deleteSongFiles(songId);
   } catch {
-    /* the record is gone; a stray file must not fail the delete */
+    /* o registro já foi; um arquivo órfão não pode derrubar a exclusão */
   }
 
   return NextResponse.json({ deleted: true });

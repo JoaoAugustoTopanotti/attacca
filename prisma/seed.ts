@@ -1,16 +1,15 @@
-// Seed de demonstração — músicas de domínio público escritas em AlphaTex (nada
-// binário no repo, nada com copyright). Monta o estado que conta a história do
-// produto na home:
-//   - 2 músicas COMPLETAS (guitarra + baixo + bateria), cada trilha de um autor
-//     diferente — a autoria por pedaço visível;
-//   - 2 músicas com PROPOSTA PENDENTE (baixo/bateria esperando aprovação) — o
-//     revezamento no meio do caminho, com a fila de Propostas populada.
+// Seed de demonstração com músicas de domínio público escritas em AlphaTex —
+// nada binário no repositório, nada sob copyright. Monta o estado que conta a
+// história do produto na home:
+//   - 2 músicas completas (guitarra, baixo e bateria), cada trilha de um autor
+//     diferente, deixando a autoria por pedaço visível;
+//   - 2 músicas com proposta pendente, mostrando o revezamento no meio do
+//     caminho e a fila de Propostas populada.
 //
-// Todas as músicas ficam SEM DONO (ownerId null = "música aberta"): qualquer
-// pessoa logada vê as propostas pendentes e pode aceitar/recusar — perfeito
-// para demonstrar o fluxo sem depender de uma conta específica.
+// Todas ficam sem dono (`ownerId` null, "música aberta"), para qualquer pessoa
+// logada poder revisar as propostas sem depender de uma conta específica.
 //
-// Reaproveita as MESMAS libs do app (materialize/declareTrack/submitTrackContent),
+// Usa as mesmas libs do app (materialize, declareTrack, submitTrackContent),
 // então tudo que o seed grava passa pela validação real de remontagem.
 
 import { prisma } from "../src/lib/prisma";
@@ -20,8 +19,8 @@ import { submitTrackContent, pendingTrackProposals } from "../src/lib/track-cont
 
 type SeedUser = { id: string; displayName: string };
 
-// Usuários fictícios da "comunidade" (sem e-mail — só aparecem como autores;
-// ninguém consegue logar como eles).
+// Usuários fictícios da comunidade. Sem e-mail: aparecem como autores, mas
+// ninguém consegue entrar como eles.
 const USERS: Array<{ name: string; instruments: string[] }> = [
   { name: "Helena", instruments: ["guitar"] },
   { name: "Rafa", instruments: ["guitar"] },
@@ -30,15 +29,15 @@ const USERS: Array<{ name: string; instruments: string[] }> = [
 ];
 
 // Batida rock básica (MIDI GM: 36 bumbo, 38 caixa, 42 chimbal, 49 crash).
-// Nota de percussão sempre entre parênteses — "42.8" solto seria lido como
-// casa.corda (fretted) e quebra a pauta de articulação.
+// Nota de percussão sempre entre parênteses: "42.8" solto seria lido como
+// casa.corda e quebraria a pauta de articulação.
 const ROCK = "(36 42).8 (42).8 (38 42).8 (42).8 (36 42).8 (42).8 (38 42).8 (42).8";
 const ROCK_END = "(36 49).4 (42).8 (42).8 (38 42).4 (36 42).4";
 
 type Part = {
   preset: "bass" | "drums";
   author: string; // displayName em USERS
-  /** true = fica como proposta esperando aprovação (não aceita) */
+  /** true = entra como proposta pendente, em vez de já aceita */
   pending?: boolean;
   message: string;
   bars: string[]; // um fragmento por compasso, mesmo total da música
@@ -48,7 +47,7 @@ type SeedSong = {
   slug: string;
   title: string;
   artist: string;
-  starter: string; // quem "começou" (autor do import de guitarra)
+  starter: string; // quem começou: autor do import de guitarra
   message: string;
   alphaTex: string; // documento inicial (só a guitarra)
   parts: Part[];
@@ -252,8 +251,8 @@ async function seedSong(def: SeedSong, users: Map<string, SeedUser>) {
   });
 
   const grid = await materializeSongGrid(song.id);
-  // A materialização só grava o cache de nome; liga a identidade real de quem
-  // começou (neste ponto só existem as células do import de guitarra).
+  // A materialização só grava o cache de nome: liga aqui a identidade real de
+  // quem começou. Neste ponto só existem as células do import de guitarra.
   await prisma.cellContribution.updateMany({
     where: { cell: { songId: song.id } },
     data: { authorId: starter.id },
@@ -265,10 +264,10 @@ async function seedSong(def: SeedSong, users: Map<string, SeedUser>) {
     const track = await declareTrack(song.id, part.preset, undefined, actor);
 
     if (part.pending) {
-      // submitTrackContent só gera "proposed" quando o ator NÃO é o dono; numa
-      // música aberta viraria aceite direto. Dono temporário durante o submit →
-      // a proposta nasce pendente pelo caminho real (validação + merge base) e
-      // a música volta a ficar aberta (qualquer logado revisa na demo).
+      // `submitTrackContent` só gera proposta quando o ator não é o dono, e
+      // numa música aberta viraria aceite direto. Um dono temporário durante o
+      // submit faz a proposta nascer pendente pelo caminho real, com validação
+      // e merge base; depois a música volta a ficar aberta.
       await prisma.song.update({
         where: { id: song.id },
         data: { ownerId: starter.id },

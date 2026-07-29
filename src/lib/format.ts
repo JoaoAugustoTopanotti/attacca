@@ -1,10 +1,10 @@
-// Accepted upload formats for Milestone 1.
+// Formatos de upload aceitos.
 //
-// Guitar Pro is the primary, reliable path (alphaTab's native formats).
-// MusicXML is "best effort" — accepted, but if a given file renders badly the
-// player shows a clear error instead of crashing.
-// .mxl (zipped MusicXML) is rejected with a clear message: alphaTab does not
-// unzip the MusicXML container, and server-side unzipping is a future task.
+// Guitar Pro é o caminho principal e confiável (formato nativo do alphaTab).
+// MusicXML é melhor esforço: aceito, mas se um arquivo renderizar mal a UI
+// mostra um erro claro em vez de quebrar.
+// `.mxl` (MusicXML zipado) é recusado com mensagem explícita: o alphaTab não
+// descompacta o container e o unzip no servidor ainda não existe.
 
 export type ScoreFormat = "gp" | "musicxml" | "alphatex";
 
@@ -21,8 +21,8 @@ export type FormatCheck =
   | { ok: false; reason: string };
 
 /**
- * Validate an uploaded filename and resolve its score format.
- * Returns a clear, user-facing reason on rejection.
+ * Valida o nome do arquivo enviado e resolve o formato da partitura.
+ * Na recusa, devolve um motivo exibível para a pessoa.
  */
 export function detectUploadFormat(filename: string): FormatCheck {
   const extension = getExtension(filename);
@@ -49,7 +49,7 @@ export function detectUploadFormat(filename: string): FormatCheck {
   };
 }
 
-// Comma-separated list for the file input's `accept` attribute.
+// Lista separada por vírgula para o atributo `accept` do input de arquivo.
 export const UPLOAD_ACCEPT = [
   ...GUITAR_PRO_EXTENSIONS.map((e) => `.${e}`),
   ...MUSICXML_EXTENSIONS.map((e) => `.${e}`),

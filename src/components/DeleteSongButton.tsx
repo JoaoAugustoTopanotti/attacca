@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-// Excluir a própria música — só o dono vê o botão. Confirmação estilo GitHub:
-// digitar o título exato libera o botão (e o servidor confere de novo).
-// Música sem dono (seed/legado) não tem quem possa apagar o trabalho de todos.
+// Excluir a própria música; só o dono vê o botão. A confirmação segue o estilo
+// do GitHub: digitar o título exato libera a ação, e o servidor confere de novo.
+// Música sem dono não pode ser excluída — não há quem responda pelo trabalho
+// coletivo.
 export default function DeleteSongButton({
   songId,
   songTitle,
@@ -60,7 +61,7 @@ function DeleteModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Esc closes; lock the page behind the modal while it's open (like AuthModal).
+  // Esc fecha; a página atrás fica travada enquanto o modal está aberto.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -89,7 +90,7 @@ function DeleteModal({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Falha ao excluir a música.");
       }
-      // Gone for good — land back on the mural.
+      // A música não existe mais: volta para o mural.
       window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro.");

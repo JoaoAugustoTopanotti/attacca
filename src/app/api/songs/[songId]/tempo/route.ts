@@ -4,9 +4,9 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// POST { bpm, measure? } — andamento da música (dono). measure 0 (default) =
-// andamento inicial; measure N>0 = mudança a partir daquele compasso
-// (bpm null remove a mudança).
+// POST { bpm, measure? } — andamento da música, restrito ao dono. `measure` 0
+// (padrão) define o andamento inicial; valores maiores criam uma mudança a
+// partir daquele compasso, e `bpm` null a remove.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();

@@ -28,7 +28,7 @@ export type PlayerRevision = {
   source: string;
 };
 
-/** Handle exposed via ref in editMode */
+/** Controle imperativo exposto por ref no modo de edição. */
 export type AlphaTabPlayerHandle = {
   playPause: () => void;
   /** Exibe a trilha de índice `index` (0-based) no player. */
@@ -43,7 +43,7 @@ export type AlphaTabPlayerHandle = {
 
 type Status = "loading" | "ready" | "error";
 
-/** Preferências que valem sem re-renderizar a partitura (áudio puro). */
+/** Preferências aplicáveis sem re-renderizar a partitura (só áudio). */
 function applyPlaybackPrefs(api: AlphaTabApi, prefs: PlayerPrefs) {
   api.masterVolume = prefs.volume;
   api.playbackSpeed = prefs.speed;
@@ -63,27 +63,27 @@ const AlphaTabPlayer = forwardRef<
   {
     revision?: PlayerRevision;
     alphaTexUrl?: string;
-    /** fullpage=true: bottom bar layout (song page).
-     *  fullpage=false (default): top toolbar + transport (history preview / compare). */
+    /** true: layout de página inteira com barra inferior (página da música).
+     *  false (padrão): toolbar no topo + transporte (histórico, comparação). */
     fullpage?: boolean;
-    /** Trilha exibida ao carregar (0-based). Default: a primeira. */
+    /** Trilha exibida ao carregar. Padrão: a primeira. */
     defaultTrackIndex?: number;
-    /** Beats a destacar em verde na trilha exibida — "measureIndex:beatIndex"
-     *  (voz 0). Usado para mostrar o diff de uma proposta NA partitura. */
+    /** Beats a destacar em verde na trilha exibida, no formato
+     *  "measureIndex:beatIndex" (voz 0). Mostra o diff de uma proposta. */
     highlightBeats?: string[];
-    /** editMode=true: full-width tablature, no built-in controls.
-     *  Play/pause is controlled externally via the ref handle. */
+    /** true: tablatura em largura total, sem controles próprios. O play/pause
+     *  vem de fora, pelo handle da ref. */
     editMode?: boolean;
-    /** audioOnly=true (editMode): headless — mantém a instância viva só para o
-     *  ÁUDIO (tocar a música montada), sem tablatura visível. Na tela de editar
-     *  faixa o espaço é do editor; o play de cima toca a música completa. */
+    /** true (com editMode): modo headless. Mantém a instância viva só pelo
+     *  áudio, sem tablatura visível — na tela de edição o espaço é do editor,
+     *  e o play toca a música completa. */
     audioOnly?: boolean;
-    /** Called when isPlaying changes (only in editMode). */
+    /** Chamado quando o estado de reprodução muda (só no modo de edição). */
     onPlayingChange?: (playing: boolean) => void;
-    /** Called when playerReady changes (only in editMode). */
+    /** Chamado quando o player fica pronto (só no modo de edição). */
     onPlayerReadyChange?: (ready: boolean) => void;
-    /** Posição de playback (tick musical) — usado p/ sincronizar o cursor do
-     *  editor visual com a música que toca aqui (headless). */
+    /** Posição de playback em ticks, para sincronizar o cursor do editor visual
+     *  com a música que toca aqui. */
     onTickChange?: (currentTick: number) => void;
   }
 >(function AlphaTabPlayer(
@@ -107,17 +107,15 @@ const AlphaTabPlayer = forwardRef<
   const alphaTabRef = useRef<AlphaTabModule | null>(null);
   const scoreRef = useRef<Score | null>(null);
   const scrubbingRef = useRef(false);
-  // Callback de tick sempre atual (o handler do alphaTab é registrado uma vez).
+  // Callback de tick sempre atual: o handler do alphaTab é registrado uma vez.
   const onTickChangeRef = useRef(onTickChange);
   onTickChangeRef.current = onTickChange;
   const defaultTrackIndexRef = useRef(defaultTrackIndex);
   defaultTrackIndexRef.current = defaultTrackIndex;
   const highlightBeatsRef = useRef(highlightBeats);
   highlightBeatsRef.current = highlightBeats;
-  // Perfil de pauta PREFERIDO (Configurações). O perfil APLICADO pode divergir
-  // por trilha: percussão não tem tablatura de cordas e renderizá-la com o
-  // perfil "só tab" quebra o layout do alphaTab (erro "reading 'staves'") —
-  // bateria força um perfil com partitura (ver applyStaveProfileFor).
+  // Perfil de pauta preferido, vindo das Configurações. O aplicado pode diferir
+  // por trilha: ver applyStaveProfileFor.
   const prefStaveProfileRef = useRef<StaveProfile>("Tab");
 
   const [apiReady, setApiReady] = useState(false);
@@ -132,8 +130,9 @@ const AlphaTabPlayer = forwardRef<
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
 
-  // Percussão não tem tablatura: antes de renderizar uma trilha de bateria,
-  // troca para um perfil com partitura; nas demais, restaura a preferência.
+  // Percussão não tem tablatura de cordas, e renderizá-la com o perfil "só tab"
+  // quebra o layout do alphaTab. Trilha de bateria força um perfil com
+  // partitura; as demais restauram a preferência da pessoa.
   function applyStaveProfileFor(track: Track) {
     const api = apiRef.current;
     const alphaTab = alphaTabRef.current;
@@ -149,7 +148,7 @@ const AlphaTabPlayer = forwardRef<
     }
   }
 
-  // Expose playPause() / selectTrack() / seekTick() for editMode callers
+  // Controle imperativo para quem usa o player em modo de edição.
   useImperativeHandle(ref, () => ({
     playPause: () => apiRef.current?.playPause(),
     selectTrack: (index: number) => selectTrack(index),
@@ -161,13 +160,13 @@ const AlphaTabPlayer = forwardRef<
       try {
         apiRef.current?.tex(tex);
       } catch {
-        // erros de parse já saem via api.error → status "error"
+        // erros de parse já chegam por api.error e viram status "error"
       }
     },
     isReadyForPlayback: () => apiRef.current?.isReadyForPlayback ?? false,
   }));
 
-  // Bubble playing / ready state to parent (editMode)
+  // Propaga os estados de reprodução e prontidão para o componente pai.
   useEffect(() => { onPlayingChange?.(isPlaying); }, [isPlaying, onPlayingChange]);
   useEffect(() => { onPlayerReadyChange?.(playerReady); }, [playerReady, onPlayerReadyChange]);
 
@@ -187,14 +186,14 @@ const AlphaTabPlayer = forwardRef<
         display: {
           staveProfile: prefs.staveProfile,
           scale: prefs.scale,
-          // A tablatura é desenhada pelo alphaTab (não herda o CSS): as cores
-          // vêm do tema attacca lido na montagem.
+          // O alphaTab desenha em canvas próprio e não herda CSS: as cores da
+          // tablatura vêm do tema lido na montagem.
           resources: alphaTabResources(readTheme()),
         },
         player: {
           enablePlayer: true,
-          // Headless (audioOnly): sem cursor/scroll — só o áudio importa e o
-          // surface fica fora da tela, então scrollar seria inútil/problemático.
+          // No modo headless o surface fica fora da tela: cursor e scroll não
+          // teriam onde acontecer.
           enableCursor: !audioOnly,
           enableUserInteraction: true,
           soundFont: "/soundfont/sonivox.sf2",
@@ -207,11 +206,10 @@ const AlphaTabPlayer = forwardRef<
 
       api.scoreLoaded.on((score) => {
         scoreRef.current = score;
-        // Pauta de percussão usa clave NEUTRA (‖), não clave de sol — mas o
-        // importer de alphaTex deixa G2 (e o próprio exporter escreve
-        // "\clef g2" para bateria), então normaliza no modelo antes do render.
-        // As posições/símbolos das notas já vêm do mapa de percussão
-        // (staff.isPercussion); só a clave desenhada estava errada.
+        // Pauta de percussão usa clave neutra (‖), mas o importer de alphaTex
+        // deixa clave de sol — e o próprio exporter escreve "\clef g2" para
+        // bateria. Normaliza no modelo antes do render; símbolos e posições das
+        // notas já vêm certos do mapa de percussão.
         score.tracks.forEach((t) => {
           t.staves.forEach((staff) => {
             if (!staff.isPercussion) return;
@@ -237,7 +235,7 @@ const AlphaTabPlayer = forwardRef<
             : list[0]?.index ?? 0;
         setSelectedTrackIndex(firstIndex);
         const firstTrack = score.tracks.find((t) => t.index === firstIndex);
-        // Diff NA partitura: pinta de verde as notas mudadas/novas da proposta.
+        // Diff na partitura: pinta de verde as notas mudadas ou novas.
         const set = highlightBeatsRef.current;
         if (firstTrack && set && set.length > 0) {
           const wanted = new Set(set);
@@ -254,8 +252,8 @@ const AlphaTabPlayer = forwardRef<
                   const ns = new alphaTab.model.NoteStyle();
                   ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabFretNumber, green);
                   ns.colors.set(alphaTab.model.NoteSubElement.GuitarTabEffects, green);
-                  // Percussão renderiza em partitura (não há tab) — pinta também
-                  // a cabeça da nota na notação standard.
+                  // Percussão renderiza em partitura, não em tablatura: pinta
+                  // também a cabeça da nota na notação padrão.
                   ns.colors.set(alphaTab.model.NoteSubElement.StandardNotationNoteHead, green);
                   ns.colors.set(alphaTab.model.NoteSubElement.StandardNotationEffects, green);
                   note.style = ns;
@@ -279,7 +277,7 @@ const AlphaTabPlayer = forwardRef<
       api.playerPositionChanged.on((e) => {
         setEndTimeMs(e.endTime);
         if (!scrubbingRef.current) setCurrentTimeMs(e.currentTime);
-        // Encaminha o tick musical para sincronizar o cursor do editor visual.
+        // Encaminha o tick para sincronizar o cursor do editor visual.
         onTickChangeRef.current?.(e.currentTick);
       });
       api.error.on((error) => {
@@ -303,9 +301,9 @@ const AlphaTabPlayer = forwardRef<
     };
   }, []);
 
-  // Preferências mudaram na tela de configurações → aplicar no player já montado
-  // (sem recarregar a partitura). Volume/velocidade são propriedades vivas; a
-  // escala e o perfil de pauta exigem re-render.
+  // Aplica no player já montado as preferências salvas nas configurações, sem
+  // recarregar a partitura. Volume e velocidade são propriedades vivas; escala e
+  // perfil de pauta exigem re-render.
   useEffect(() => {
     function onPrefs(event: Event) {
       const api = apiRef.current;
@@ -317,8 +315,7 @@ const AlphaTabPlayer = forwardRef<
       prefStaveProfileRef.current = prefs.staveProfile;
 
       const display = api.settings.display;
-      // Perfil desejado considera a trilha exibida: bateria força partitura
-      // (não tem tablatura; o perfil "só tab" quebra o render).
+      // O perfil considera a trilha exibida: bateria força partitura.
       const shown = api.tracks?.[0];
       const wantedProfile =
         shown?.playbackInfo?.primaryChannel === 9 || prefs.staveProfile === "ScoreTab"
@@ -404,11 +401,11 @@ const AlphaTabPlayer = forwardRef<
     if (api && endTimeMs > 0) api.timePosition = targetMs;
   }
 
-  // ── EDIT MODE (track editor — no built-in controls) ─────────────────
+  // ── Modo de edição: sem controles próprios ─────────────────────────────────
   if (editMode) {
-    // audioOnly: fica fora da tela (mas com largura real p/ o alphaTab montar o
-    // layout sem erro), preservando o áudio. O <div ref={surfaceRef}> NUNCA sai
-    // do DOM — a instância continua viva e o play externo funciona.
+    // No modo headless o card sai da tela mantendo largura real, para o alphaTab
+    // montar o layout sem erro. O surface nunca sai do DOM: a instância segue
+    // viva e o play externo continua funcionando.
     const hidden: CSSProperties = {
       position: "absolute",
       left: "-99999px",
@@ -441,12 +438,12 @@ const AlphaTabPlayer = forwardRef<
           )}
           <div ref={surfaceRef} className="player-surface" />
         </div>
-        {/* No bottom bar — play is controlled externally via ref */}
+        {/* Sem barra inferior: o play vem de fora, pela ref. */}
       </div>
     );
   }
 
-  // ── FULLPAGE LAYOUT (song player page) ─────────────────────────────
+  // ── Layout de página inteira (página da música) ────────────────────────────
   if (fullpage) {
     return (
       <div className="player-card player-card--fullpage">
@@ -457,7 +454,7 @@ const AlphaTabPlayer = forwardRef<
           </div>
         )}
 
-        {/* Scrollable tablature viewport */}
+        {/* Viewport rolável da tablatura */}
         <div
           ref={viewportRef}
           id="at-viewport"
@@ -470,7 +467,7 @@ const AlphaTabPlayer = forwardRef<
           <div ref={surfaceRef} className="player-surface" />
         </div>
 
-        {/* Fixed bottom bar: play/pause + track selector */}
+        {/* Barra inferior fixa: play/pause + seletor de trilha */}
         <div className="player-bottombar">
           <button
             type="button"
@@ -485,7 +482,7 @@ const AlphaTabPlayer = forwardRef<
                 <rect x="14" y="5" width="4" height="14" rx="1" />
               </svg>
             ) : (
-              // Triângulo simples, deslocado ~1px à direita p/ centro óptico.
+              // Triângulo deslocado ~1px à direita, para o centro óptico.
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
                 <polygon points="8,5 20,12 8,19" />
               </svg>
@@ -521,7 +518,7 @@ const AlphaTabPlayer = forwardRef<
     );
   }
 
-  // ── COMPACT LAYOUT (history preview / compare / cell editor) ────────
+  // ── Layout compacto (histórico, comparação, editor de célula) ──────────────
   return (
     <div className="player-card">
       {status === "error" && (

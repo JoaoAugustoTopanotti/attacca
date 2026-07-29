@@ -1,6 +1,6 @@
-// Human-readable instrument label from a General MIDI program number.
-// We use the 16 GM families (groups of 8 programs) — enough to tell guitar
-// from bass from drums, which is what matters for the track selector.
+// Rótulo legível de instrumento a partir do programa General MIDI.
+// Usa as 16 famílias GM (grupos de 8 programas), o suficiente para distinguir
+// guitarra de baixo e de bateria — o que importa no seletor de trilhas.
 
 const GM_FAMILIES = [
   "Piano",

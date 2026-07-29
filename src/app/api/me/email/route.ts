@@ -5,10 +5,10 @@ import { prisma } from "@/lib/prisma";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// POST /api/me/email { email } — change (or set) the identity anchor.
-// The email only moves once the person proves they own the new inbox: we issue a
-// magic link that, when consumed, attaches the address to THIS account in place
-// (claimUserId) and lands back on the settings page. Nothing changes until then.
+// POST /api/me/email { email } — define ou troca a âncora de identidade.
+// O e-mail só muda depois que a pessoa prova o controle da nova caixa: um magic
+// link, ao ser consumido, anexa o endereço a esta conta in place e volta para as
+// configurações. Até lá, nada é alterado.
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   await sendMagicLink(email, url);
 
-  // In dev (no email provider), echo the link so the flow is testable.
+  // Em dev, sem provedor de e-mail, devolve o link para o fluxo ser testável.
   const devUrl = !emailConfigured && process.env.NODE_ENV !== "production" ? url : undefined;
   return NextResponse.json({ ok: true, sent: emailConfigured, devUrl });
 }

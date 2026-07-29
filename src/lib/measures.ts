@@ -1,7 +1,7 @@
-// Structural measure operations (add/remove a column of the trilha×compasso
-// grid). These touch EVERY track (a new measure = one new empty cell per
-// track), so they are gated to the song owner. Structural, no content — not
-// a step of the relay, so they don't create a history snapshot.
+// Operações estruturais de compasso: adicionar/remover uma coluna inteira da
+// grade trilha×compasso. Afetam todas as trilhas (um compasso novo = uma célula
+// vazia em cada trilha), por isso são restritas ao dono. Como são estrutura e
+// não conteúdo, não contam como passo do revezamento e não geram snapshot.
 
 import { prisma } from "@/lib/prisma";
 import type { Actor } from "@/lib/cells";
@@ -20,9 +20,9 @@ async function loadOwnedSong(songId: string, actor: Actor) {
 }
 
 /**
- * Insere um compasso vazio depois de `afterOrder` (em todas as trilhas).
+ * Insere um compasso vazio depois de `afterOrder`, em todas as trilhas.
  * O novo compasso herda a fórmula de compasso do vizinho e nasce sem estrutura
- * própria (\ts etc. continuam valendo por "stickiness" na remontagem).
+ * própria: `\ts` e afins continuam valendo por herança na remontagem.
  */
 export async function addMeasure(songId: string, afterOrder: number, actor: Actor) {
   await loadOwnedSong(songId, actor);
@@ -36,8 +36,8 @@ export async function addMeasure(songId: string, afterOrder: number, actor: Acto
   const tracks = await prisma.track.findMany({ where: { songId } });
 
   await prisma.$transaction(async (tx) => {
-    // Abre espaço: desloca os compassos seguintes (de trás pra frente, por causa
-    // do unique [songId, order]).
+    // Abre espaço deslocando os compassos seguintes, de trás para a frente para
+    // não violar o unique [songId, order] no meio do caminho.
     const toShift = measures.filter((m) => m.order > ref.order);
     for (let i = toShift.length - 1; i >= 0; i--) {
       await tx.measure.update({
@@ -53,7 +53,7 @@ export async function addMeasure(songId: string, afterOrder: number, actor: Acto
         tsDenominator: ref.tsDenominator,
       },
     });
-    // Uma célula vazia por trilha — o slot em branco é o convite à contribuição.
+    // Uma célula vazia por trilha: o slot em branco é o convite à contribuição.
     await tx.cell.createMany({
       data: tracks.map((t) => ({
         songId,
@@ -63,14 +63,14 @@ export async function addMeasure(songId: string, afterOrder: number, actor: Acto
     });
   });
 
-  // Estrutural, sem conteúdo — não é um passo do revezamento, não vai pro
-  // Histórico (senão compor do zero, compasso a compasso, enche a lista).
+  // Sem snapshot: estrutura não é passo de revezamento, e compor do zero
+  // compasso a compasso encheria o Histórico de entradas sem significado.
   return { order: ref.order + 1 };
 }
 
 /**
- * Remove o compasso `order` (em todas as trilhas). Apaga as contribuições das
- * células dessa coluna — por isso é restrito ao dono e registrado no histórico.
+ * Remove o compasso `order` em todas as trilhas, apagando as contribuições das
+ * células daquela coluna. Por ser destrutivo, é restrito ao dono.
  */
 export async function deleteMeasure(songId: string, order: number, actor: Actor) {
   await loadOwnedSong(songId, actor);
@@ -89,7 +89,8 @@ export async function deleteMeasure(songId: string, order: number, actor: Actor)
   }
 
   await prisma.$transaction(async (tx) => {
-    // Solta os ponteiros de aceite antes de apagar (FK NoAction no accepted).
+    // Solta os ponteiros de aceite antes de apagar: a FK do accepted é NoAction
+    // e o delete tropeçaria nela.
     await tx.cell.updateMany({
       where: { measureId: target.id },
       data: { acceptedContributionId: null },
@@ -97,7 +98,7 @@ export async function deleteMeasure(songId: string, order: number, actor: Actor)
     await tx.cellContribution.deleteMany({ where: { cell: { measureId: target.id } } });
     await tx.cell.deleteMany({ where: { measureId: target.id } });
     await tx.measure.delete({ where: { id: target.id } });
-    // Fecha o buraco (da frente pra trás, por causa do unique [songId, order]).
+    // Fecha o buraco, da frente para trás pelo mesmo motivo do unique acima.
     const toShift = measures.filter((m) => m.order > order);
     for (const m of toShift) {
       await tx.measure.update({ where: { id: m.id }, data: { order: m.order - 1 } });

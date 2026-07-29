@@ -1,6 +1,6 @@
-// Tema visual (escuro por padrão; claro opcional nas Configurações).
-// Como as preferências do player, descreve um aparelho, não uma identidade —
-// vive em localStorage, não no banco.
+// Tema visual: escuro por padrão, claro opcional nas Configurações.
+// Como as preferências do player, descreve um aparelho e não uma identidade,
+// então vive em localStorage e não no banco.
 
 export type Theme = "dark" | "light";
 
@@ -15,7 +15,7 @@ export function readTheme(): Theme {
   }
 }
 
-/** Aplica no <html> (o CSS troca via [data-theme]) e persiste. */
+/** Aplica no `<html>` (o CSS reage via [data-theme]) e persiste a escolha. */
 export function applyTheme(theme: Theme): Theme {
   if (typeof document !== "undefined") {
     document.documentElement.dataset.theme = theme;
@@ -23,15 +23,15 @@ export function applyTheme(theme: Theme): Theme {
   try {
     window.localStorage.setItem(THEME_KEY, theme);
   } catch {
-    // sem localStorage (modo privado etc.) — o tema vale só até o reload
+    // sem localStorage (modo privado): o tema vale só até o reload
   }
   return theme;
 }
 
 /**
  * Cores da tablatura (alphaTab display.resources) por tema.
- * O alphaTab desenha num canvas/SVG próprio e não enxerga o CSS — quem monta
- * um player lê o tema na inicialização e passa isto.
+ * O alphaTab desenha em canvas/SVG próprio e não enxerga o CSS, então quem monta
+ * um player lê o tema na inicialização e passa estas cores.
  */
 export function alphaTabResources(theme: Theme) {
   return theme === "light"

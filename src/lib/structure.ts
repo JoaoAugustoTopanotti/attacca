@@ -1,7 +1,7 @@
-// Musical-structure operations: track tuning and song tempo. Like measure
-// add/remove (src/lib/measures.ts) these touch what EVERYONE hears/reads —
-// gated to the song owner, validated by reassembling the whole document
-// through the alphaTab importer BEFORE anything is persisted.
+// Operações de estrutura musical: afinação da trilha e andamento da música.
+// Como adicionar/remover compasso (src/lib/measures.ts), mudam o que todo mundo
+// ouve e lê: são restritas ao dono e validadas remontando o documento inteiro
+// pelo importer do alphaTab antes de qualquer gravação.
 
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex } from "@/lib/materialize";
@@ -28,12 +28,12 @@ async function loadOwnedSong(songId: string, actor: Actor) {
 }
 
 // ── Afinação da trilha ─────────────────────────────────────────────────────────
-// (parse/reescrita do header em src/lib/tuning.ts — puro, compartilhado com a UI)
+// Parse e reescrita do header ficam em src/lib/tuning.ts (puro, compartilhado
+// com a UI).
 
 /**
- * Muda a afinação de uma trilha (mesmo nº de cordas — as casas existentes
- * continuam válidas, só soam na altura nova). Valida o documento remontado
- * inteiro antes de persistir.
+ * Muda a afinação de uma trilha, mantendo o mesmo nº de cordas: as casas
+ * existentes continuam válidas e passam a soar na altura nova.
  */
 export async function setTrackTuning(
   songId: string,
@@ -65,8 +65,8 @@ export async function setTrackTuning(
 
   const newHeader = headerWithTuning(track.headerFragment, clean);
 
-  // Valida a música INTEIRA com o header novo aplicado — nada persiste se o
-  // importer recusar.
+  // Valida a música inteira com o header novo: nada persiste se o importer
+  // recusar o documento.
   const tracks = await prisma.track.findMany({
     where: { songId },
     orderBy: { order: "asc" },
@@ -92,7 +92,7 @@ export async function setTrackTuning(
 const MIN_BPM = 20;
 const MAX_BPM = 400;
 
-/** Reescreve (ou insere/remove) a linha `\tempo N` de um fragmento de linhas. */
+/** Reescreve, insere ou remove a linha `\tempo N` de um fragmento de header. */
 function withTempoLine(fragment: string, bpm: number | null): string {
   const lines = fragment.split(/\r?\n/).filter((l) => !/^\s*\\tempo\b/i.test(l));
   if (bpm !== null) lines.push(`\\tempo ${bpm}`);
@@ -100,14 +100,15 @@ function withTempoLine(fragment: string, bpm: number | null): string {
 }
 
 /**
- * Andamento inicial da música (pure): \tempo do compasso 1 (automação, ganha do
- * header), senão o do header global, senão o campo tipado do compasso 1.
+ * Andamento inicial da música, em ordem de precedência: `\tempo` do compasso 1
+ * (automação, que sobrepõe o header), header global, campo tipado do compasso 1.
+ * Função pura.
  */
 export function readSongTempo(
   globalHeader: string | null | undefined,
   firstMeasure: { tempo: number | null; structPrefix: string | null } | undefined,
 ): number | null {
-  // O exporter escreve `\tempo (120 hide)`; à mão escreve-se `\tempo 120`.
+  // O exporter escreve `\tempo (120 hide)`; à mão, escreve-se `\tempo 120`.
   const fromStruct = firstMeasure?.structPrefix?.match(/\\tempo\s*\(?\s*(\d+)/i);
   if (fromStruct) return Number(fromStruct[1]);
   const fromHeader = globalHeader?.match(/\\tempo\s*\(?\s*(\d+)/i);
@@ -116,9 +117,9 @@ export function readSongTempo(
 }
 
 /**
- * Define o andamento INICIAL da música (bpm). Escreve `\tempo` no header global
- * e re-escreve o `\tempo` do compasso 1, se houver (automação que sobreporia o
- * header). Mudanças de tempo no MEIO da música (compassos 2+) são preservadas.
+ * Define o andamento inicial da música, em bpm: escreve `\tempo` no header
+ * global e limpa o do compasso 1, cuja automação sobreporia o header.
+ * Mudanças de andamento nos compassos seguintes são preservadas.
  */
 export async function setSongTempo(songId: string, bpm: number, actor: Actor) {
   const song = await loadOwnedSong(songId, actor);
@@ -129,7 +130,7 @@ export async function setSongTempo(songId: string, bpm: number, actor: Actor) {
   if (!first) throw new Error("Música sem grade (materialize primeiro).");
 
   const newGlobal = withTempoLine(song.headerFragment ?? "", bpm);
-  // No compasso 1 o \tempo é redundante com o header — remove para não duplicar.
+  // No compasso 1, `\tempo` é redundante com o header: remove para não duplicar.
   const newStruct = first.structPrefix
     ? withTempoLine(first.structPrefix, null)
     : null;
@@ -156,10 +157,9 @@ export async function setSongTempo(songId: string, bpm: number, actor: Actor) {
 }
 
 /**
- * Mudança de andamento NO MEIO da música: escreve/remove `\tempo N` no
- * structPrefix do compasso `order` (automação de masterbar — vale dali em
- * diante). `bpm = null` remove a mudança. O compasso 1 delega para
- * setSongTempo (é o andamento inicial; não pode ser removido).
+ * Mudança de andamento no meio da música: escreve `\tempo N` no structPrefix do
+ * compasso `order`, valendo dali em diante. `bpm = null` remove a mudança.
+ * O compasso 1 delega para `setSongTempo` e não pode ficar sem andamento.
  */
 export async function setMeasureTempo(
   songId: string,

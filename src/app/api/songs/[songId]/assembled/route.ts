@@ -5,11 +5,11 @@ import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET /api/songs/:songId/assembled — the full alphaTex reassembled FROM the cell
-// grid (derived). text/plain so the player can load it as AlphaTex.
-// Preview overrides (don't commit anything):
-//   ?cell=<id>&contribution=<id>     — one cell replaced (legacy per-cell review)
-//   ?track=<order>&author=<userId>   — an author's whole-track PROPOSAL applied
+// GET /api/songs/:songId/assembled — o alphaTex completo remontado a partir da
+// grade de células. Devolvido como text/plain para o player carregar direto.
+// Pré-visualizações, que nada gravam:
+//   ?cell=<id>&contribution=<id>   — uma célula substituída
+//   ?track=<order>&author=<userId> — a proposta de trilha de um autor aplicada
 export async function GET(request: Request, { params }: Params) {
   const { songId } = await params;
   const url = new URL(request.url);

@@ -9,8 +9,8 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string; trackOrder: string }> };
 
-// M3: resoluções por compasso (order → "current" | "proposed"), exigidas quando
-// a proposta conflita com mudanças mais novas na mesma célula.
+// Resoluções por compasso (order → "current" | "proposed"), exigidas quando a
+// proposta conflita com mudanças mais novas na mesma célula.
 function parseResolutions(raw: unknown): ConflictResolutions {
   const out: ConflictResolutions = {};
   if (raw && typeof raw === "object") {
@@ -24,9 +24,10 @@ function parseResolutions(raw: unknown): ConflictResolutions {
   return out;
 }
 
-// POST { authorId, action?: "accept" | "reject", resolutions? } — owner accepts/
-// rejects all of an author's pending proposals in this track (batch). Default
-// action = accept. 409 = há conflito de mesma célula sem escolha (M3).
+// POST { authorId, action?: "accept" | "reject", resolutions? } — o dono aceita
+// ou recusa, de uma vez, todas as propostas pendentes de um autor nesta trilha.
+// A ação padrão é aceitar. Responde 409 quando há conflito de mesma célula sem
+// escolha informada.
 export async function POST(request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   const user = await getCurrentUser();

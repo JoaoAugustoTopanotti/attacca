@@ -23,8 +23,8 @@ export default function UploadForm({
     return () => clearTimeout(t);
   }, [submitting]);
 
-  // Pre-fill author from the cookie identity so the user doesn't have to type
-  // their name again. Falls back to "" → the server uses "anon".
+  // Preenche o autor pela identidade da sessão, para a pessoa não redigitar o
+  // nome. Vazio faz o servidor usar "anon".
   const [authorName, setAuthorName] = useState("");
   useEffect(() => {
     fetch("/api/me")
@@ -73,7 +73,7 @@ export default function UploadForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      {/* Hidden file input — triggered by clicking the label below */}
+      {/* Input de arquivo oculto, acionado pelo label abaixo */}
       <input
         id="upload-file"
         type="file"

@@ -13,7 +13,7 @@ export default function NewSongForm() {
   const [error, setError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
 
-  // Show a "taking too long" hint after 10s — common on Render free tier cold start.
+  // Aviso de demora após 10s: o cold start do plano gratuito do Render é lento.
   useEffect(() => {
     if (!submitting) { setSlow(false); return; }
     const t = setTimeout(() => setSlow(true), 10_000);
@@ -32,7 +32,7 @@ export default function NewSongForm() {
       });
       const data = await res.json();
       if (res.status === 401) {
-        // Criar exige identidade (a música nasce com dono) — abre o login.
+        // Criar exige identidade, já que a música nasce com dono: abre o login.
         setAuthOpen(true);
         setSubmitting(false);
         return;

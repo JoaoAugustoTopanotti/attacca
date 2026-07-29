@@ -5,12 +5,11 @@ import { createPortal } from "react-dom";
 
 type Props = {
   onClose: () => void;
-  /** Error carried over from a failed redirect (?auth_error=…). */
+  /** Erro herdado de um redirect que falhou (?auth_error=). */
   initialError?: string | null;
-  /** Why the modal opened (e.g. "Logue para poder criar uma música!") —
-   *  replaces the default title. */
+  /** Motivo da abertura do modal, no lugar do título padrão. */
   reason?: string;
-  /** Same-origin path to land on after signing in (both providers). */
+  /** Caminho da mesma origem para onde ir após o login, em qualquer provedor. */
   redirectTo?: string;
 };
 
@@ -57,7 +56,7 @@ export default function AuthModal({ onClose, initialError, reason, redirectTo }:
       .catch(() => setProviders({ google: false }));
   }, []);
 
-  // Esc closes; lock the page behind the modal while it's open.
+  // Esc fecha; a página atrás fica travada enquanto o modal está aberto.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -115,7 +114,7 @@ export default function AuthModal({ onClose, initialError, reason, redirectTo }:
         </div>
 
         {sentTo ? (
-          // ── Magic link sent ────────────────────────────────────────────
+          // ── Magic link enviado ─────────────────────────────────────────
           <>
             <h2 id="auth-title" className="auth-title">
               Confira seu e-mail
@@ -141,7 +140,7 @@ export default function AuthModal({ onClose, initialError, reason, redirectTo }:
             </button>
           </>
         ) : (
-          // ── Sign in ────────────────────────────────────────────────────
+          // ── Entrar ─────────────────────────────────────────────────────
           <>
             <h2 id="auth-title" className="auth-title">
               {reason ?? "Entrar no attacca"}

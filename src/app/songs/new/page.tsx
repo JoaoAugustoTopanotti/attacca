@@ -8,8 +8,9 @@ import AuthModal from "@/components/AuthModal";
 
 type StartMode = "upload" | "blank" | "template";
 
-// Anyone can fill this form; identity is only demanded at save time. The draft
-// survives the sign-in round-trip (magic link / Google both navigate away).
+// Qualquer pessoa preenche este formulário; a identidade só é exigida ao
+// salvar. O rascunho sobrevive à ida e volta do login, que sai da página tanto
+// pelo magic link quanto pelo Google.
 const DRAFT_KEY = "attacca:new-song-draft";
 
 export default function NewSongPage() {
@@ -26,7 +27,7 @@ export default function NewSongPage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Coming back from sign-in: restore what was typed before the modal opened.
+  // Volta do login: restaura o que estava digitado antes do modal abrir.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY);
@@ -39,7 +40,7 @@ export default function NewSongPage() {
         setMode(draft.mode);
       }
     } catch {
-      /* malformed draft — start clean */
+      /* rascunho malformado: começa do zero */
     }
   }, []);
 
@@ -66,7 +67,7 @@ export default function NewSongPage() {
     const slowTimer = setTimeout(() => setSlow(true), 10_000);
 
     try {
-      // 1. Create song
+      // 1. Cria a música.
       const res = await fetch("/api/songs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,8 +78,8 @@ export default function NewSongPage() {
       });
       const data = await res.json();
       if (res.status === 401) {
-        // Saving needs identity — keep the draft and open the sign-in modal
-        // (no red error: this is an invitation, not a failure).
+        // Salvar exige identidade: guarda o rascunho e abre o login. Sem erro
+        // em vermelho — isto é um convite, não uma falha.
         sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ title, artist, mode }));
         setAuthOpen(true);
         setSubmitting(false);
@@ -87,7 +88,7 @@ export default function NewSongPage() {
       if (!res.ok) throw new Error(data?.error ?? "Erro ao criar música.");
       const songId: string = data.id;
 
-      // 2. Start the collaboration grid, according to the chosen mode.
+      // 2. Inicia a grade de colaboração conforme o modo escolhido.
       if (mode === "upload" && file) {
         const form = new FormData();
         form.append("file", file);

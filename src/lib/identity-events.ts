@@ -1,7 +1,7 @@
-// O perfil mudou (nome, e-mail, instrumentos) → quem mostra a identidade na tela
-// precisa saber na hora. O header busca /api/me uma vez, ao montar; um
-// router.refresh() re-renderiza o servidor mas não refaz esse fetch — então quem
-// salvava nas configurações só via o nome novo depois de um F5.
+// Avisa os componentes montados quando o perfil muda (nome, e-mail,
+// instrumentos). O header busca /api/me uma única vez, ao montar, e
+// `router.refresh()` re-renderiza o servidor sem refazer esse fetch: sem este
+// evento, o nome novo só apareceria depois de recarregar a página.
 
 export type MeSnapshot = {
   id: string;

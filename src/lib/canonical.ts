@@ -1,12 +1,12 @@
-// Canonical internal format: alphaTex (see docs/adr/0001-formato-canonico.md).
+// Formato canônico interno: alphaTex (ver docs/adr/0001-formato-canonico.md).
 //
-// On upload we keep the original file as provenance AND derive a canonical
-// alphaTex representation, which is the text we will version/merge by
-// (track, measure) in M2. Generation is best-effort: if alphaTab can't parse a
-// given file, we return null and the app still works off the provenance blob.
+// No upload, o arquivo original é guardado como proveniência e dele se deriva o
+// alphaTex canônico — o texto versionado e mesclado por (trilha, compasso).
+// A derivação é best-effort: se o alphaTab não conseguir ler o arquivo, devolve
+// null e a aplicação continua funcionando pelo blob de proveniência.
 //
-// Server-only: alphaTab is configured as a serverExternalPackage (next.config),
-// so this runs as a plain Node import — never bundled into the client.
+// Só no servidor: o alphaTab é declarado como serverExternalPackage no
+// next.config, então roda como import Node e nunca vai para o bundle do client.
 
 export async function scoreBytesToAlphaTex(
   bytes: Uint8Array,

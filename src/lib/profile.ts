@@ -1,12 +1,11 @@
-// Settings — the person's own record: name, instruments, and the account view
-// ("o que está esperando por mim").
+// Configurações da pessoa: nome, instrumentos e a visão da conta ("o que está
+// esperando por mim").
 //
-// Renaming is not a cosmetic update: authorship-per-piece is the differential, so
-// the display name is denormalized into CellContribution.authorName (and
-// Track.ownerName) for cheap rendering. If we only touched User.displayName, the
-// old name would stay frozen on every past contribution and one person would read
-// as two. So a rename rewrites those caches too — the authorId/ownerId links are
-// the truth, the names just follow.
+// Renomear não é cosmético. O nome é denormalizado em
+// `CellContribution.authorName` e `Track.ownerName` para renderização barata;
+// mexer só em `User.displayName` deixaria o nome antigo congelado em todas as
+// contribuições passadas, e uma pessoa leria como duas. Por isso o rename
+// reescreve esses caches: `authorId`/`ownerId` são a verdade, os nomes seguem.
 
 import { prisma } from "@/lib/prisma";
 import { INSTRUMENT_PRESETS, songCompleteness } from "@/lib/tracks";
@@ -19,7 +18,7 @@ export type ProfileInput = {
   instruments?: string[];
 };
 
-/** Update the current person's profile. Throws with a user-facing message. */
+/** Atualiza o perfil da pessoa. Lança com mensagem exibível na UI. */
 export async function updateProfile(userId: string, input: ProfileInput) {
   const data: { displayName?: string; instruments?: string[] } = {};
 
@@ -60,7 +59,7 @@ export async function updateProfile(userId: string, input: ProfileInput) {
   return user;
 }
 
-// ── Account overview ────────────────────────────────────────────────────────
+// ── Visão geral da conta ──────────────────────────────────────────────────────
 
 export type SongBrief = {
   id: string;
@@ -74,19 +73,19 @@ export type ProposalBrief = {
   songTitle: string;
   trackName: string;
   authorName: string;
-  count: number; // bars in the proposal
+  count: number; // compassos na proposta
 };
 
 export type AccountOverview = {
   owned: SongBrief[];
   following: SongBrief[];
-  /** Proposals I sent that nobody has reviewed yet. */
+  /** Propostas que enviei e ninguém revisou ainda. */
   proposalsSent: ProposalBrief[];
-  /** Proposals waiting for ME (I own the song) — the "sua vez". */
+  /** Propostas esperando por mim, nas músicas que eu criei: o "sua vez". */
   proposalsReceived: ProposalBrief[];
 };
 
-/** Group pending contributions into one entry per (song, track, author). */
+/** Agrupa contribuições pendentes numa entrada por (música, trilha, autor). */
 function groupProposals(
   rows: {
     authorName: string;
@@ -149,7 +148,7 @@ export async function accountOverview(userId: string): Promise<AccountOverview> 
     }),
   ]);
 
-  // A song I own already shows up under "minhas músicas" — don't list it twice.
+  // Música minha já aparece em "minhas músicas"; não listar duas vezes.
   const followingSongs = watches.map((w) => w.song).filter((s) => s.ownerId !== userId);
 
   const withPercent = async (

@@ -1,23 +1,23 @@
-// Drum/percussion grid model — the data behind the visual step-sequencer editor
-// (DrumGridEditor). Percussion doesn't fit the string×fret tablature model, so
-// instead we lay out rows = drum pieces (kick, snare, hi-hat…) × columns = time
-// steps, the way a drum machine / GP drum view works.
+// Modelo da grade de percussão — os dados por trás do editor step-sequencer
+// (DrumGridEditor). Percussão não cabe no modelo corda×casa da tablatura: aqui
+// as linhas são peças do kit (bumbo, caixa, chimbal) e as colunas são
+// subdivisões de tempo, como numa drum machine.
 //
-// Pure string/data processing (no alphaTab dep). The caller validates every
-// reassembled document through alphaTab.
+// Módulo puro (sem dependência do alphaTab); quem chama valida o documento
+// remontado através do alphaTab.
 //
-// Model: a bar is a list of BEATS (one per time-signature numerator unit). Each
-// beat is either straight (subdivided into power-of-two cells) or a TRIPLET
-// (subdivided into 3-against-2 cells) — so "straight hats on 1-3, triplet fill
-// on 4" is representable, which a single fixed grid can't do. Each cell holds a
-// set of hits; each hit can carry a modifier (accent, ghost, or flam/grace).
+// Um compasso é uma lista de TEMPOS (um por unidade do numerador da fórmula).
+// Cada tempo é simples (subdividido em potências de dois) ou quiáltera (3 para
+// 2), o que permite "chimbal reto nos tempos 1-3 e virada em tercina no 4" —
+// impossível numa grade de resolução fixa. Cada célula guarda um conjunto de
+// golpes, e cada golpe pode ter um modificador (acento, fantasma ou flam).
 //
-// alphaTex percussion notation: notes are MIDI numbers or quoted articulation
-// names; accent `{ac}`, ghost `{g}`, grace/flam `{gr}`, tuplet `{tu 3}`.
+// Notação alphaTex de percussão: notas são números MIDI ou nomes de articulação
+// entre aspas; acento `{ac}`, fantasma `{g}`, flam `{gr}`, quiáltera `{tu 3}`.
 
 export type DrumPiece = { midi: number; label: string; short: string };
 
-// Ordered top→bottom the way a drum staff/tab reads (cymbals up, kick down).
+// Ordenadas como a pauta de bateria se lê: pratos em cima, bumbo embaixo.
 export const DRUM_PIECES: DrumPiece[] = [
   { midi: 49, label: "Prato de ataque", short: "CC" },
   { midi: 57, label: "Prato de ataque 2", short: "CC2" },
@@ -44,13 +44,13 @@ export const DRUM_PIECES: DrumPiece[] = [
   { midi: 35, label: "Bumbo 2", short: "BD2" },
 ];
 
-/** Pieces shown by default in a fresh grid (the common rock kit, top→bottom). */
+/** Peças exibidas numa grade nova: o kit de rock comum, de cima para baixo. */
 export const DEFAULT_LANES = [49, 51, 46, 42, 48, 45, 43, 38, 36];
 
 export const PIECE_BY_MIDI = new Map(DRUM_PIECES.map((p) => [p.midi, p]));
 
-// Reverse of the articulation names the AlphaTexExporter emits, so an imported
-// (or previously text-edited) drum track round-trips into the grid.
+// Inverso dos nomes de articulação que o AlphaTexExporter emite, para que uma
+// trilha importada (ou editada em texto) volte para a grade sem perder golpes.
 const NAME_TO_MIDI: Record<string, number> = {
   "Kick (hit)": 35,
   "Kick (hit) 2": 36,
@@ -87,26 +87,27 @@ export const RESOLUTIONS: { value: DrumResolution; label: string }[] = [
   { value: 32, label: "1/32" },
 ];
 
-// One hit's modifier. accent/ghost are mutually exclusive; flam is independent.
+// Modificador de um golpe. Acento e fantasma são exclusivos entre si; flam é
+// independente.
 export type NoteMod = { accent?: boolean; ghost?: boolean; flam?: boolean };
-export type Cell = Map<number, NoteMod>; // midi → modifier (present key = a hit)
+export type Cell = Map<number, NoteMod>; // midi → modificador (chave = há golpe)
 export type Beat = { triplet: boolean; cells: Cell[] };
-// prefix = leading directive lines (\clef, \accidentals, \ks… — the exporter
-// emits them on a materialized track's first bar). The grid doesn't model them,
-// but it must not LOSE them — they're kept opaque and re-emitted on serialize.
+// `prefix` = diretivas iniciais do compasso (\clef, \accidentals, \ks), que o
+// exporter emite no 1º compasso de uma trilha materializada. A grade não as
+// modela, mas as preserva opacas e reemite na serialização.
 export type Bar = { beats: Beat[]; parseOk: boolean; prefix: string };
 
-const TPW = 3840; // ticks per whole note (divisible by 2·3·… — supports triplets)
+const TPW = 3840; // ticks por semibreve (divisível por 2·3, suporta quiálteras)
 
-/** Straight cells in a beat: how many `res`-value notes fit one `1/tsDen` beat. */
+/** Células simples num tempo: quantas notas de valor `res` cabem em `1/tsDen`. */
 export function straightCells(res: DrumResolution, tsDen: number): number {
   return res / tsDen;
 }
-/** Triplet cells in a beat = 3-against-2 of the straight subdivision. */
+/** Células de quiáltera num tempo: 3 para 2 da subdivisão simples. */
 export function tripletCells(res: DrumResolution, tsDen: number): number {
   return (straightCells(res, tsDen) * 3) / 2;
 }
-/** A beat can be a triplet only if its straight subdivision is even (≥ 1/8). */
+/** Um tempo só admite quiáltera se sua subdivisão simples for par (≥ 1/8). */
 export function canTriplet(res: DrumResolution, tsDen: number): boolean {
   const s = straightCells(res, tsDen);
   return s >= 2 && s % 2 === 0;
@@ -119,7 +120,7 @@ export function cellsInBeat(
   return triplet ? tripletCells(res, tsDen) : straightCells(res, tsDen);
 }
 
-/** Whether a resolution tiles a bar into whole cells (used to enable/disable it). */
+/** Se a resolução divide o compasso em células inteiras (habilita a opção na UI). */
 export function resolutionFits(
   tsNum: number,
   tsDen: number,
@@ -143,8 +144,8 @@ export function emptyBar(tsNum: number, res: DrumResolution, tsDen: number): Bar
 
 // ── Tokenizing ───────────────────────────────────────────────────────────────
 
-// Split alphaTex into top-level whitespace-separated tokens, respecting quotes
-// ("Kick (hit) 2" is ONE token) and paren/brace groups ("(a b)", "{...}").
+// Divide o alphaTex em tokens de nível superior, respeitando aspas ("Kick (hit)
+// 2" é UM token) e grupos de parênteses/chaves ("(a b)", "{...}").
 function splitTokens(tex: string): string[] {
   const tokens: string[] = [];
   let cur = "";
@@ -173,7 +174,7 @@ function splitTokens(tex: string): string[] {
   return tokens;
 }
 
-// One note inside a chord (or a bare note): "36", "36{ac}", '"Snare (hit) 2"{g}'.
+// Uma nota dentro de um acorde (ou solta): "36", "36{ac}", '"Snare (hit) 2"{g}'.
 function parseNoteToken(s: string): { midi: number; mod: NoteMod } | null {
   let rest = s;
   let midi: number | null = null;
@@ -207,7 +208,7 @@ type Event = {
   grace: boolean;
 };
 
-// Parse one beat/rest/grace token into an Event (null → not griddable).
+// Converte um token de golpe/pausa/grace num Event. null = não cabe na grade.
 function parseBeatToken(tok: string, runDur: number | null): Event | null {
   let notePart: string;
   let after: string;
@@ -220,7 +221,7 @@ function parseBeatToken(tok: string, runDur: number | null): Event | null {
     notePart = "r";
     after = tok.slice(1);
   } else {
-    // bare single note possibly with ".dur" / "{...}"
+    // Nota solta, possivelmente com ".dur" / "{...}".
     const m = tok.match(/^((?:\d+|"[^"]+")(?:\{[^}]*\})?)/);
     if (!m) return null;
     notePart = m[1];
@@ -234,7 +235,7 @@ function parseBeatToken(tok: string, runDur: number | null): Event | null {
   const triplet = props.includes("tu");
   const grace = props.includes("gr");
   const dotted = props.includes("d") || props.includes("dd");
-  if (dotted) return null; // dotted rhythms aren't gridded (→ text)
+  if (dotted) return null; // ritmo pontuado não cabe na grade — cai para texto
 
   let ticks = TPW / dur;
   if (triplet) ticks = (ticks * 2) / 3;
@@ -252,9 +253,9 @@ function parseBeatToken(tok: string, runDur: number | null): Event | null {
   return { ticks, triplet, rest, pieces, grace };
 }
 
-/** Parse a bar's percussion alphaTex into the beat grid. On anything it can't
- *  model (dotted, mixed subdivision inside a beat, unknown tokens) parseOk=false
- *  and the editor shows the text view. */
+/** Converte o alphaTex de percussão de um compasso na grade de tempos. Diante do
+ *  que a grade não modela (pontuado, subdivisão mista num tempo, tokens
+ *  desconhecidos) devolve `parseOk=false` e o editor cai para o modo texto. */
 export function parseBar(
   tex: string,
   tsNum: number,
@@ -263,9 +264,9 @@ export function parseBar(
 ): Bar {
   const fail: Bar = { beats: [], parseOk: false, prefix: "" };
 
-  // Leading directive lines (\clef, \accidentals auto, \ks c…) are preserved
-  // opaquely as the bar's prefix. A \voice line means a multi-voice cell — the
-  // grid can't model parallel voices, so the whole bar falls to text mode.
+  // Diretivas iniciais (\clef, \accidentals, \ks) viram o prefixo opaco do
+  // compasso. Um \voice indica vozes paralelas, que a grade não modela: o
+  // compasso inteiro cai para o modo texto.
   const lines = tex.split(/\r?\n/);
   const prefixLines: string[] = [];
   let firstContent = 0;
@@ -292,16 +293,16 @@ export function parseBar(
       continue;
     }
     if (tok === "|") continue;
-    // Directive mid-body (\voice, \clef…): not griddable — fail cleanly instead
-    // of skipping the token and mis-parsing its arguments as notes.
+    // Diretiva no meio do corpo: falha limpa em vez de pular o token e ler os
+    // argumentos dela como se fossem notas.
     if (tok.startsWith("\\")) return fail;
     const ev = parseBeatToken(tok, runDur);
     if (!ev) return fail;
     if (ev.grace) {
       pendingGrace.push(...ev.pieces);
-      continue; // grace consumes no bar time
+      continue; // grace não consome tempo do compasso
     }
-    // attach any pending grace pieces as flams on matching hits
+    // Grace pendente vira flam no golpe correspondente.
     if (pendingGrace.length && !ev.rest) {
       for (const g of pendingGrace) {
         const hit = ev.pieces.find((p) => p.midi === g.midi) ?? ev.pieces[0];
@@ -314,9 +315,9 @@ export function parseBar(
   }
 
   const beatTicks = TPW / tsDen;
-  if (t !== beatTicks * tsNum) return fail; // doesn't fill bar
+  if (t !== beatTicks * tsNum) return fail; // não preenche o compasso
 
-  // Segment events into beats, choosing straight/triplet per beat.
+  // Segmenta os eventos em tempos, decidindo simples/quiáltera por tempo.
   const beats: Beat[] = [];
   for (let b = 0; b < tsNum; b++) {
     const beatStart = b * beatTicks;
@@ -340,7 +341,7 @@ export function parseBar(
   return { beats, parseOk: true, prefix };
 }
 
-// ── Serializing ────────────────────────────────────────────────────────────
+// ── Serialização ─────────────────────────────────────────────────────────────
 
 function modProps(mod: NoteMod): string {
   if (mod.accent) return "{ac}";
@@ -359,7 +360,7 @@ function serializeCell(cell: Cell, res: DrumResolution, triplet: boolean): strin
 function serializeBeat(beat: Beat, res: DrumResolution): string {
   const out: string[] = [];
   for (const cell of beat.cells) {
-    // Flam = a grace note of the same piece(s) just before the hit.
+    // Flam = uma grace note da mesma peça imediatamente antes do golpe.
     const flams = [...cell.keys()].filter((m) => cell.get(m)!.flam).sort((a, b) => a - b);
     if (flams.length) out.push(`(${flams.join(" ")}).${res}{gr}`);
     out.push(serializeCell(cell, res, beat.triplet));
@@ -371,17 +372,17 @@ function barHasHits(bar: Bar): boolean {
   return bar.beats.some((b) => b.cells.some((c) => c.size > 0));
 }
 
-/** Serialize a bar's grid back to percussion alphaTex. Empty bar → "" (so an
- *  untouched declared slot stays empty and isn't counted as edited); a bar
- *  carrying opaque directives keeps them (with a whole-bar rest if hitless —
- *  same convention the assembler uses for empty cells). */
+/** Serializa a grade de um compasso de volta para alphaTex de percussão.
+ *  Compasso vazio devolve "", para que um slot declarado e intocado não conte
+ *  como editado. Compasso só com diretivas opacas as mantém, acompanhadas de uma
+ *  pausa inteira — mesma convenção que o assemble usa para células vazias. */
 export function serializeBar(bar: Bar, res: DrumResolution): string {
   if (!barHasHits(bar)) return bar.prefix ? `${bar.prefix}\nr.1` : "";
   const body = bar.beats.map((b) => serializeBeat(b, res)).join(" ");
   return bar.prefix ? `${bar.prefix}\n${body}` : body;
 }
 
-/** Which MIDI pieces appear anywhere in a set of bars (to decide extra lanes). */
+/** Peças MIDI presentes num conjunto de compassos, para decidir linhas extras. */
 export function midisInBars(bars: Bar[]): Set<number> {
   const s = new Set<number>();
   for (const bar of bars)
@@ -390,7 +391,8 @@ export function midisInBars(bars: Bar[]): Set<number> {
   return s;
 }
 
-/** Deep-clone a bar (cells are Maps — spread isn't enough). Clipboard/undo. */
+/** Clone profundo de um compasso, base do clipboard e do undo. As células são
+ *  Maps, então o spread raso deixaria as cópias compartilhando golpes. */
 export function cloneBar(bar: Bar): Bar {
   return {
     parseOk: bar.parseOk,
@@ -402,11 +404,11 @@ export function cloneBar(bar: Bar): Bar {
   };
 }
 
-/** Fit a copied bar into a target measure's shape (paste across time
- *  signatures/resolutions): hits are kept beat-by-beat and remapped to the
- *  target subdivision; missing beats come up empty, extra beats are dropped.
- *  prefix is "" — the caller keeps the TARGET bar's own prefix (directives are
- *  positional, they don't travel with copied content). */
+/** Conforma um compasso copiado ao formato do destino, permitindo colar entre
+ *  fórmulas de compasso e resoluções diferentes: os golpes são remapeados tempo
+ *  a tempo, tempos faltantes nascem vazios e tempos extras são descartados.
+ *  O prefixo sai vazio de propósito — diretiva é posicional e não viaja com o
+ *  conteúdo copiado; quem chama mantém o prefixo do compasso de destino. */
 export function conformBar(
   src: Bar,
   tsNum: number,
@@ -421,8 +423,9 @@ export function conformBar(
   return out;
 }
 
-/** True iff every hit in the beat lands EXACTLY on the new subdivision — i.e.
- *  remapBeat would move nothing. Lets the editor warn before a lossy change. */
+/** True quando todo golpe do tempo cai exatamente na nova subdivisão, ou seja,
+ *  `remapBeat` não moveria nada. Permite ao editor avisar antes de uma mudança
+ *  de resolução que apagaria golpes. */
 export function remapBeatIsLossless(
   beat: Beat,
   triplet: boolean,
@@ -434,8 +437,8 @@ export function remapBeatIsLossless(
   return beat.cells.every((c, i) => c.size === 0 || (i * nCells) % old === 0);
 }
 
-/** Remap a beat's hits proportionally when its subdivision changes (resolution
- *  change or straight↔triplet toggle). */
+/** Remapeia os golpes proporcionalmente quando a subdivisão do tempo muda
+ *  (troca de resolução ou alternância simples↔quiáltera). */
 export function remapBeat(
   beat: Beat,
   triplet: boolean,

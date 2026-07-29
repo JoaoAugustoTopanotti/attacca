@@ -9,12 +9,12 @@ type Song = {
   artist: string | null;
   percent: number;
   missing: string[];
-  tracks: number; // number of declared tracks
-  /** Famílias GM de todas as trilhas ("Guitarra/Violão", "Baixo"…). */
+  tracks: number; // nº de trilhas declaradas
+  /** Famílias GM de todas as trilhas ("Guitarra/Violão", "Baixo"). */
   families: string[];
-  /** Famílias com alguma trilha incompleta (<100%) — o que ainda espera mão. */
+  /** Famílias com alguma trilha incompleta: o que ainda espera uma mão. */
   openFamilies: string[];
-  /** Famílias com trilha vazia (0%) — o "falta X" do mural. */
+  /** Famílias com trilha vazia (0%): o "falta X" do mural. */
   missingFamilies: string[];
 };
 
@@ -30,8 +30,8 @@ function fold(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-/** A assinatura visual: progresso em blocos (██████░░░░).
- *  Tinta = feito · vermelhão = a borda viva (onde a próxima mão entra) ·
+/** Barra de progresso em blocos, a assinatura visual da marca.
+ *  Tinta = feito, vermelhão = a borda viva onde a próxima mão entra,
  *  cinza = ainda não começou. */
 function BlockBar({ percent }: { percent: number }) {
   const done = Math.round((percent / 100) * BLOCKS);
@@ -111,7 +111,7 @@ export default function HomeTabs({
   tocar: Song[];
   colaborar: Song[];
   presets: Preset[];
-  /** null = não identificado (sem tags, sem "precisa de você"). */
+  /** null = pessoa não identificada: sem tags e sem "precisa de você". */
   myInstruments: string[] | null;
 }) {
   const [tab, setTab] = useState<"tocar" | "colaborar">("tocar");
@@ -120,9 +120,8 @@ export default function HomeTabs({
   const [onlyNeedsYou, setOnlyNeedsYou] = useState(false);
   const total = tocar.length + colaborar.length;
 
-  // "Falta baixo" só vira convite quando chega em quem toca baixo: uma trilha
-  // vazia cujo instrumento a pessoa declarou (no login ou em Configurações) é
-  // um chamado direto a ela.
+  // "Falta baixo" só vira convite quando chega a quem toca baixo: uma trilha
+  // vazia de instrumento que a pessoa declarou é um chamado direto a ela.
   const myFamilies = useMemo(() => {
     const set = new Set<string>();
     for (const k of myInstruments ?? []) {
@@ -135,10 +134,9 @@ export default function HomeTabs({
   const needsYou = (song: Song) =>
     song.missingFamilies.some((f) => myFamilies.has(f));
 
-  // Chips só de famílias que existem no mural — filtro morto não é filtro.
-  // O vocabulário é o dos presets ("Guitarra", "Vocal"…); família importada
-  // fora da lista (flautas, metais — jargão GM que não temos como instrumento
-  // ainda) é agrupada num único chip "Outros".
+  // Só entram chips de famílias presentes no mural: filtro que não filtra nada
+  // é ruído. O vocabulário é o dos presets; famílias importadas fora da lista
+  // (metais, sopros) caem num único chip "Outros".
   const knownFamilies = useMemo(() => new Set(presets.map((p) => p.family)), [presets]);
   const chips = useMemo(() => {
     const inData = new Set<string>();
@@ -162,8 +160,8 @@ export default function HomeTabs({
   }
 
   const q = fold(query.trim());
-  // Sem instrumentos declarados o chip "precisa de você" some — o filtro não
-  // pode continuar ativo invisível.
+  // Sem instrumentos declarados o chip "precisa de você" some, e o filtro não
+  // pode seguir ativo de forma invisível.
   const needsYouOn = onlyNeedsYou && myFamilies.size > 0;
   const filtering = q !== "" || activeFamilies.length > 0 || needsYouOn;
 
@@ -171,8 +169,8 @@ export default function HomeTabs({
     return songs.filter((song) => {
       if (q && !fold(`${song.title} ${song.artist ?? ""}`).includes(q)) return false;
       if (activeFamilies.length > 0) {
-        // Em Tocar o chip significa "tem esse instrumento"; em Colaborar,
-        // "esse instrumento ainda espera uma mão" (trilha <100%).
+        // Em Tocar, o chip significa "tem esse instrumento"; em Colaborar,
+        // "esse instrumento ainda espera uma mão".
         const pool = mode === "tocar" ? song.families : song.openFamilies;
         const match = activeFamilies.some((f) =>
           f === OTHER ? pool.some((x) => !knownFamilies.has(x)) : pool.includes(f),
@@ -280,7 +278,7 @@ export default function HomeTabs({
         )}
       </div>
 
-      {/* ── TOCAR ── */}
+      {/* ── Aba Tocar ── */}
       {tab === "tocar" && (
         <div className="mural-list">
           {tocar.length === 0 ? (
@@ -304,7 +302,7 @@ export default function HomeTabs({
         </div>
       )}
 
-      {/* ── COLABORAR ── */}
+      {/* ── Aba Colaborar ── */}
       {tab === "colaborar" && (
         <div className="mural-list">
           {colaborar.length === 0 ? (

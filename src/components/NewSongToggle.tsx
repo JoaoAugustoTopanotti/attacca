@@ -3,7 +3,7 @@
 import { useState } from "react";
 import NewSongForm from "./NewSongForm";
 
-/** Collapses the "Nova música" form behind a button on the home page. */
+/** Recolhe o formulário "Nova música" atrás de um botão, na home. */
 export default function NewSongToggle() {
   const [open, setOpen] = useState(false);
 

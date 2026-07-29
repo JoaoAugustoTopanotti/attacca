@@ -11,14 +11,15 @@ import { prisma } from "@/lib/prisma";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // POST /api/auth/request { email, displayName?, redirectTo? }
-// Issues a single-use magic link and emails it. Passwordless sign-in / sign-up.
+// Emite e envia por e-mail um magic link de uso único. Serve tanto para entrar
+// quanto para criar conta, sem senha.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const email =
     typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const displayName =
     typeof body.displayName === "string" ? body.displayName.trim() : undefined;
-  // Where the magic link should land once consumed (e.g. back on /songs/new).
+  // Para onde o magic link leva depois de consumido.
   const redirectTo = safeRedirectPath(
     typeof body.redirectTo === "string" ? body.redirectTo : null,
   );
@@ -27,11 +28,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
   }
 
-  // If the browser still holds the legacy identity cookie, let this email attach
-  // to that existing account (preserving its authorship) instead of forking a
-  // duplicate identity. Only for an account that has NO email yet — claiming now
-  // means "attach in place", and moving someone's email must be an explicit act
-  // (POST /api/me/email), never a side effect of an old cookie.
+  // Se o navegador ainda tem o cookie de identidade legado, anexa este e-mail à
+  // conta existente, preservando sua autoria, em vez de criar uma duplicata.
+  // Só vale para conta ainda sem e-mail: mover o e-mail de alguém tem que ser
+  // ato explícito (POST /api/me/email), nunca efeito colateral de cookie antigo.
   const legacyId = await readLegacyCookieUserId();
   const legacy = legacyId
     ? await prisma.user.findUnique({ where: { id: legacyId }, select: { id: true, email: true } })
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   await sendMagicLink(email, url);
 
-  // In dev (no provider), echo the link so the flow is testable without email.
+  // Em dev, sem provedor de e-mail, devolve o link para o fluxo ser testável.
   const devUrl = !emailConfigured && process.env.NODE_ENV !== "production" ? url : undefined;
   return NextResponse.json({ ok: true, sent: emailConfigured, devUrl });
 }

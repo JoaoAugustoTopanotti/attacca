@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
-// Reuse a single PrismaClient across hot-reloads in dev to avoid
-// exhausting database connections.
+// Reaproveita um único PrismaClient entre os hot-reloads do dev, senão cada
+// recompilação abriria conexões novas até esgotar o pool do banco.
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };

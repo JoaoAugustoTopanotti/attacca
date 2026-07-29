@@ -235,11 +235,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const [apiReady, setApiReady] = useState(false);
   // Percussão: sempre texto (a notação "Kick (hit)".8 não cabe no modelo visual).
   const raw = rawMode || percussion;
-  // Bumped a cada render do alphaTab — dispara o recálculo do overlay de seleção.
+  // Incrementado a cada render do alphaTab; dispara o recálculo dos overlays.
   const [renderEpoch, setRenderEpoch] = useState(0);
-  // Aviso transitório (ação bloqueada: compasso cheio etc.)
+  // Aviso transitório de ação bloqueada (compasso cheio, corda ocupada).
   const [warn, setWarn] = useState<string | null>(null);
-  // Confirmação transitória (copiado/colado) — chip informativo, não erro.
+  // Confirmação transitória (copiado/colado): chip informativo, não erro.
   const [flash, setFlash] = useState<string | null>(null);
   // Âncora da seleção de trecho (Shift+setas / Shift+clique). Range = âncora↔cursor.
   const [selAnchor, setSelAnchor] = useState<BeatPos | null>(null);
@@ -252,8 +252,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const [measureFlags, setMeasureFlags] = useState<
     { x: number; y: number; label: string; kind: "under" | "over" }[]
   >([]);
-  // Botão "+" ao final de cada compasso (inserir logo depois), mais intuitivo
-  // que ter que selecionar um beat e usar o botão da toolbar.
+  // Botão "+" ao final de cada compasso, para inserir um vazio logo depois.
   const [addSlots, setAddSlots] = useState<{ x: number; y: number; measureIndex: number }[]>([]);
   // Letras da afinação por corda à esquerda do 1º compasso (estilo Songsterr).
   const [tuningLabels, setTuningLabels] = useState<{ x: number; y: number; label: string }[]>([]);
@@ -265,7 +264,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     { x: number; y: number; measureIndex: number; bpm: number }[]
   >([]);
 
-  // Refs para evitar closures obsoletas nos event handlers do alphaTab
+  // Refs para evitar closures obsoletas nos handlers do alphaTab, registrados
+  // uma única vez na montagem.
   const modelRef  = useRef<EditorModel>(model);
   const cursorRef = useRef<EditorCursor>(cursor);
   const surfaceRef  = useRef<HTMLDivElement>(null);
@@ -275,7 +275,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selAnchorRef = useRef<BeatPos | null>(null);
-  // Undo/redo: pilhas de modelos (edição é imutável, guardar referências é barato).
+  // Undo/redo: pilhas de modelos. A edição é imutável, então guardar
+  // referências de estados anteriores é barato.
   const historyRef = useRef<{ past: EditorModel[]; future: EditorModel[] }>({
     past: [],
     future: [],
@@ -284,11 +285,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const lastDigitRef = useRef<
     { time: number; measureIndex: number; beatIndex: number; string: number; value: number } | null
   >(null);
-  // Posição do último mousedown, relativa ao surface (mesmo espaço dos bounds).
-  // Permite clicar em QUALQUER corda do beat, não só onde há nota. `shift`
-  // registra Shift+clique para estender a seleção de trecho.
+  // Posição do último mousedown, relativa ao surface (mesmo espaço dos bounds
+  // do alphaTab). Permite clicar em qualquer corda do beat, não só onde há
+  // nota; `shift` registra Shift+clique para estender a seleção.
   const lastPointerRef = useRef<{ x: number; y: number; shift: boolean } | null>(null);
-  // Contexto de render + callbacks sempre atuais (handlers registrados uma vez).
+  // Contexto de render e callbacks sempre atuais para os handlers.
   const trackHeaderRef = useRef(trackHeader);
   const measureMetaRef = useRef(measureMeta);
   const initialTempoRef = useRef(initialTempo);
@@ -299,15 +300,15 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   initialTempoRef.current = initialTempo;
   onSeekRef.current = onSeek;
   stringCountRef.current = trackStringCount;
-  // Último alphaTex EMITIDO por nós — distingue mudança externa (refetch/aceite)
-  // de eco da nossa própria edição.
+  // Último alphaTex emitido daqui: distingue mudança externa (refetch, aceite de
+  // proposta) do eco da nossa própria edição.
   const lastEmittedRef = useRef(alphaTex);
 
   useEffect(() => { modelRef.current = model; }, [model]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { selAnchorRef.current = selAnchor; }, [selAnchor]);
 
-  // Texto alphaTex renderizável (documento real de 1 trilha — ver serializeForRender).
+  // alphaTex renderizável: documento real de uma trilha (ver serializeForRender).
   const renderTex = useCallback((m: EditorModel) => {
     return serializeForRender(m, {
       trackHeader: trackHeaderRef.current,
@@ -316,10 +317,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
   }, []);
 
-  // ── Mudança ESTRUTURAL vinda do pai (afinação, andamento, meta) ─────────────
-  // O alphaTex das células não muda, então o effect de "mudança externa" não
-  // dispara — re-renderiza o alphaTab EM-PLACE (sem remontar: mantém cursor,
-  // histórico e é rápido — remontar o editor inteiro era a "travadinha").
+  // ── Mudança estrutural vinda do pai (afinação, andamento, meta) ─────────────
+  // O alphaTex das células não muda, então o effect de mudança externa não
+  // dispara. Re-renderiza o alphaTab em-place, sem remontar o editor: preserva
+  // cursor e histórico, e evita o travamento visível de uma remontagem inteira.
   const structSigRef = useRef<string | null>(null);
   useEffect(() => {
     const sig =
@@ -333,8 +334,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     structSigRef.current = sig;
   }, [trackHeader, measureMeta, initialTempo, renderTex]);
 
-  // Cursor de playback: o pai encaminha o tick do player headless (a música
-  // completa) para cá; setar tickPosition move o cursor do editor sem tocar áudio.
+  // Cursor de playback: o pai encaminha o tick do player headless, e definir
+  // `tickPosition` move o cursor do editor sem produzir áudio.
   useImperativeHandle(ref, () => ({
     seekTick: (tick: number) => {
       const api = apiRef.current;
@@ -342,8 +343,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     },
   }), []);
 
-  // ── Mudança EXTERNA do alphaTex (refetch pós-save, aceite de proposta) ──────
-  // Se o prop mudou e não foi eco de onChange nosso, re-sincroniza modelo+render.
+  // ── Mudança externa do alphaTex (refetch pós-save, aceite de proposta) ──────
+  // Prop mudou sem ser eco do nosso onChange: re-sincroniza modelo e render.
   useEffect(() => {
     if (alphaTex !== lastEmittedRef.current) {
       lastEmittedRef.current = alphaTex;
@@ -356,7 +357,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     }
   }, [alphaTex, renderTex]);
 
-  // ── Retorno do modo texto → re-render do alphaTab com o modelo atual ────────
+  // ── Volta do modo texto: re-renderiza o alphaTab com o modelo atual ─────────
   useEffect(() => {
     if (!rawMode && prevRawModeRef.current && apiRef.current) {
       apiRef.current.tex(renderTex(modelRef.current));
@@ -366,8 +367,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
   // ── Inicialização do alphaTab (uma vez na montagem) ────────────────────────
   useEffect(() => {
-    // Percussão: modo texto permanente — não inicializa o alphaTab do editor
-    // (a notação de percussão não passa pelo nosso modelo e quebraria o render).
+    // Percussão fica em modo texto permanente: a notação de percussão não passa
+    // pelo modelo do editor e quebraria o render.
     if (percussion) return;
 
     let api: AlphaTabApi | null = null;
@@ -380,24 +381,25 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       api = new at.AlphaTabApi(surfaceRef.current, {
         core: {
           fontDirectory: "/font/",
-          // Necessário para noteMouseDown e para os NoteBounds do overlay.
+          // Exigido por noteMouseDown e pelos NoteBounds usados nos overlays.
           includeNoteBounds: true,
         },
         display: {
           staveProfile: "Tab",
           scale: 1.0,
-          // Cores da tablatura seguem o tema attacca (o alphaTab não herda CSS).
+          // O alphaTab desenha em canvas próprio e não herda CSS: as cores da
+          // tablatura vêm do tema por aqui.
           resources: alphaTabResources(readTheme()),
         },
         notation: {
-          // O texto "Guitar Standard Tuning" sai — a afinação vira letras por
-          // corda à esquerda do 1º compasso (overlay, estilo Songsterr).
+          // Desliga o texto "Guitar Standard Tuning": a afinação é desenhada
+          // como letras por corda à esquerda do 1º compasso.
           elements: new Map([[at.NotationElement.GuitarTuning, false]]),
         },
         player: {
           enablePlayer:          true,
           enableCursor:          true,   // mostra onde a música está tocando
-          enableUserInteraction: true,   // habilita beat/noteMouseDown
+          enableUserInteraction: true,   // habilita beatMouseDown/noteMouseDown
           soundFont:             "/soundfont/sonivox.sf2",
           scrollElement:         viewportRef.current ?? undefined,
           scrollMode:            at.ScrollMode.Continuous,
@@ -409,24 +411,24 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         requestAnimationFrame(() => viewportRef.current?.focus());
       });
 
-      // Recalcula o overlay de seleção a cada re-render (bounds mudam).
+      // Os bounds mudam a cada re-render: recalcula os overlays.
       api.postRenderFinished.on(() => setRenderEpoch((e) => e + 1));
 
-      // beatMouseDown dispara em QUALQUER beat (notas E rests): seleciona o
-      // cursor e pede seek da música completa para o tick clicado.
+      // Dispara em qualquer beat, com notas ou pausa: move o cursor e pede o
+      // seek da música completa para o tick clicado.
       api.beatMouseDown.on((beat) => {
         const measureIndex = beat.voice.bar.index;
         const mod = modelRef.current;
         const measure = mod.measures[measureIndex];
         if (!measure) return;
-        // Vozes 1+ são opacas no editor (MVP): mapeia para o beat mais próximo
-        // da voz 0 em vez de usar um índice de outra voz.
+        // As vozes 1+ são opacas no editor: mapeia para o beat mais próximo da
+        // voz 0 em vez de usar um índice de outra voz.
         const beatIndex = Math.max(
           0,
           Math.min(beat.index, measure.beats.length - 1),
         );
-        // Corda pelo Y do clique: dá para selecionar qualquer linha do tab,
-        // inclusive posições vazias (sem nota). noteMouseDown refina depois.
+        // Corda escolhida pelo Y do clique, o que permite selecionar qualquer
+        // linha do tab, inclusive vazia. noteMouseDown refina em seguida.
         let string = cursorRef.current?.string ?? 1;
         const staffStrings =
           beat.voice.bar.staff.tuning?.length || stringCountRef.current;
@@ -442,8 +444,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             string = Math.max(1, Math.min(staffStrings, s));
           }
         }
-        // Shift+clique estende a seleção a partir do cursor anterior; clique
-        // normal recolhe qualquer seleção de trecho.
+        // Shift+clique estende a seleção a partir do cursor anterior; o clique
+        // normal desfaz qualquer seleção de trecho.
         const prevCur = cursorRef.current;
         if (ptr?.shift && prevCur) {
           if (!selAnchorRef.current) {
@@ -456,7 +458,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           setSelAnchor(null);
         }
         setCursor({ measureIndex, beatIndex, string });
-        // Seek: reposiciona a música completa neste ponto (tocando ou pausado).
+        // Reposiciona a música completa neste ponto, tocando ou pausada.
         const tick =
           (beat as unknown as { absolutePlaybackStart?: number }).absolutePlaybackStart ??
           beat.voice.bar.masterBar.start + beat.playbackStart;
@@ -464,11 +466,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         viewportRef.current?.focus();
       });
 
-      // noteMouseDown refina a CORDA quando o clique foi num número de casa.
-      // CONVERSÃO CRÍTICA: o modelo do alphaTab numera corda 1 = mais GRAVE;
-      // o alphaTex (nosso modelo) numera 1 = mais AGUDA. Sem converter, clicar
-      // numa nota selecionava a corda espelhada — o bug do "adicionei na corda
-      // errada".
+      // Refina a corda quando o clique caiu sobre um número de casa.
+      // Atenção à conversão: o modelo do alphaTab numera a corda 1 como a mais
+      // GRAVE, enquanto o alphaTex numera 1 como a mais AGUDA. Sem converter, o
+      // clique seleciona a corda espelhada.
       api.noteMouseDown.on((note) => {
         const measureIndex = note.beat.voice.bar.index;
         const mod = modelRef.current;
@@ -498,11 +499,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       api?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Apenas na montagem — pai usa key={trackOrder} para remontar ao trocar trilha
+  }, []); // Só na montagem: o pai usa key={trackOrder} para remontar ao trocar de trilha
 
   // ── Aplicar edição ao alphaTab e notificar o pai ───────────────────────────
-  // applyModelRaw NÃO mexe no histórico (usado por undo/redo); applyModel é o
-  // caminho de toda edição do usuário e empilha o estado anterior para desfazer.
+  // `applyModelRaw` não mexe no histórico (usado por undo/redo); `applyModel` é
+  // o caminho de toda edição do usuário e empilha o estado anterior.
   const applyModelRaw = useCallback(
     (newModel: EditorModel) => {
       const tex = serializeModel(newModel);
@@ -547,8 +548,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     return { num: meta?.tsNum ?? 4, den: meta?.tsDen ?? 4 };
   }, []);
 
-  // Regra de capacidade compartilhada: bloqueia apenas quando a mudança AUMENTA
-  // o compasso para além da fórmula (reduzir um compasso já estourado é sempre ok).
+  // Regra de capacidade: bloqueia apenas o que aumenta o compasso para além da
+  // fórmula. Reduzir um compasso já estourado é sempre permitido.
   const wouldOverflow = useCallback(
     (oldModel: EditorModel, newModel: EditorModel, measureIndex: number): boolean => {
       const { num, den } = measureTs(measureIndex);
@@ -736,8 +737,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
   }, [applyModel, disabled, measureTs, showWarn, wouldOverflow]);
 
-  // Ctrl+D — repete a seleção logo depois dela mesma (o "R" do MuseScore/Flat;
-  // aqui em Ctrl+D porque "r" já é pausa, convenção Guitar Pro).
+  // Ctrl+D repete a seleção logo adiante. É o "R" do MuseScore/Flat, mapeado em
+  // Ctrl+D porque "r" já insere pausa, pela convenção do Guitar Pro.
   const doRepeat = useCallback(() => {
     if (disabled) return;
     const sel = getSelection();
@@ -874,7 +875,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       const mod = modelRef.current;
       const ctrl = e.ctrlKey || e.metaKey;
 
-      // Antes de estender a seleção com Shift, garante a âncora no cursor atual.
+      // Garante a âncora no cursor atual antes de estender a seleção com Shift.
       const ensureAnchor = () => {
         if (!selAnchorRef.current && cur) {
           setSelAnchor({ measureIndex: cur.measureIndex, beatIndex: cur.beatIndex });
@@ -898,7 +899,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           }
           case "arrowright":
           case "arrowleft": {
-            // Navegação por compasso (Ctrl+Shift estende a seleção junto).
+            // Navegação por compasso; com Shift, estende a seleção junto.
             e.preventDefault();
             if (!cur) return;
             if (e.shiftKey) ensureAnchor();
@@ -928,19 +929,19 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             return;
           }
         }
-        return; // demais Ctrl+… ficam com o navegador
+        return; // os demais Ctrl+… ficam com o navegador
       }
 
-      // ── Alt+←/→: mover o beat no tempo ──
+      // ── Alt+←/→: move o beat no tempo ──
       if (e.altKey && !ctrl) {
         if (e.key === "ArrowRight") { e.preventDefault(); doMoveBeat(1); }
         else if (e.key === "ArrowLeft") { e.preventDefault(); doMoveBeat(-1); }
         return;
       }
 
-      // Dígito 0–9 → define a casa da nota selecionada.
-      // Dois dígitos seguidos (ex.: 1 depois 2 → 12) se digitados rápido na mesma
-      // posição, respeitando o limite de casa (≤ 24); senão recomeça no dígito.
+      // Dígito 0–9 define a casa da nota selecionada. Dois dígitos digitados
+      // rápido na mesma posição formam uma casa de dois dígitos (1 e 2 = 12),
+      // respeitando MAX_FRET; fora da janela, recomeça no dígito novo.
       if (/^[0-9]$/.test(e.key)) {
         if (!cur) return;
         e.preventDefault();
@@ -1062,7 +1063,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           if (!cur) return;
           const measure = mod.measures[cur.measureIndex];
           if (!measure) return;
-          // Noção de compasso: só insere se couber na fórmula de compasso.
+          // Só insere se ainda couber na fórmula de compasso.
           const { num, den } = measureTs(cur.measureIndex);
           const cap = capacity64(num, den);
           const used = measureUsed64(measure);
@@ -1071,8 +1072,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             showWarn(`Compasso cheio (${num}/${den}) — apague ou encurte um beat antes de inserir.`);
             return;
           }
-          // Duração do novo beat: a do beat de referência se couber; senão a
-          // maior figura que ainda cabe no compasso.
+          // Duração do novo beat: a do beat de referência, se couber; senão a
+          // maior figura que ainda cabe.
           const refDur = measure.beats[cur.beatIndex]?.duration ?? 4;
           let newDur: BeatDuration | null =
             64 / refDur <= remaining + CAP_EPS ? refDur : null;
@@ -1093,7 +1094,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         case "Delete": {
           e.preventDefault();
           if (!cur) return;
-          // Com seleção de trecho: apaga o range inteiro.
+          // Havendo seleção de trecho, apaga o range inteiro.
           const anchor = selAnchorRef.current;
           if (
             anchor &&
@@ -1114,8 +1115,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           if (beat.notes.some((n) => n.string === cur.string)) {
             applyModel(deleteNote(mod, cur.measureIndex, cur.beatIndex, cur.string));
           } else if (beat.notes.length === 0) {
-            // Só apaga o BEAT quando ele já é pausa — evita apagar um beat com
-            // notas noutras cordas sem querer.
+            // Só apaga o beat quando ele já é pausa, para não descartar sem
+            // querer notas que estejam em outras cordas.
             const next = deleteBeat(mod, cur.measureIndex, cur.beatIndex);
             applyModel(next);
             const newBeatIdx = Math.min(
@@ -1147,9 +1148,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     viewportRef.current?.focus();
   }
 
-  // ── Efeito ─────────────────────────────────────────────────────────────────
-  // Resolve em qual corda aplicar o efeito: a do cursor se houver nota nela;
-  // senão, a (única/primeira) nota do beat.
+  // ── Efeitos ────────────────────────────────────────────────────────────────
+  // Corda em que o efeito é aplicado: a do cursor se houver nota nela; senão, a
+  // primeira nota do beat.
   function targetString(beat: EditorModel["measures"][number]["beats"][number], cursorString: number): number {
     if (beat.notes.some((n) => n.string === cursorString)) return cursorString;
     return beat.notes[0]?.string ?? cursorString;
@@ -1167,8 +1168,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     applyModel(toggleEffect(mod, cur.measureIndex, cur.beatIndex, string, effect));
   }
 
-  // Bend é separado (mora no suffix, com pontos): clicar numa distância aplica-a;
-  // clicar na distância já ativa remove o bend.
+  // Bend não é um toggle simples: mora no suffix da nota e carrega uma
+  // distância. Clicar numa distância aplica-a; clicar na já ativa remove.
   function handleBendSet(quarters: number) {
     if (disabled) return;
     const cur = cursorRef.current;
@@ -1190,7 +1191,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     );
   }
 
-  // Beat selecionado e se ele tem nota (efeitos só fazem sentido sobre notas).
+  // Beat selecionado; efeitos só fazem sentido quando ele tem notas.
   const selectedBeat = cursor
     ? model.measures[cursor.measureIndex]?.beats[cursor.beatIndex] ?? null
     : null;
@@ -1212,14 +1213,14 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         )
       : null;
 
-  // ── Duração "exibida" na toolbar ───────────────────────────────────────────
+  // ── Duração exibida na toolbar ─────────────────────────────────────────────
   const displayDuration: BeatDuration = cursor
     ? (model.measures[cursor.measureIndex]?.beats[cursor.beatIndex]?.duration ?? duration)
     : duration;
   const dotState: 0 | 1 | 2 = selectedBeat ? beatDots(selectedBeat) : 0;
 
-  // ── Andamento do compasso selecionado (lido do structPrefix) ───────────────
-  // O exporter escreve `\tempo (120 hide)`; à mão escreve-se `\tempo 120`.
+  // ── Andamento do compasso selecionado, lido do structPrefix ────────────────
+  // O exporter escreve `\tempo (120 hide)`; à mão, escreve-se `\tempo 120`.
   const cursorMeasureTempo: number | null = (() => {
     if (!cursor) return null;
     const m = measureMeta?.[cursor.measureIndex]?.structPrefix?.match(
@@ -1259,7 +1260,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       setNoteRect(null);
       return;
     }
-    // Offset do surface dentro do viewport (bounds são relativos ao surface).
+    // Offset do surface no viewport: os bounds são relativos ao surface.
     const offX = surfaceRef.current?.offsetLeft ?? 0;
     const offY = surfaceRef.current?.offsetTop ?? 0;
 
@@ -1271,16 +1272,16 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       h: barVB.h,
     });
 
-    // Corda selecionada → caixa na linha correspondente.
+    // Corda selecionada: desenha a caixa na linha correspondente.
     const staffStrings = bar.staff.tuning?.length || trackStringCount;
-    const targetModelString = staffStrings + 1 - cursor.string; // tex → modelo alphaTab
+    const targetModelString = staffStrings + 1 - cursor.string; // alphaTex → modelo alphaTab
     const exact = bb.notes?.find((n) => n.note.string === targetModelString);
     if (exact) {
       const nb = exact.noteHeadBounds;
       setNoteRect({ x: offX + nb.x - 3, y: offY + nb.y - 2, w: nb.w + 6, h: nb.h + 4 });
       return;
     }
-    // Sem nota nessa corda: interpola a linha (calibrada pelas notas do compasso).
+    // Sem nota nessa corda: interpola a linha pela geometria do compasso.
     const { topY, spacing } = stringGeometry(
       bb as unknown as BeatBoundsLike,
       staffStrings,
@@ -1334,10 +1335,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     setSelRects(rects);
   }, [cursor, selAnchor, apiReady, raw, renderEpoch, model]);
 
-  // ── Badges de compasso incompleto/estourado ─────────────────────────────────
-  // O editor bloqueia estourar, mas um compasso pode ficar MENOR que a fórmula
-  // durante a edição (ou vir estourado de importação/modo texto). Marca cada um
-  // direto na tablatura: "falta 1/4" / "passa 1/8".
+  // ── Badges de compasso incompleto ou estourado ──────────────────────────────
+  // O editor bloqueia estourar, mas um compasso pode ficar menor que a fórmula
+  // durante a edição, ou já chegar estourado de um import ou do modo texto.
+  // Cada caso é marcado na própria tablatura: "falta 1/4" / "passa 1/8".
   useEffect(() => {
     if (!apiReady || raw) {
       setMeasureFlags([]);
@@ -1355,7 +1356,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     const flags: { x: number; y: number; label: string; kind: "under" | "over" }[] = [];
 
     model.measures.forEach((m, i) => {
-      // Pausa inteira única = compasso vazio/convencional (vale a fórmula toda).
+      // Pausa inteira única = compasso vazio convencional; vale a fórmula toda.
       if (
         m.beats.length === 1 &&
         m.beats[0].isRest &&
@@ -1373,8 +1374,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       const bb = beat ? lookup.findBeat(beat) : null;
       if (!bb) return;
       const barVB = bb.barBounds.visualBounds;
-      // Fração exibida: arredonda para o 64avo mais próximo (resíduos de
-      // quiáltera viram "≈"); diferença menor que meio 64avo não é exibida.
+      // Fração exibida: arredondada ao 64avo mais próximo; resíduo de quiáltera
+      // vira "≈", e diferença menor que meio 64avo não é exibida.
       const diff = Math.abs(cap - used);
       const d64 = Math.round(diff);
       if (d64 === 0) return;
@@ -1413,7 +1414,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       bb as unknown as BeatBoundsLike,
       tokens.length,
     );
-    // Corda 1 (aguda) = token 0 = linha de cima; encosta no início do compasso.
+    // Corda 1 (aguda) = token 0 = linha de cima, junto ao início do compasso.
     setTuningLabels(
       tokens.map((t, i) => ({
         x: offX + barVB.x - 24,
@@ -1423,10 +1424,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     );
   }, [apiReady, raw, renderEpoch, model, trackHeader]);
 
-  // ── Marcas de andamento (♩=N) clicáveis ─────────────────────────────────────
-  // A forma intuitiva de editar/remover uma mudança de andamento: clicar na
-  // própria marca desenhada na partitura (dono). O alvo é um overlay
-  // transparente sobre a região da marca (acima do início do compasso).
+  // ── Marcas de andamento (♩=N) clicáveis, só para o dono ─────────────────────
+  // Um overlay transparente sobre a marca desenhada na partitura, para editar ou
+  // remover a mudança de andamento clicando na própria marca.
   useEffect(() => {
     if (!apiReady || raw || !canEditStructure) {
       setTempoMarks([]);
@@ -1450,7 +1450,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     };
     model.measures.forEach((_, i) => {
       let bpm = visibleTempo(measureMeta?.[i]?.structPrefix);
-      // Compasso 1 sem \tempo próprio: a marca vem do tempo inicial injetado.
+      // Compasso 1 sem `\tempo` próprio: a marca vem do andamento inicial.
       if (bpm === null && i === 0 && initialTempo && !/\\tempo\b/i.test(measureMeta?.[0]?.structPrefix ?? "")) {
         bpm = initialTempo;
       }
@@ -1684,9 +1684,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 >
                   −
                 </button>
-                {/* Andamento a partir do compasso selecionado (♩ = bpm).
-                    Comp. 1 = andamento inicial; compassos seguintes = mudança
-                    no meio da música (automação \tempo, preservada no grid). */}
+                {/* Andamento a partir do compasso selecionado. No compasso 1 é o
+                    andamento inicial; nos demais, uma mudança no meio da música. */}
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button
                     type="button"
@@ -1808,15 +1807,15 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         </div>
       )}
 
-      {/* ── Viewport com alphaTab — SEMPRE no DOM ── */}
+      {/* ── Viewport do alphaTab: fica sempre no DOM, oculto no modo texto ── */}
       <div
         ref={viewportRef}
         className="tab-editor-viewport"
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onMouseDownCapture={(e) => {
-          // Posição relativa ao surface (mesmo espaço dos bounds do alphaTab) —
-          // usada pelo beatMouseDown para saber QUAL CORDA foi clicada.
+          // Posição relativa ao surface, no mesmo espaço dos bounds do alphaTab:
+          // é assim que o beatMouseDown descobre qual corda foi clicada.
           const r = surfaceRef.current?.getBoundingClientRect();
           if (r) {
             lastPointerRef.current = {
@@ -1924,9 +1923,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           ))}
       </div>
 
-      {/* ── Overlay do modo texto — cobre o editor visual ──
-          (O guia de percussão vive no DrumGridEditor, que é quem edita
-          bateria; este overlay hoje só atende trilhas de cordas.) */}
+      {/* ── Overlay do modo texto, sobre o editor visual ── */}
       {raw && (
         <div className="tab-editor-raw-overlay">
           <textarea

@@ -1,20 +1,21 @@
-// Cell editing — the heart of the relay. INVARIANT: contributions are
-// APPEND-ONLY. Editing a cell creates a NEW CellContribution and repoints
-// Cell.acceptedContributionId; the previous contribution is never overwritten,
-// so per-piece authorship and "continue where another left off" come for free.
+// Edição por célula — o coração do revezamento.
 //
-// Authority = MAINTAINER MODEL (ADR 0003 rev): the SONG owner (its creator)
-// accepts. Anyone identified can PROPOSE. (Was per-track ownership; that made the
-// creator powerless over their own song, so it was removed.)
+// INVARIANTE: contribuições são APPEND-ONLY. Editar uma célula cria uma nova
+// CellContribution e re-aponta `Cell.acceptedContributionId`; a contribuição
+// anterior nunca é sobrescrita. É daí que saem, de graça, a autoria por pedaço
+// e o "continuar de onde o outro parou".
+//
+// Autoridade segue o modelo de maintainer: o dono da música (quem a criou)
+// aceita, e qualquer pessoa identificada PROPÕE.
 
 import { prisma } from "@/lib/prisma";
 import { assembleSongAlphaTex } from "@/lib/materialize";
 
-/** The acting identity (ADR 0003). The gate is by id, not by name. */
+/** Identidade de quem age. A verificação é por id, nunca por nome. */
 export type Actor = { id: string; displayName: string };
 
-// SOCIAL gate, not a lock. If the song has an owner, only the owner accepts —
-// honor/convention. Propose stays open to anyone. Legacy/no owner = open.
+// Portão social, não uma tranca: tendo dono, só o dono aceita. Propor segue
+// aberto a qualquer pessoa identificada, e música sem dono é aberta a todos.
 function assertCanAccept(
   song: { ownerId: string | null; owner: { displayName: string } | null },
   actor: Actor,
@@ -37,7 +38,7 @@ async function songOfCell(cellId: string) {
   return { cell, song };
 }
 
-/** Look up a cell by grid coords, with history + the song's owner (for the UI). */
+/** Busca uma célula pelas coordenadas da grade, com histórico e dono da música. */
 export async function getCellByCoords(
   songId: string,
   trackOrder: number,
@@ -54,7 +55,7 @@ export async function getCellByCoords(
     where: { trackId_measureId: { trackId: track.id, measureId: measure.id } },
     include: {
       acceptedContribution: true,
-      contributions: { orderBy: { createdAt: "desc" } }, // newest first = history
+      contributions: { orderBy: { createdAt: "desc" } }, // histórico: mais nova primeiro
     },
   });
   if (!cell) return null;
@@ -73,13 +74,13 @@ export async function getCellByCoords(
 export type AddContributionInput = {
   alphaTex: string;
   message?: string;
-  /** true = accept now (validate + repoint). false = propose (append only). */
+  /** true = aceita agora (valida e re-aponta); false = apenas propõe. */
   accept?: boolean;
 };
 
 /**
- * Append a new contribution to a cell. Never mutates an existing one.
- * On accept: enforce the maintainer gate, validate the WHOLE document, repoint.
+ * Acrescenta uma contribuição à célula, sem nunca alterar as existentes.
+ * No aceite: verifica o dono, valida o documento inteiro e re-aponta a célula.
  */
 export async function addCellContribution(
   cellId: string,
@@ -90,7 +91,7 @@ export async function addCellContribution(
 
   const alphaTex = input.alphaTex ?? "";
   const message = input.message?.trim() || null;
-  const accept = input.accept !== false; // default: accept
+  const accept = input.accept !== false; // padrão: aceitar
 
   if (accept) {
     if (song) assertCanAccept(song, actor);
@@ -106,7 +107,7 @@ export async function addCellContribution(
     }
   }
 
-  // APPEND-ONLY: always create a new row.
+  // Append-only: sempre cria uma linha nova.
   const created = await prisma.cellContribution.create({
     data: {
       cellId,
@@ -115,7 +116,7 @@ export async function addCellContribution(
       alphaTex,
       message,
       status: accept ? "accepted" : "proposed",
-      // M3: merge base — o aceito sobre o qual esta edição foi escrita.
+      // Merge base: o aceito sobre o qual esta edição foi escrita.
       baseContributionId: cell.acceptedContributionId,
     },
   });
@@ -130,7 +131,7 @@ export async function addCellContribution(
   return created;
 }
 
-/** Accept an EXISTING contribution (a proposal): gate + validate, then repoint. */
+/** Aceita uma contribuição existente (proposta): verifica, valida e re-aponta. */
 export async function acceptContribution(
   cellId: string,
   contributionId: string,
@@ -169,7 +170,7 @@ export async function acceptContribution(
   return contrib;
 }
 
-/** Reject a (non-accepted) contribution. Gated to the song owner. */
+/** Recusa uma contribuição não aceita. Restrito ao dono da música. */
 export async function rejectContribution(
   cellId: string,
   contributionId: string,
@@ -187,7 +188,7 @@ export async function rejectContribution(
   });
 }
 
-/** People who shaped a song: the owner + everyone with an accepted contribution. */
+/** Quem construiu a música: o dono e todos com contribuição aceita. */
 export async function songContributors(songId: string) {
   const song = await prisma.song.findUnique({
     where: { id: songId },
@@ -198,7 +199,7 @@ export async function songContributors(songId: string) {
     select: { authorId: true, authorName: true },
   });
 
-  const seen = new Map<string, string>(); // key -> displayName
+  const seen = new Map<string, string>(); // chave → displayName
   for (const c of accepted) {
     const key = c.authorId ?? `name:${c.authorName}`;
     if (!seen.has(key)) seen.set(key, c.authorName);

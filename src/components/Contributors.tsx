@@ -7,7 +7,8 @@ type Data = {
   contributors: { key: string; name: string; isOwner: boolean }[];
 };
 
-// GitHub-style recognition: who shaped this song (owner + accepted contributors).
+// Reconhecimento estilo GitHub: quem construiu esta música, ou seja, o dono e
+// todas as pessoas com contribuição aceita.
 export default function Contributors({ songId }: { songId: string }) {
   const [data, setData] = useState<Data | null>(null);
 

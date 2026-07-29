@@ -41,7 +41,7 @@ export default function CollabPanel({
     }
   }
 
-  // Música ainda sem grade: oferece os três jeitos de começar, lado a lado.
+  // Música ainda sem grade: oferece os três jeitos de começar lado a lado.
   // "Editar uma faixa" só faz sentido depois que a grade existe.
   if (!materialized) {
     return (
@@ -119,7 +119,7 @@ export default function CollabPanel({
 
   return (
     <div className="collab-panel">
-      {/* Conteúdo principal — ocupa a largura toda, rola sem barra visível */}
+      {/* Conteúdo principal: largura total, rola sem barra visível */}
       <div className="collab-main no-scrollbar">
         <div className="collab-actions">
           <p className="section-label">Como quer contribuir?</p>
@@ -173,7 +173,7 @@ export default function CollabPanel({
         </div>
       </div>
 
-      {/* Completude no rodapé (recolhível) */}
+      {/* Completude recolhível no rodapé */}
       <CompletenessPanel songId={songId} />
     </div>
   );

@@ -24,7 +24,7 @@ export default async function EditPage({
 
   return (
     <div className="edit-shell">
-      {/* Top: breadcrumb + title */}
+      {/* Topo: breadcrumb e título */}
       <div className="edit-top">
         <nav className="breadcrumb" style={{ marginBottom: 4 }}>
           <Link href={`/songs/${songId}`}>← {song.title}</Link>

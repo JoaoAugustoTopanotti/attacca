@@ -38,8 +38,8 @@ export default function TrackEditor({
   tracks: { order: number; name: string }[];
 }) {
   const [me, setMe] = useState<Me>(null);
-  // Lista de trilhas em estado local — uma trilha recém-declarada aparece na
-  // hora no seletor, sem recarregar a página.
+  // Lista de trilhas em estado local, para uma trilha recém-declarada aparecer
+  // no seletor sem recarregar a página.
   const [trackList, setTrackList] = useState(tracks);
   const [trackOrder, setTrackOrder] = useState(tracks[0]?.order ?? 0);
 
@@ -56,7 +56,7 @@ export default function TrackEditor({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // ── Afinação e andamento (estrutura musical; só o dono) ──
+  // ── Afinação e andamento: estrutura musical, restrita ao dono ──
   const [tuningOpen, setTuningOpen] = useState(false);
   const [tuningDraft, setTuningDraft] = useState<string[]>([]);
   const [tuningBusy, setTuningBusy] = useState(false);
@@ -65,32 +65,33 @@ export default function TrackEditor({
   const [tempoBusy, setTempoBusy] = useState(false);
   const [tempoOpen, setTempoOpen] = useState(false);
 
-  // Player external-control state
+  // ── Controle externo do player ──
   const playerRef = useRef<AlphaTabPlayerHandle>(null);
   const editorRef = useRef<TabEditorHandle>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
-  // Recarrega o player quando a grade viva muda (save aceito) — senão ele
-  // continua tocando a versão antiga.
+  // Incrementado quando a grade viva muda, para o player recarregar em vez de
+  // continuar tocando a versão antiga.
   const [playerEpoch, setPlayerEpoch] = useState(0);
-  // Última posição de playback (tick) — para retomar após recarregar o score.
+  // Última posição de playback, para retomar após recarregar o score.
   const lastTickRef = useRef(0);
-  // Texto desta trilha atualmente carregado no player como PREVIEW de edição
-  // não salva (null = o player está com o /assembled salvo).
+  // Texto desta trilha carregado no player como preview de edição não salva;
+  // null = o player está com o /assembled salvo.
   const previewTextRef = useRef<string | null>(null);
 
-  // Encaminha o tick de playback (player headless) para o cursor do editor visual.
+  // Encaminha o tick do player headless para o cursor do editor visual.
   const syncEditorCursor = useCallback((tick: number) => {
     lastTickRef.current = tick;
     editorRef.current?.seekTick(tick);
   }, []);
 
-  // Clique num beat do editor → seek na música completa (tocando ou pausado).
+  // Clique num beat do editor faz seek na música completa, tocando ou pausada.
   const seekPlayer = useCallback((tick: number) => {
     playerRef.current?.seekTick(tick);
   }, []);
 
-  // Espera o áudio do score recém-carregado ficar pronto, retoma a posição e toca.
+  // Espera o áudio do score recém-carregado ficar pronto, retoma a posição e
+  // começa a tocar.
   const playWhenReady = useCallback(async () => {
     for (let i = 0; i < 24; i++) {
       const p = playerRef.current;
@@ -117,8 +118,7 @@ export default function TrackEditor({
       .catch(() => {});
   }, [songId]);
 
-  // Declara um novo instrumento como trilha (bateria, teclado, mais uma
-  // guitarra…) e já a seleciona para editar.
+  // Declara um instrumento como nova trilha e já a seleciona para edição.
   async function addTrack() {
     if (!newPreset || addBusy) return;
     setAddBusy(true);
@@ -135,8 +135,8 @@ export default function TrackEditor({
         [...list, { order: json.order, name: json.name }].sort((a, b) => a.order - b.order),
       );
       setTrackOrder(json.order); // dispara o carregamento da nova trilha
-      // O /assembled ganhou uma trilha — recarrega o player headless para o
-      // documento novo (senão ele segue com a montagem antiga até o 1º save).
+      // O /assembled ganhou uma trilha: recarrega o player headless, senão ele
+      // seguiria com a montagem antiga até o primeiro save.
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       setNewName("");
@@ -150,7 +150,7 @@ export default function TrackEditor({
 
   const ownerId = content?.song.ownerId ?? null;
   const ownerName = content?.song.ownerName ?? null;
-  // Sem content carregado não dá para saber o papel — não assumir "dono".
+  // Sem o conteúdo carregado não há como saber o papel: não presumir dono.
   const isOwner = !!me && !!content && (!ownerId || ownerId === me.id);
 
   const loadTrack = useCallback(async () => {
@@ -168,8 +168,8 @@ export default function TrackEditor({
 
   useEffect(() => { loadTrack(); }, [loadTrack]);
 
-  // Trocar de trilha descarta o buffer local → o preview carregado no player
-  // (se houver) não corresponde mais a nada; volta ao /assembled salvo.
+  // Trocar de trilha descarta o buffer local, então o preview carregado no
+  // player deixa de corresponder a algo: volta ao /assembled salvo.
   useEffect(() => {
     if (previewTextRef.current !== null) {
       previewTextRef.current = null;
@@ -178,13 +178,14 @@ export default function TrackEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackOrder]);
 
-  // Edição local ainda não salva? (formatação pode diferir; é só "buffer difere")
+  // Há edição local ainda não salva. Compara buffers crus, então diferença de
+  // formatação também conta.
   const dirty = !!content && text !== content.alphaTex;
 
-  // ── Play: toca O QUE VOCÊ ESTÁ VENDO ────────────────────────────────────────
-  // Com edição não salva, monta a música completa com a trilha local aplicada
-  // (endpoint de preview, nada é gravado) e carrega no player headless antes de
-  // tocar. Sem edição pendente, toca o /assembled direto.
+  // ── Play: toca o que está na tela ───────────────────────────────────────────
+  // Havendo edição não salva, monta a música completa com a trilha local
+  // aplicada pelo endpoint de preview (nada é gravado) e carrega no player
+  // headless antes de tocar. Sem edição pendente, toca o /assembled direto.
   async function handlePlayClick() {
     const p = playerRef.current;
     if (!p || !content) return;
@@ -196,7 +197,7 @@ export default function TrackEditor({
     if (!needPreview && !needRestore) { p.playPause(); return; }
 
     if (needRestore) {
-      // Buffer voltou ao salvo → recarrega o /assembled e toca.
+      // O buffer voltou ao estado salvo: recarrega o /assembled e toca.
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       void playWhenReady();
@@ -246,16 +247,15 @@ export default function TrackEditor({
         setInfo("Sem mudanças em relação à versão atual — nada a enviar.");
       } else if (json.accepted) {
         setInfo(`Salvo — ${json.changed} compasso(s) atualizado(s).`);
-        // A grade viva mudou → recarrega o conteúdo e o player.
+        // A grade viva mudou: recarrega o conteúdo e o player.
         previewTextRef.current = null;
         setPlayerEpoch((n) => n + 1);
         await loadTrack();
         setInfo(`Salvo — ${json.changed} compasso(s) atualizado(s).`);
       } else {
-        // Proposta: NÃO recarrega o conteúdo — recarregar reverteria o buffer
-        // para a versão aceita e a edição "sumiria" da tela (parecia que o
-        // botão não fazia nada). A edição continua visível; o envio fica
-        // registrado na aba Propostas da música.
+        // Proposta não recarrega o conteúdo: isso reverteria o buffer para a
+        // versão aceita e a edição sumiria da tela. Ela continua visível, e o
+        // envio fica registrado na aba Propostas da música.
         setInfo(
           `Proposta enviada — ${json.changed} compasso(s). ` +
             `Acompanhe na aba Propostas da música; ${ownerName ?? "o dono"} revisa antes de entrar.`,
@@ -268,9 +268,9 @@ export default function TrackEditor({
     }
   }
 
-  // ── Estrutura: afinação da trilha e andamento (dono) ────────────────────────
-  // Como nas operações de compasso: edição pendente é SALVA antes (nunca
-  // descartada) — o loadTrack pós-mudança substituiria o buffer local.
+  // ── Estrutura: afinação da trilha e andamento, só para o dono ───────────────
+  // Como nas operações de compasso, a edição pendente é salva antes, nunca
+  // descartada: o loadTrack seguinte substituiria o buffer local.
   function openTuning() {
     if (!content?.track.tuning) return;
     setTuningDraft(
@@ -301,8 +301,8 @@ export default function TrackEditor({
       if (!res.ok) throw new Error(json?.error ?? "Falha ao mudar a afinação.");
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
-      // loadTrack traz o header novo; o TabEditor re-renderiza em-place
-      // (assinatura estrutural), sem remontar.
+      // loadTrack traz o header novo e o TabEditor re-renderiza em-place, pela
+      // assinatura estrutural, sem remontar.
       await loadTrack();
       setInfo(`Afinação atualizada: ${tuningSummary(json.tuning)}.`);
     } catch (e) {
@@ -312,10 +312,10 @@ export default function TrackEditor({
     }
   }
 
-  // measure 0 = andamento inicial; N>0 = mudança a partir daquele compasso
-  // (bpm null remove a mudança). OTIMISTA: o estado local muda na hora (o
-  // editor re-renderiza em-place, sem remontar — era a "travadinha") e o POST
-  // confirma por trás; erro reverte. Andamento não toca células, então não há
+  // Define o andamento: `measure` 0 é o inicial, valores maiores são mudanças a
+  // partir daquele compasso, e `bpm` null remove a mudança.
+  // Atualização otimista: o estado local muda na hora e o POST confirma por
+  // trás, revertendo em caso de erro. Andamento não toca células, então não há
   // buffer a salvar nem trilha a recarregar.
   async function applyTempoAt(measure: number, bpm: number | null) {
     if (tempoBusy || !content) return;
@@ -331,8 +331,8 @@ export default function TrackEditor({
       measures: content.measures.map((m, i) => {
         if (i !== measure) return m;
         const base = stripTempo(m.structPrefix);
-        // Compasso 1: o tempo inicial vive no header global (song.tempo) — o
-        // structPrefix fica sem \tempo, como o servidor deixa.
+        // No compasso 1 o andamento inicial vive no header global, e o
+        // structPrefix fica sem `\tempo` — como o servidor deixa.
         const next =
           measure === 0 || bpm === null ? base : `${base}\n\\tempo ${bpm}`.trim();
         return { ...m, structPrefix: next || null };
@@ -353,7 +353,7 @@ export default function TrackEditor({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha ao mudar o andamento.");
-      // Só o ÁUDIO precisa recarregar (o /assembled mudou) — em segundo plano.
+      // Só o áudio precisa recarregar, em segundo plano: o /assembled mudou.
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       setInfo(
@@ -364,7 +364,7 @@ export default function TrackEditor({
             : `Andamento: ${json.tempo} bpm a partir do compasso ${measure + 1}.`,
       );
     } catch (e) {
-      setContent(prev); // reverte o otimismo
+      setContent(prev); // reverte a atualização otimista
       setTempoDraft(prev.song.tempo != null ? String(prev.song.tempo) : "");
       setError(e instanceof Error ? e.message : "Erro.");
     } finally {
@@ -379,11 +379,9 @@ export default function TrackEditor({
     applyTempoAt(0, bpm);
   }
 
-  // ── Estrutura: adicionar/remover compasso (dono; afeta todas as trilhas) ────
-  // Compor do zero é feito compasso a compasso — obrigar a salvar manualmente
-  // antes de cada "+" tornava isso impraticável. Em vez de descartar a edição
-  // pendente, salva-a primeiro (só o dono chega aqui, canEditStructure) e só
-  // então mexe na grade; nada se perde.
+  // ── Estrutura: adicionar/remover compasso, afetando todas as trilhas ────────
+  // Compor do zero é feito compasso a compasso, então a edição pendente é salva
+  // antes de mexer na grade, nunca descartada. Só o dono chega aqui.
   async function addMeasureAfter(afterIndex: number) {
     if (busy) return;
     setBusy(true);
@@ -442,7 +440,7 @@ export default function TrackEditor({
 
   return (
     <div className="edit-main">
-      {/* ── Controls bar ── */}
+      {/* ── Barra de controles ── */}
       <div className="edit-controls">
         <button
           type="button"
@@ -457,7 +455,7 @@ export default function TrackEditor({
               <rect x="14" y="5" width="4" height="14" rx="1" />
             </svg>
           ) : (
-            // Triângulo simples, deslocado ~1px à direita p/ centro óptico.
+            // Triângulo deslocado ~1px à direita, para o centro óptico.
             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
               <polygon points="8,5 20,12 8,19" />
             </svg>
@@ -479,7 +477,7 @@ export default function TrackEditor({
           </select>
         </div>
 
-        {/* Adicionar uma trilha (declarar instrumento: bateria, teclado, etc.) */}
+        {/* Adicionar uma trilha, declarando o instrumento */}
         <div className="add-track">
           <button
             type="button"
@@ -526,8 +524,8 @@ export default function TrackEditor({
           )}
         </div>
 
-        {/* Afinação da trilha (dono; trilhas de corda). O popover edita corda a
-            corda ou por preset; as casas existentes continuam, soando na altura nova. */}
+        {/* Afinação da trilha, para o dono de trilhas de corda. O popover edita
+            corda a corda ou por preset. */}
         {isOwner && content?.track.tuning && (
           <div className="add-track">
             <button
@@ -560,9 +558,8 @@ export default function TrackEditor({
                     </select>
                   </div>
                 )}
-                {/* Grid de 3 colunas fixas — rótulo, nota, oitava — para as
-                    linhas ficarem alinhadas (rótulos de largura variável
-                    desalinhavam os selects). */}
+                {/* Três colunas fixas (rótulo, nota, oitava): rótulos de largura
+                    variável desalinhariam os selects. */}
                 <div className="tuning-grid">
                   {tuningDraft.map((token, i) => {
                     const { note, octave } = splitTuningToken(token);
@@ -619,9 +616,8 @@ export default function TrackEditor({
           </div>
         )}
 
-        {/* Andamento inicial (dono) — botão compacto, mesmo padrão do de
-            afinação. No meio da música: clicar numa marca ♩=N da partitura
-            (ou o botão ♩= da toolbar com um compasso selecionado). */}
+        {/* Andamento inicial, para o dono. Mudanças no meio da música saem
+            pelas marcas ♩=N da partitura ou pelo botão ♩= da toolbar. */}
         {isOwner && content && (
           <div className="add-track">
             <button
@@ -704,9 +700,8 @@ export default function TrackEditor({
         </button>
       </div>
 
-      {/* ── Player headless: sem tablatura visível, só o áudio ──
-          O play de cima toca a música completa montada (todas as faixas + o que
-          já foi editado). O espaço da tela é todo do editor. */}
+      {/* ── Player headless: só o áudio, sem tablatura ──
+          O play da barra toca a música completa montada; a tela é do editor. */}
       <AlphaTabPlayer
         ref={playerRef}
         key={`${songId}#${playerEpoch}`}
@@ -718,10 +713,10 @@ export default function TrackEditor({
         onTickChange={syncEditorCursor}
       />
 
-      {/* ── Editor em tela cheia (propostas moram na aba Propostas da música) ──
-          Só monta quando o content é DA TRILHA SELECIONADA: durante a troca o
-          content antigo ainda está no state e montaria o editor com o texto
-          (e o flag de percussão) da trilha errada. */}
+      {/* ── Editor em tela cheia ──
+          Só monta quando o conteúdo é da trilha selecionada: durante a troca, o
+          conteúdo antigo ainda está no state e montaria o editor com o texto e
+          o flag de percussão da trilha errada. */}
       <div className="edit-bottom">
         {content && content.track.order === trackOrder ? (
           content.track.isPercussion ? (

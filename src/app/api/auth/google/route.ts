@@ -10,9 +10,9 @@ import {
   REDIRECT_COOKIE,
 } from "@/lib/google";
 
-// GET /api/auth/google?redirect=/path — start the Google sign-in hop. Stashes
-// the CSRF state, the PKCE verifier and the optional return path in short-lived
-// httpOnly cookies, then hands off.
+// GET /api/auth/google?redirect=/path — inicia o login pelo Google. Guarda o
+// state de CSRF, o verifier do PKCE e o caminho de retorno em cookies httpOnly
+// de vida curta, e então redireciona.
 export async function GET(request: Request) {
   const base = appBaseUrl(request);
   if (!googleEnabled) {

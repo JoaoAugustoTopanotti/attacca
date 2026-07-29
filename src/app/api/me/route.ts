@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/identity";
 import { updateProfile } from "@/lib/profile";
 
-// GET /api/me — the current identity (or null). Sign-in happens through the
-// magic-link / Google flows; there is no "create identity from a name" here.
+// GET /api/me — a identidade atual, ou null. O login acontece pelos fluxos de
+// magic link e Google; aqui não se cria identidade a partir de um nome.
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json(null);
@@ -15,9 +15,9 @@ export async function GET() {
   });
 }
 
-// PATCH /api/me { displayName?, instruments? } — edit my own profile.
-// Changing the EMAIL is not done here: it needs proof of the new inbox
-// (POST /api/me/email → magic link).
+// PATCH /api/me { displayName?, instruments? } — edita o próprio perfil.
+// A troca de e-mail não passa por aqui: exige provar a nova caixa, via
+// POST /api/me/email.
 export async function PATCH(request: Request) {
   const user = await getCurrentUser();
   if (!user) {

@@ -1,9 +1,9 @@
 // Diff de linhas estilo GitHub (verde = acrescentado, vermelho = removido).
 // Puro, sem dependências. Usado para mostrar o que uma proposta muda numa trilha.
 //
-// A comparação é NORMALIZADA (linhas trimadas, vazias fora): o conteúdo aceito vem
-// indentado do exporter e o proposto vem do editor sem indentação — sem normalizar,
-// todo compasso apareceria como "mudado" (o mesmo motivo do submitTrackContent).
+// A comparação é normalizada (linhas trimadas, vazias fora): o conteúdo aceito
+// vem indentado do exporter e o proposto vem do editor sem indentação. Sem
+// normalizar, todo compasso apareceria como mudado.
 
 export type DiffRow =
   | { type: "same" | "add" | "del"; text: string }
@@ -16,7 +16,7 @@ function toLines(s: string): string[] {
     .filter((l) => l.length > 0);
 }
 
-/** Diff LCS de duas listas de linhas → sequência same/add/del. */
+/** Diff por LCS de duas listas de linhas, em operações same/add/del. */
 function lcsDiff(a: string[], b: string[]): { type: "same" | "add" | "del"; text: string }[] {
   const n = a.length;
   const m = b.length;
@@ -61,7 +61,7 @@ export function diffRows(
   const diff = lcsDiff(toLines(current), toLines(proposed));
   if (!diff.some((d) => d.type !== "same")) return null;
 
-  // Marca quais linhas "same" ficam visíveis (perto de uma mudança).
+  // Marca quais linhas iguais ficam visíveis, por estarem perto de uma mudança.
   const keep = new Array(diff.length).fill(false);
   diff.forEach((d, idx) => {
     if (d.type === "same") return;
@@ -88,7 +88,7 @@ export function diffRows(
   return rows;
 }
 
-/** Contagem de linhas acrescentadas/removidas (para o resumo "+N −M"). */
+/** Contagem de linhas acrescentadas e removidas, para o resumo "+N −M". */
 export function diffStat(current: string, proposed: string): { add: number; del: number } {
   const diff = lcsDiff(toLines(current), toLines(proposed));
   let add = 0;

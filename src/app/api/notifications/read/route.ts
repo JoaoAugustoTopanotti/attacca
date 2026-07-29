@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/identity";
 
 // POST /api/notifications/read { ids?: string[] }
-// Marks the given notifications read, or ALL unread ones when no ids are given.
+// Marca as notificações indicadas como lidas, ou todas as não lidas se `ids`
+// não for informado.
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {

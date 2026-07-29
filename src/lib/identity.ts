@@ -1,14 +1,14 @@
-// Identity & auth. Durable, cross-device identity anchored to a VERIFIED EMAIL,
-// with passwordless (magic-link) sign-in and a signed JWT session cookie —
-// replacing the old "identity = a signed userId cookie" model (which lost your
-// authorship the moment you cleared the cookie or switched devices).
+// Identidade e autenticação. A âncora é um E-MAIL VERIFICADO, com login sem
+// senha (magic link) e sessão em cookie JWT assinado. Isso torna a identidade
+// durável entre aparelhos: limpar o cookie não faz a pessoa perder a autoria
+// das contribuições, como acontecia no modelo antigo de cookie-como-identidade.
 //
-//   sign-in:  email → single-use magic link → JWT session (httpOnly cookie)
-//   identity: getCurrentUser() reads + verifies the JWT and loads the User
+//   login:      e-mail → magic link de uso único → sessão JWT (cookie httpOnly)
+//   identidade: getCurrentUser() verifica o JWT e carrega o User
 //
-// The only remaining touch of the legacy cookie is a one-time migration bridge
-// (readLegacyCookieUserId), used solely to attach an email to a pre-existing
-// account so early users keep their contributions. Remove once migrated.
+// `readLegacyCookieUserId` é o único resquício do cookie antigo: uma ponte de
+// migração que anexa um e-mail a uma conta pré-existente, para os primeiros
+// usuários não perderem suas contribuições. Removível depois da migração.
 
 import { cookies } from "next/headers";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -22,8 +22,8 @@ const SECRET =
 const secretKey = new TextEncoder().encode(SECRET);
 
 export const SESSION_COOKIE = "gs_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
-const TOKEN_TTL_MS = 1000 * 60 * 30; // magic link valid for 30 minutes
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
+const TOKEN_TTL_MS = 1000 * 60 * 30; // validade do magic link: 30 minutos
 
 export function sessionCookieOptions() {
   return {
@@ -35,9 +35,9 @@ export function sessionCookieOptions() {
   };
 }
 
-// ── JWT session ─────────────────────────────────────────────────────────────
+// ── Sessão JWT ────────────────────────────────────────────────────────────────
 
-/** Sign a session JWT for a user (HS256, 30-day expiry). */
+/** Assina o JWT de sessão de um usuário (HS256, expira em 30 dias). */
 export async function signSessionToken(userId: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "HS256" })
@@ -57,7 +57,7 @@ async function userIdFromToken(token: string | undefined): Promise<string | null
   }
 }
 
-/** The current user (from the verified JWT session), or null. */
+/** O usuário atual, a partir da sessão JWT verificada, ou null. */
 export async function getCurrentUser() {
   const store = await cookies();
   const userId = await userIdFromToken(store.get(SESSION_COOKIE)?.value);
@@ -67,7 +67,7 @@ export async function getCurrentUser() {
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-// ── Magic-link tokens ─────────────────────────────────────────────────────────
+// ── Tokens de magic link ──────────────────────────────────────────────────────
 
 const hashToken = (raw: string) => createHash("sha256").update(raw).digest("hex");
 
@@ -77,10 +77,11 @@ function deriveName(email: string): string {
 }
 
 /**
- * Issue a single-use magic-link token for an email. Returns the RAW token (goes
- * only into the emailed URL) — we persist just its hash. `claimUserId` attaches
- * this email to an EXISTING account (legacy cookie bridge, or an email change
- * from the settings page); `redirectTo` is where the link lands once consumed.
+ * Emite um token de magic link de uso único. Devolve o token em claro, que vai
+ * apenas na URL do e-mail; o banco guarda só o hash, para um vazamento da tabela
+ * não permitir login. `claimUserId` anexa este e-mail a uma conta existente
+ * (ponte do cookie legado ou troca de e-mail nas configurações); `redirectTo` é
+ * onde o link aterrissa depois de consumido.
  */
 export async function issueLoginToken(args: {
   email: string;
@@ -103,17 +104,17 @@ export async function issueLoginToken(args: {
 }
 
 /**
- * The single place a verified email becomes a User — shared by every sign-in
- * method (magic link, Google). Email is the identity anchor:
- *   1. email already known  → that account (verify it on first sign-in)
- *   2. claimUserId          → attach the email to that account IN PLACE (keeps
- *                             authorship): the legacy cookie bridge, and the
- *                             "trocar e-mail" flow in the settings page
- *   3. otherwise            → create a new account
+ * Único ponto em que um e-mail verificado vira um User, compartilhado por todos
+ * os métodos de login (magic link, Google). O e-mail é a âncora da identidade:
+ *   1. e-mail já conhecido → aquela conta (verificada no primeiro login)
+ *   2. claimUserId         → anexa o e-mail àquela conta in place, preservando
+ *                            a autoria (ponte do cookie legado e troca de
+ *                            e-mail nas configurações)
+ *   3. caso contrário      → cria uma conta nova
  *
- * Note that (1) wins over (2): if the email already belongs to another account,
- * proving control of it signs you into THAT account rather than moving it. The
- * email-change route rejects a taken address up front so this stays an edge.
+ * (1) tem precedência sobre (2): se o e-mail já pertence a outra conta, provar
+ * o controle dele entra NAQUELA conta em vez de movê-lo. A rota de troca de
+ * e-mail já recusa endereço em uso, então esse caso é residual.
  */
 export async function resolveUserForEmail(args: {
   email: string;
@@ -146,8 +147,8 @@ export async function resolveUserForEmail(args: {
 }
 
 /**
- * Consume a magic-link token: validate → resolve/create the User (verifying the
- * email) → mark it used. Returns the user on success, or an error code.
+ * Consome um token de magic link: valida, resolve/cria o User com o e-mail
+ * verificado e marca o token como usado. Devolve o usuário ou um código de erro.
  */
 export async function consumeLoginToken(
   raw: string,
@@ -164,7 +165,7 @@ export async function consumeLoginToken(
     claimUserId: token.claimUserId,
   });
 
-  // Burn this token and any other outstanding ones for the email.
+  // Queima este token e os demais pendentes do mesmo e-mail.
   await prisma.loginToken.updateMany({
     where: { email: token.email, consumedAt: null },
     data: { consumedAt: new Date() },
@@ -173,12 +174,12 @@ export async function consumeLoginToken(
   return { user, redirectTo: token.redirectTo };
 }
 
-// ── Legacy migration bridge (transitional) ────────────────────────────────────
+// ── Ponte de migração do cookie legado (transitória) ──────────────────────────
 
 const LEGACY_COOKIE = "gs_uid";
 
-/** Read the OLD signed-userId cookie, if still present. Used ONLY to let an
- *  early user attach an email to their existing account. Safe to delete later. */
+/** Lê o antigo cookie de userId assinado, se ainda existir. Serve apenas para o
+ *  usuário antigo anexar um e-mail à conta que já tem. Removível depois. */
 export async function readLegacyCookieUserId(): Promise<string | null> {
   const store = await cookies();
   const token = store.get(LEGACY_COOKIE)?.value;
@@ -194,24 +195,24 @@ export async function readLegacyCookieUserId(): Promise<string | null> {
       return id;
     }
   } catch {
-    /* malformed */
+    /* cookie malformado */
   }
   return null;
 }
 
 export const LEGACY_IDENTITY_COOKIE = LEGACY_COOKIE;
 
-// ── Redirect safety ───────────────────────────────────────────────────────────
+// ── Segurança de redirect ─────────────────────────────────────────────────────
 
-/** Only same-origin paths ("/songs/new", "/settings?…") may be used as a
- *  post-sign-in destination — never a full URL or a protocol-relative one,
- *  which would make the auth flow an open redirect. */
+/** Só caminhos da mesma origem ("/songs/new", "/settings?…") valem como destino
+ *  pós-login. Aceitar URL completa ou protocol-relative transformaria o fluxo de
+ *  autenticação num open redirect. */
 export function safeRedirectPath(path: string | null | undefined): string | null {
   if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
   return path;
 }
 
-// ── Base URL (for building absolute magic-link URLs behind a proxy) ────────────
+// ── URL base (para montar links absolutos de e-mail atrás de um proxy) ────────
 
 export function appBaseUrl(request: Request): string {
   const envUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL;

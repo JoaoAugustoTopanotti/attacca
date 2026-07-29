@@ -56,7 +56,7 @@ html, body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  /* Allows children to break out of the container to 100vw without scrollbar */
+  /* Permite que filhos escapem do container até 100vw sem gerar scrollbar */
   overflow-x: clip;
 }
 /* ── Scrollbars — finos e no tema (a barra default do SO destoava) ──
@@ -170,7 +170,7 @@ h1, h2, h3,
 }
 .identity-form--auth input[type="email"] { width: 170px; }
 
-/* Identity dropdown / auth states */
+/* Dropdown de identidade e estados de autenticação */
 .identity { position: relative; display: flex; align-items: center; gap: 8px; }
 .identity-pill--btn {
   cursor: pointer; background: var(--panel-2); color: var(--text);
@@ -370,11 +370,11 @@ h1, h2, h3,
 /* ── Container ───────────────────────────────────────────────────── */
 .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
 
-/* ── Typography ──────────────────────────────────────────────────── */
+/* ── Tipografia ──────────────────────────────────────────────────── */
 h1 { font-size: 1.45rem; margin: 0 0 4px; font-weight: 700; }
 h2 { font-size: 1rem;    margin: 0 0 8px; font-weight: 600; }
 
-/* ── Buttons ─────────────────────────────────────────────────────── */
+/* ── Botões ──────────────────────────────────────────────────────── */
 /* Botão padrão em "tinta" (inversão): o vermelhão fica reservado para
    marcar onde a próxima mão entra, não para todo botão. */
 button {
@@ -421,7 +421,7 @@ label {
   color: var(--sub); margin-bottom: 4px;
 }
 
-/* ── Form layout ─────────────────────────────────────────────────── */
+/* ── Layout de formulário ────────────────────────────────────────── */
 .field { margin-bottom: 12px; }
 .row {
   display: flex; gap: 10px; flex-wrap: wrap;
@@ -433,7 +433,7 @@ label {
 .form-ok    { color: var(--ok);       font-size: 0.82rem; margin-top: 6px; }
 .form-slow  { color: var(--sub);    font-size: 0.82rem; margin-top: 6px; }
 
-/* ── Panel (legacy — kept for edit / compare pages) ─────────────── */
+/* ── Panel (legado, ainda usado em /edit e /compare) ────────────── */
 .panel {
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 8px; padding: 16px;
@@ -461,7 +461,7 @@ label {
 .tag-current { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tag-fmt     { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.7rem; }
 
-/* ── Badge (legacy) ──────────────────────────────────────────────── */
+/* ── Badge (legado) ──────────────────────────────────────────────── */
 .badge {
   display: inline-block; font-size: 0.7rem;
   text-transform: uppercase; letter-spacing: .04em;
@@ -476,7 +476,7 @@ label {
 }
 .breadcrumb-sep { color: var(--border); }
 
-/* ── Song page shell (full-viewport layout) ──────────────────────── */
+/* ── Shell da página da música (layout de viewport inteiro) ──────── */
 /*
  * song-shell breaks out of the centered .container so the player
  * can span the full browser width.  The same left/transform trick
@@ -487,20 +487,20 @@ label {
   position: relative;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: -28px;          /* cancel .container padding-top */
-  height: calc(100vh - 48px); /* full remaining viewport */
+  margin-top: -28px;          /* anula o padding-top do .container */
+  height: calc(100vh - 48px); /* todo o viewport restante */
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* Header section: breadcrumb row + title */
+/* Cabeçalho: linha do breadcrumb e título */
 .song-top {
   flex-shrink: 0;
   padding: 16px 24px 0;
 }
 
-/* Breadcrumb + share button on the same horizontal line */
+/* Breadcrumb e botão de compartilhar na mesma linha */
 .breadcrumb-row {
   display: flex;
   align-items: center;
@@ -508,12 +508,12 @@ label {
   margin-bottom: 10px;
 }
 
-/* Large song title */
+/* Título da música, em destaque */
 .song-title {
   font-size: 1.45rem; font-weight: 700; margin: 0 0 4px;
 }
 
-/* ── Song tabs shell (fills below song-top) ──────────────────────── */
+/* ── Shell das abas da música (ocupa o espaço abaixo do topo) ────── */
 .song-tabs-shell {
   flex: 1;
   display: flex;
@@ -522,7 +522,7 @@ label {
   min-height: 0;
 }
 
-/* Tab content area (fills below tab nav) */
+/* Área de conteúdo da aba, abaixo da navegação */
 .song-tab-content {
   flex: 1;
   display: flex;
@@ -531,7 +531,7 @@ label {
   min-height: 0;
 }
 
-/* ── Legacy song header (non-song pages) ─────────────────────────── */
+/* ── Cabeçalho legado (páginas que não são a da música) ──────────── */
 .song-header { margin-bottom: 2px; }
 .song-header-top {
   display: flex; align-items: center;
@@ -660,7 +660,7 @@ label {
 .song-tabs {
   display: flex; border-bottom: 1px solid var(--border);
   margin: 12px 0 0;
-  padding: 0 24px;  /* horizontal padding since tabs are now full-width */
+  padding: 0 24px;  /* respiro lateral: as abas ocupam a largura toda */
   flex-shrink: 0;
 }
 .tab {
@@ -686,7 +686,7 @@ label {
   font-family: var(--mono);
 }
 
-/* ── Song page layout (legacy — used in /edit and /compare) ─────── */
+/* ── Layout legado da página da música (/edit e /compare) ───────── */
 .song-layout {
   display: grid; grid-template-columns: 1fr 280px;
   gap: 20px; align-items: start;
@@ -694,7 +694,7 @@ label {
 @media (max-width: 780px) { .song-layout { grid-template-columns: 1fr; } }
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 
-/* ── Player panel (fills song-tab-content) ───────────────────────── */
+/* ── Painel do player (preenche o conteúdo da aba) ───────────────── */
 .player-panel {
   flex: 1;
   display: flex;
@@ -703,7 +703,7 @@ label {
   min-height: 0;
 }
 
-/* player-card in fullpage mode: no decorative border, fills player-panel */
+/* player-card em tela cheia: sem borda decorativa, preenche o painel */
 .player-card--fullpage {
   flex: 1;
   display: flex;
@@ -716,7 +716,7 @@ label {
   border-top: 1px solid var(--border) !important;
 }
 
-/* Tablature viewport — scrolls internally, fills the card */
+/* Viewport da tablatura: rola internamente e preenche o card */
 .player-viewport--fullpage {
   flex: 1 !important;
   height: auto !important;
@@ -788,7 +788,7 @@ label {
 .playpause-btn svg polygon,
 .playpause-btn svg rect { fill: currentColor; }
 
-/* Track selector — custom styled */
+/* Seletor de trilha, com estilo próprio */
 .track-select-wrap {
   position: relative;
   display: flex; align-items: center;
@@ -801,7 +801,7 @@ label {
 }
 .track-select-wrap .track-select {
   appearance: none; -webkit-appearance: none;
-  padding-right: 28px; /* space for custom arrow */
+  padding-right: 28px; /* espaço para a seta customizada */
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -815,7 +815,7 @@ label {
 .track-select-wrap .track-select:hover { border-color: var(--muted); }
 .track-select-wrap .track-select:focus { outline: none; border-color: var(--accent); }
 
-/* Panels — shared scroll wrapper inside song-tab-content */
+/* Painéis: wrapper de scroll compartilhado dentro da aba */
 .collab-panel--scroll,
 .contrib-panel--scroll,
 .hist-panel--scroll {
@@ -889,13 +889,13 @@ label {
 .completeness-declare-btn:active:not(:disabled) { transform: scale(.97); }
 .completeness-declare-btn:disabled { background: var(--panel-2); color: var(--sub); cursor: not-allowed; border-color: var(--border); }
 
-/* Section label (small uppercase header) */
+/* Rótulo de seção (cabeçalho pequeno em caixa alta) */
 .section-label {
   font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
   letter-spacing: .08em; color: var(--sub); margin: 0 0 16px;
 }
 
-/* Action cards */
+/* Cards de ação */
 .action-card {
   display: flex; align-items: center; gap: 16px;
   padding: 18px 20px; margin-bottom: 10px;
@@ -910,7 +910,7 @@ label {
 .action-card--primary:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 3%, transparent);
 }
-/* When the toggle card is open, flatten its bottom corners so the area connects */
+/* Card aberto: cantos de baixo retos, para emendar com a área seguinte */
 .action-card--toggle.open { border-radius: 10px 10px 0 0; margin-bottom: 0; }
 
 .action-body   { flex: 1; min-width: 0; }
@@ -919,7 +919,7 @@ label {
 .action-arrow  { font-size: 0.82rem; color: var(--sub); flex-shrink: 0; }
 .action-card:hover .action-arrow { color: var(--text); }
 
-/* Upload area that appears below the toggle card */
+/* Área de upload que aparece abaixo do card */
 .action-upload-area {
   border: 1px solid var(--border); border-top: none;
   border-radius: 0 0 10px 10px;
@@ -935,7 +935,7 @@ label {
 }
 .collab-note strong { color: var(--muted); }
 
-/* Legacy collab-section styles (used in compare / edit pages) */
+/* Estilos legados da seção de colaboração (/compare e /edit) */
 .collab-section { margin-bottom: 34px; }
 .collab-section-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -956,7 +956,7 @@ label {
 .hist-panel { max-width: 680px; }
 .hist-intro { font-size: 0.82rem; color: var(--sub); margin-bottom: 20px; line-height: 1.6; }
 
-/* "Tocando" badge — non-interactive, indicates active revision */
+/* Badge "Tocando": não clicável, marca a revisão ativa */
 .rev-btn-playing {
   padding: 2px 9px; font-size: 0.72rem;
   background: color-mix(in srgb, var(--accent) 8%, transparent);
@@ -965,15 +965,15 @@ label {
   display: inline-flex; align-items: center; white-space: nowrap;
 }
 
-/* Revision item when its preview is open: remove bottom border so preview connects */
+/* Revisão com preview aberto: sem borda inferior, para emendar */
 .rev-item.rev-item--open { border-bottom: none; }
 
-/* Preview list item — appears immediately after the open rev-item */
+/* Item de preview, logo depois da revisão aberta */
 .rev-preview-li {
   list-style: none;
   border: 1px solid var(--border); border-top: none;
   border-radius: 0 0 8px 8px;
-  margin-bottom: 1px; /* creates the "1px gap" between preview-bottom and next item */
+  margin-bottom: 1px; /* cria o vão de 1px até o item seguinte */
   overflow: hidden;
 }
 .rev-preview-header {
@@ -988,7 +988,7 @@ label {
   font-family: inherit; border-radius: 0; width: auto; height: auto;
 }
 .rev-preview-close:hover { color: var(--text); }
-/* Constrain the player height inside the preview */
+/* Limita a altura do player dentro do preview */
 .rev-preview-player { max-height: 420px; overflow: hidden; }
 
 /* ── Contributors panel ──────────────────────────────────────────── */
@@ -1042,7 +1042,7 @@ label {
   margin-bottom: 4px;
 }
 
-/* Buttons */
+/* Botões */
 .btn-secondary {
   background: transparent; border: 1px solid var(--border);
   color: var(--fg); border-radius: 6px; padding: 5px 12px;
@@ -1199,7 +1199,7 @@ label {
   margin: 10px 10px 0; font-size: 0.85rem;
 }
 
-/* alphaTab cursor — DO NOT REMOVE — alphaTab injects these elements */
+/* Cursor do alphaTab: NÃO REMOVER — a biblioteca injeta estes elementos */
 .at-cursor-bar    { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .at-cursor-beat   { background: var(--accent); width: 2px; }
 .at-selection div { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -1219,7 +1219,7 @@ label {
 .comp-missing-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .comp-missing-label { font-size: 0.75rem; color: var(--sub); margin-bottom: 6px; }
 
-/* ── Legacy classes (used in compare / edit pages) ───────────────── */
+/* ── Classes legadas (usadas em /compare e /edit) ────────────────── */
 .bar {
   position: relative; height: 8px; background: var(--panel-2);
   border-radius: 5px; overflow: hidden; border: 1px solid var(--border);
@@ -1257,7 +1257,7 @@ label {
   margin-bottom: 0; padding-bottom: 0;
 }
 .tabs { display: flex; }
-/* override generic .tab for home tabs */
+/* sobrescreve o .tab genérico para as abas da home */
 .tabs .tab {
   padding: 11px 18px;
   font-size: 0.875rem; font-weight: 400;
@@ -1398,7 +1398,7 @@ label {
 }
 .edit-title { font-size: 1.1rem; font-weight: 700; margin: 4px 0 0; }
 
-/* TrackEditor root — fills the rest of edit-shell */
+/* Raiz do TrackEditor: ocupa o restante do edit-shell */
 .edit-main {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column; overflow: hidden;
@@ -1415,7 +1415,7 @@ label {
 .edit-controls .playpause-btn { width: 30px; height: 30px; }
 .edit-controls .playpause-btn svg { width: 13px; height: 13px; }
 
-/* Role badge inside controls bar */
+/* Badge de papel, dentro da barra de controles */
 .edit-role-badge {
   font-size: 0.74rem; color: var(--sub);
   border: 1px solid var(--border); border-radius: 6px;
@@ -1468,7 +1468,7 @@ label {
   padding: 2px 9px; background: var(--panel); white-space: nowrap;
 }
 
-/* Save / propose button */
+/* Botão de salvar ou propor */
 .btn-edit-save {
   height: 34px; padding: 0 16px; font-size: 0.85rem; font-weight: 500;
   background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
@@ -1484,7 +1484,7 @@ label {
   display: flex; overflow: hidden;
 }
 
-/* Left: tablature textarea */
+/* Esquerda: textarea da tablatura */
 .edit-editor {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;
@@ -1514,7 +1514,7 @@ label {
   display: flex; align-items: center; gap: 8px;
 }
 
-/* Right: proposals panel */
+/* Direita: painel de propostas */
 .edit-proposals {
   width: 270px; flex-shrink: 0;
   display: flex; flex-direction: column;
@@ -1613,7 +1613,7 @@ label {
 }
 .proposal-diff-body span { padding-left: 8px; }
 
-/* Accept / reject buttons shown when reviewing */
+/* Botões de aceitar e recusar, exibidos na revisão */
 .review-actions {
   display: flex; gap: 6px; margin-top: 10px; flex-shrink: 0;
 }
@@ -1978,7 +1978,7 @@ label {
   .identity-small-action { margin-left: auto; }
 }
 
-/* ── Settings ────────────────────────────────────────────────────── */
+/* ── Configurações ───────────────────────────────────────────────── */
 .settings { max-width: 680px; margin: 0 auto; padding-bottom: 40px; }
 .settings-title { margin: 4px 0 18px; }
 .settings-card {

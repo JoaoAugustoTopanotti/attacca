@@ -1,12 +1,12 @@
-// Starter alphaTex templates for songs created without an upload — used by
-// POST /api/songs/:id/scaffold. Same canonical format as an imported .gp file,
-// so materializeSongGrid (src/lib/materialize.ts) handles them unchanged.
+// Modelos alphaTex iniciais para músicas criadas sem upload, usados por
+// POST /api/songs/:id/scaffold. Mesmo formato canônico de um `.gp` importado,
+// então materializeSongGrid os trata sem nenhum caso especial.
 
 function safeTitle(title: string): string {
   return title.replace(/"/g, "");
 }
 
-/** A single empty guitar track, ready to tablature from scratch. */
+/** Uma única trilha de guitarra vazia, para tablaturar do zero. */
 export function blankAlphaTex(title: string): string {
   return `\\title "${safeTitle(title)}"
 \\tempo 120
@@ -17,7 +17,7 @@ export function blankAlphaTex(title: string): string {
 `;
 }
 
-/** attacca's default starter: guitar + bass, a few notes already in place. */
+/** Modelo padrão: guitarra e baixo, com algumas notas já postas. */
 export function attaccaTemplateAlphaTex(title: string): string {
   return `\\title "${safeTitle(title)}"
 \\tempo 100

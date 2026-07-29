@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/identity";
 type Params = { params: Promise<{ cellId: string }> };
 
 // POST /api/cells/:cellId/accept  body: { contributionId }
-// Repoints the cell to an existing contribution. Gated to the track owner.
+// Re-aponta a célula para uma contribuição existente. Restrito ao dono.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
   const user = await getCurrentUser();

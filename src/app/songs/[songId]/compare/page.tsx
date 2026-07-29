@@ -5,9 +5,9 @@ import AlphaTabPlayer from "@/components/AlphaTabPlayer";
 
 export const dynamic = "force-dynamic";
 
-// Golden-moment view: render the original snapshot AND the document reassembled
-// from the cell grid, side by side, to confirm the cell→alphaTex→render cycle is
-// identical (not just "looks reasonable").
+// Mostra lado a lado o snapshot original e o documento remontado a partir da
+// grade de células, para conferir que o ciclo célula → alphaTex → render é
+// idêntico, e não apenas parecido.
 export default async function ComparePage({
   params,
 }: {
@@ -17,7 +17,7 @@ export default async function ComparePage({
   const song = await prisma.song.findUnique({
     where: { id: songId },
     include: { revisions: { orderBy: { number: "desc" }, take: 1 } },
-    // (cells count for the heads-up below)
+    // A contagem de células alimenta o aviso abaixo.
   });
   if (!song) notFound();
 

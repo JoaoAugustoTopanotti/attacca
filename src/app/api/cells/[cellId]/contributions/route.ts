@@ -5,9 +5,9 @@ import { getCurrentUser } from "@/lib/identity";
 type Params = { params: Promise<{ cellId: string }> };
 
 // POST /api/cells/:cellId/contributions
-// Append-only: creates a NEW contribution (never overwrites). On accept,
-// enforces the social gate, validates the whole document and repoints.
-// Body: { alphaTex, message?, accept? }. Author = the current identity.
+// Append-only: cria uma contribuição nova, nunca sobrescreve. No aceite,
+// verifica o dono, valida o documento inteiro e re-aponta a célula.
+// Body: { alphaTex, message?, accept? }. O autor é a identidade atual.
 export async function POST(request: Request, { params }: Params) {
   const { cellId } = await params;
   const user = await getCurrentUser();

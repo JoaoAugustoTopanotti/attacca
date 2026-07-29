@@ -4,7 +4,7 @@ import { watchSong, unwatchSong, isWatching } from "@/lib/notifications";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// GET — is the current user following this song? (false when not identified)
+// GET — se a pessoa atual segue esta música; false quando não identificada.
 export async function GET(_request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();
@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: Params) {
   return NextResponse.json({ watching: await isWatching(user.id, songId), canWatch: true });
 }
 
-// POST — follow this song. DELETE — unfollow. Both require identity.
+// POST segue a música; DELETE deixa de seguir. Ambos exigem identidade.
 export async function POST(_request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();

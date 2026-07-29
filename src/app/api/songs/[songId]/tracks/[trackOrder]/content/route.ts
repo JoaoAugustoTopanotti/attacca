@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string; trackOrder: string }> };
 
-// GET — the whole track as one editable alphaTex (+ owner info).
+// GET — a trilha inteira como um alphaTex editável, com os dados do dono.
 export async function GET(_request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   const content = await getTrackContent(songId, Number(trackOrder));
@@ -14,7 +14,8 @@ export async function GET(_request: Request, { params }: Params) {
   return NextResponse.json(content);
 }
 
-// POST { alphaTex } — submit a whole-track edit. Owner = accepted; other = proposal.
+// POST { alphaTex } — envia a edição da trilha inteira. Do dono entra aceita;
+// de outra pessoa, vira proposta.
 export async function POST(request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   const user = await getCurrentUser();

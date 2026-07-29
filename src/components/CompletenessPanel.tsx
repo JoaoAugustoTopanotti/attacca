@@ -18,8 +18,8 @@ type Completeness = {
 };
 type Preset = { key: string; label: string };
 
-// Menu recolhível no rodapé da aba Colaborar: fechado mostra só "X% completo";
-// abre para cima com a % por instrumento + declarar um instrumento que falta.
+// Menu recolhível no rodapé da aba Colaborar. Fechado, mostra só "X% completo";
+// aberto, exibe a porcentagem por instrumento e permite declarar um que falta.
 export default function CompletenessPanel({ songId }: { songId: string }) {
   const [data, setData] = useState<Completeness | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -77,7 +77,7 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
 
   return (
     <div className={`completeness${open ? " open" : ""}`}>
-      {/* Gaveta (abre para cima) */}
+      {/* Gaveta, que abre para cima */}
       {open && hasTracks && (
         <div className="completeness-drawer">
           <div className="completeness-tracks">

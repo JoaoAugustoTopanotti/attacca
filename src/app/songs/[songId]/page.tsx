@@ -36,11 +36,11 @@ export default async function SongPage({
   }));
 
   return (
-    // song-shell: full-viewport-width, full-height flex column.
-    // Breaks out of the .container constraints so the player can be truly edge-to-edge.
+    // song-shell: coluna flex de largura e altura totais do viewport. Escapa dos
+    // limites do .container para o player ocupar a tela de ponta a ponta.
     <div className="song-shell">
       <div className="song-top">
-        {/* Breadcrumb + share button on the SAME line */}
+        {/* Breadcrumb e botão de compartilhar na mesma linha */}
         <div className="breadcrumb-row">
           <nav className="breadcrumb">
             <Link href="/">← Músicas</Link>
@@ -58,7 +58,7 @@ export default async function SongPage({
           </div>
         </div>
 
-        {/* Title alone, prominent */}
+        {/* Título isolado, em destaque */}
         <h1 className="song-title">{song.title}</h1>
       </div>
 

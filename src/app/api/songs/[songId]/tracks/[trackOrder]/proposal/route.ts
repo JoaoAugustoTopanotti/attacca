@@ -3,7 +3,8 @@ import { getProposalContent } from "@/lib/track-content";
 
 type Params = { params: Promise<{ songId: string; trackOrder: string }> };
 
-// GET ?author=<authorId> — the track's proposed vs current content (review screen).
+// GET ?author=<authorId> — conteúdo proposto × atual da trilha, para a tela de
+// revisão.
 export async function GET(request: Request, { params }: Params) {
   const { songId, trackOrder } = await params;
   const author = new URL(request.url).searchParams.get("author");
