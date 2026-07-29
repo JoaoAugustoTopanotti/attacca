@@ -744,7 +744,6 @@ export default function TrackEditor({
               trackHeader={content.trackHeader}
               measureMeta={content.measures}
               onSeek={seekPlayer}
-              percussion={content.track.isPercussion}
               canEditStructure={isOwner && !!me}
               onAddMeasure={addMeasureAfter}
               onDeleteMeasure={removeMeasure}

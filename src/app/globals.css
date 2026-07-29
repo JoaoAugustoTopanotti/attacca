@@ -1016,16 +1016,6 @@ label {
 .home-hero { margin-bottom: 24px; }
 .home-hero h1 { font-size: 1.5rem; margin-bottom: 5px; }
 
-.new-song-panel {
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 8px; padding: 16px; margin-bottom: 20px;
-}
-.new-song-caption {
-  font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--sub);
-  margin: 0 0 12px; font-weight: 600;
-}
-
 .song-list-header {
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid var(--border);
@@ -1034,12 +1024,6 @@ label {
 .song-list-header h2 {
   font-size: 0.8rem; text-transform: uppercase;
   letter-spacing: .05em; color: var(--sub); margin: 0; font-weight: 600;
-}
-
-.new-song-toggle { display: flex; }
-.new-song-panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 4px;
 }
 
 /* Botões */
@@ -1247,9 +1231,6 @@ label {
 }
 .compare-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
 @media (min-width: 1100px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
-.layout-2col { display: grid; grid-template-columns: 1fr; gap: 20px; }
-@media (min-width: 860px) { .layout-2col { grid-template-columns: 1fr 300px; } }
-
 /* ── Home — two-tab layout ───────────────────────────────────────── */
 .tabs-bar {
   display: flex; align-items: center; justify-content: space-between;

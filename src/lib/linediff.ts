@@ -5,10 +5,6 @@
 // vem indentado do exporter e o proposto vem do editor sem indentação. Sem
 // normalizar, todo compasso apareceria como mudado.
 
-export type DiffRow =
-  | { type: "same" | "add" | "del"; text: string }
-  | { type: "gap"; count: number };
-
 function toLines(s: string): string[] {
   return s
     .split(/\r?\n/)
@@ -46,46 +42,6 @@ function lcsDiff(a: string[], b: string[]): { type: "same" | "add" | "del"; text
   while (i < n) out.push({ type: "del", text: a[i++] });
   while (j < m) out.push({ type: "add", text: b[j++] });
   return out;
-}
-
-/**
- * Diff exibível: colapsa longos trechos iguais num marcador "gap", mantendo
- * `context` linhas iguais ao redor de cada mudança. Devolve `null` se não houver
- * nenhuma diferença.
- */
-export function diffRows(
-  current: string,
-  proposed: string,
-  context = 2,
-): DiffRow[] | null {
-  const diff = lcsDiff(toLines(current), toLines(proposed));
-  if (!diff.some((d) => d.type !== "same")) return null;
-
-  // Marca quais linhas iguais ficam visíveis, por estarem perto de uma mudança.
-  const keep = new Array(diff.length).fill(false);
-  diff.forEach((d, idx) => {
-    if (d.type === "same") return;
-    for (let k = idx - context; k <= idx + context; k++) {
-      if (k >= 0 && k < diff.length) keep[k] = true;
-    }
-  });
-
-  const rows: DiffRow[] = [];
-  let sameRun = 0;
-  for (let idx = 0; idx < diff.length; idx++) {
-    const d = diff[idx];
-    if (d.type === "same" && !keep[idx]) {
-      sameRun++;
-      continue;
-    }
-    if (sameRun > 0) {
-      rows.push({ type: "gap", count: sameRun });
-      sameRun = 0;
-    }
-    rows.push(d);
-  }
-  if (sameRun > 0) rows.push({ type: "gap", count: sameRun });
-  return rows;
 }
 
 /** Contagem de linhas acrescentadas e removidas, para o resumo "+N −M". */

@@ -12,9 +12,36 @@ import { readFileSync } from "node:fs";
 import * as alphaTab from "@coderline/alphatab";
 import {
   decompose,
-  assembleFull,
-  assembleSeparated,
+  toNormalized,
+  assembleFromNormalized,
+  type Grid,
 } from "../src/lib/alphatex-grid";
+
+// Helpers locais do spike (antes exportados pela lib; só este script os usa).
+const nonEmpty = (l: string) => l.trim() !== "";
+
+/** Remontagem com estrutura compartilhada — o caminho usado em produção. */
+function assembleSeparated(grid: Grid): string {
+  return assembleFromNormalized(toNormalized(grid));
+}
+
+/** Remontagem plana, bloco de voz a bloco de voz, sem normalizar. */
+function assembleFull(grid: Grid): string {
+  const out: string[] = [];
+  out.push(...grid.globalHeader.filter(nonEmpty));
+  grid.tracks.forEach((tr) => {
+    out.push(...tr.header);
+    tr.voices.forEach((voiceRun, v) => {
+      if (v > 0) out.push("\\voice");
+      voiceRun.forEach((barTokens, m) => {
+        const chunk = barTokens.filter(nonEmpty);
+        out.push(...(chunk.length ? chunk : ["r.1"]));
+        if (m < voiceRun.length - 1) out.push("|");
+      });
+    });
+  });
+  return out.join("\n");
+}
 
 const { ScoreLoader } = alphaTab.importer;
 const { AlphaTexExporter } = alphaTab.exporter;

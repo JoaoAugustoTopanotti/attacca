@@ -200,27 +200,3 @@ export function assembleFromNormalized(n: NormalizedGrid): string {
   return out.join("\n");
 }
 
-/** Remontagem com estrutura compartilhada direto de uma Grid — o caminho usado
- *  em produção. */
-export function assembleSeparated(grid: Grid): string {
-  return assembleFromNormalized(toNormalized(grid));
-}
-
-/** Remontagem plana, bloco de voz a bloco de voz, sem normalizar. Serve como
- *  verificação de sanidade do decompose. */
-export function assembleFull(grid: Grid): string {
-  const out: string[] = [];
-  out.push(...grid.globalHeader.filter(nonEmpty));
-  grid.tracks.forEach((tr) => {
-    out.push(...tr.header);
-    tr.voices.forEach((voiceRun, v) => {
-      if (v > 0) out.push(VOICE_LINE);
-      voiceRun.forEach((barTokens, m) => {
-        const chunk = barTokens.filter(nonEmpty);
-        out.push(...(chunk.length ? chunk : ["r.1"]));
-        if (m < voiceRun.length - 1) out.push("|");
-      });
-    });
-  });
-  return out.join("\n");
-}
