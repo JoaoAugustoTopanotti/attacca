@@ -213,7 +213,25 @@ function parseBeatToken(tok: string, runDur: number | null): Event | null {
   let notePart: string;
   let after: string;
   if (tok.startsWith("(")) {
-    const close = tok.lastIndexOf(")");
+    // Acha o ")" que fecha o acorde por profundidade, ignorando o conteúdo de
+    // grupos {...}: com `lastIndexOf` um beat `(36 42).16{tu (3 2)}` fechava no
+    // ")" da quiáltera e o token virava lixo.
+    let close = -1;
+    let paren = 0;
+    let brace = 0;
+    for (let k = 0; k < tok.length; k++) {
+      const ch = tok[k];
+      if (ch === "{") brace++;
+      else if (ch === "}") brace = Math.max(0, brace - 1);
+      else if (brace === 0 && ch === "(") paren++;
+      else if (brace === 0 && ch === ")") {
+        paren--;
+        if (paren === 0) {
+          close = k;
+          break;
+        }
+      }
+    }
     if (close < 0) return null;
     notePart = tok.slice(1, close);
     after = tok.slice(close + 1);

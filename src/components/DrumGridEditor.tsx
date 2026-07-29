@@ -28,6 +28,7 @@ import {
   conformBar,
   midisInBars,
 } from "@/lib/drum-grid";
+import { splitBars } from "@/lib/alphatex-editor";
 import type { MeasureMeta, TabEditorHandle } from "@/components/TabEditor";
 
 type Props = {
@@ -74,7 +75,7 @@ function parseAll(
   res: DrumResolution,
   meta: MeasureMeta[] | undefined,
 ): { bars: Bar[]; raws: string[]; anyFail: boolean } | null {
-  const rawBars = tex.split("|").map((s) => s.trim());
+  const rawBars = splitBars(tex).map((s) => s.trim());
   if (meta && meta.length && rawBars.length !== meta.length) return null;
   const bars: Bar[] = [];
   let anyFail = false;

@@ -14,6 +14,7 @@ import {
 } from "@/lib/notifications";
 import type { Actor } from "@/lib/cells";
 import { loadOwnedSong as loadOwned } from "@/lib/authority";
+import { splitBars } from "@/lib/alphatex-editor";
 
 const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 
@@ -146,7 +147,7 @@ export async function submitTrackContent(
   });
   const cellByMeasure = new Map(cells.map((c) => [c.measureId, c]));
 
-  const fragments = fullAlphaTex.split("|").map((s) => s.trim());
+  const fragments = splitBars(fullAlphaTex).map((s) => s.trim());
   if (fragments.length !== measures.length) {
     throw new Error(
       `Esperado ${measures.length} compassos (separados por "|"), recebi ${fragments.length}. ` +
@@ -248,7 +249,7 @@ export async function previewTrackContent(
   const cells = await prisma.cell.findMany({ where: { trackId: track.id } });
   const cellByMeasure = new Map(cells.map((c) => [c.measureId, c]));
 
-  const fragments = fullAlphaTex.split("|").map((s) => s.trim());
+  const fragments = splitBars(fullAlphaTex).map((s) => s.trim());
   if (fragments.length !== measures.length) {
     throw new Error(
       `Esperado ${measures.length} compassos, recebi ${fragments.length}.`,
