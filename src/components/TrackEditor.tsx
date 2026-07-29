@@ -78,6 +78,8 @@ export default function TrackEditor({
   // Texto desta trilha carregado no player como preview de edição não salva;
   // null = o player está com o /assembled salvo.
   const previewTextRef = useRef<string | null>(null);
+  // Sequência do loadTrack: invalida respostas de fetches antigos (corrida).
+  const loadSeqRef = useRef(0);
 
   // Encaminha o tick do player headless para o cursor do editor visual.
   const syncEditorCursor = useCallback((tick: number) => {
@@ -124,6 +126,9 @@ export default function TrackEditor({
     setAddBusy(true);
     setAddError(null);
     try {
+      // A nova trilha vira a selecionada: salva a edição pendente antes, como
+      // na troca pelo dropdown.
+      if (dirty && me) await saveContent();
       const res = await fetch(`/api/songs/${songId}/tracks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,16 +159,34 @@ export default function TrackEditor({
   const isOwner = !!me && !!content && (!ownerId || ownerId === me.id);
 
   const loadTrack = useCallback(async () => {
+    // Guard de corrida: trocar A→B→A rápido dispara fetches concorrentes; só a
+    // resposta do pedido mais recente pode tocar o estado, senão o editor fica
+    // com o conteúdo de uma trilha e o order de outra ("Carregando…" eterno).
+    const seq = ++loadSeqRef.current;
     setError(null);
     setInfo(null);
-    const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}/content`);
-    if (!res.ok) return;
-    const json: Content = await res.json();
-    setContent(json);
-    setText(json.alphaTex);
-    setTempoDraft(json.song.tempo != null ? String(json.song.tempo) : "");
-    setTuningOpen(false);
-    setTempoOpen(false);
+    try {
+      const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}/content`);
+      const json = await res.json().catch(() => null);
+      if (seq !== loadSeqRef.current) return;
+      if (!res.ok || !json) {
+        setError(
+          (json as { error?: string } | null)?.error ??
+            "Não foi possível carregar a trilha — recarregue a página.",
+        );
+        return;
+      }
+      const data = json as Content;
+      setContent(data);
+      setText(data.alphaTex);
+      setTempoDraft(data.song.tempo != null ? String(data.song.tempo) : "");
+      setTuningOpen(false);
+      setTempoOpen(false);
+    } catch {
+      if (seq === loadSeqRef.current) {
+        setError("Falha de rede ao carregar a trilha — tente de novo.");
+      }
+    }
   }, [songId, trackOrder]);
 
   useEffect(() => { loadTrack(); }, [loadTrack]);
@@ -266,6 +289,27 @@ export default function TrackEditor({
     } finally {
       setBusy(false);
     }
+  }
+
+  // Troca de trilha respeita o mesmo princípio das operações estruturais:
+  // edição pendente é SALVA antes (dono = direto; colaborador = proposta),
+  // nunca descartada. Antes, trocar no dropdown perdia tudo sem aviso.
+  async function switchTrack(nextOrder: number) {
+    if (nextOrder === trackOrder || busy) return;
+    if (dirty && me) {
+      setBusy(true);
+      setError(null);
+      try {
+        await saveContent();
+      } catch (e) {
+        // Não troca: descartaria a edição que acabou de falhar ao salvar.
+        setError(e instanceof Error ? e.message : "Erro ao salvar antes de trocar.");
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    setTrackOrder(nextOrder);
   }
 
   // ── Estrutura: afinação da trilha e andamento, só para o dono ───────────────
@@ -466,7 +510,7 @@ export default function TrackEditor({
           <select
             className="track-select"
             value={trackOrder}
-            onChange={(e) => setTrackOrder(Number(e.target.value))}
+            onChange={(e) => switchTrack(Number(e.target.value))}
             aria-label="Faixa a editar"
           >
             {trackList.map((t) => (
@@ -744,7 +788,6 @@ export default function TrackEditor({
               trackHeader={content.trackHeader}
               measureMeta={content.measures}
               onSeek={seekPlayer}
-              percussion={content.track.isPercussion}
               canEditStructure={isOwner && !!me}
               onAddMeasure={addMeasureAfter}
               onDeleteMeasure={removeMeasure}
@@ -756,7 +799,9 @@ export default function TrackEditor({
           )
         ) : (
           <div className="edit-editor">
-            <div className="player-loading" style={{ flex: 1 }}>Carregando…</div>
+            <div className="player-loading" style={{ flex: 1 }}>
+              {error ?? "Carregando…"}
+            </div>
           </div>
         )}
       </div>

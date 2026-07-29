@@ -29,8 +29,10 @@
 
 // ── Tipos públicos ─────────────────────────────────────────────────────────────
 
-/** Durações suportadas (semibreve → semifusa). 32/64 aparecem em solos reais. */
-export type BeatDuration = 1 | 2 | 4 | 8 | 16 | 32 | 64;
+/** Durações suportadas (semibreve → fusa dupla). 32/64 aparecem em solos
+ *  reais; 128 existe em exports do Guitar Pro — sem reconhecê-la, a duração
+ *  era descartada em silêncio e o beat virava outra figura ao salvar. */
+export type BeatDuration = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128;
 
 /**
  * Efeitos de nota editáveis por toggle. Todos sem parâmetro, então o round-trip
@@ -105,7 +107,7 @@ export type EditorCursor = {
 
 // ── Helpers internos ───────────────────────────────────────────────────────────
 
-const VALID_DURATIONS = new Set<number>([1, 2, 4, 8, 16, 32, 64]);
+const VALID_DURATIONS = new Set<number>([1, 2, 4, 8, 16, 32, 64, 128]);
 
 function parseDuration(s: string): BeatDuration | null {
   const n = parseInt(s, 10);
@@ -116,13 +118,22 @@ function parseDuration(s: string): BeatDuration | null {
  * Divide uma linha em tokens de beat, mantendo `(...)` e `{...}` (e seus espaços
  * internos) intactos. Cobre os dois dialetos: vários beats por linha
  * (`:4 5.6 7.6`) e um beat rico do exportador (`2.3.8{lyrics (0 "x") dy mp}`).
+ * Ciente de aspas: `)`/`}`/espaço dentro de uma string (lyrics/chord de import
+ * real) são conteúdo, não estrutura.
  */
 function splitBeatTokens(line: string): string[] {
   const tokens: string[] = [];
   let depth = 0;
+  let quote: string | null = null;
   let cur = "";
   for (const ch of line) {
-    if (ch === "(" || ch === "{") {
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      cur += ch;
+    } else if (ch === "(" || ch === "{") {
       depth++;
       cur += ch;
     } else if (ch === ")" || ch === "}") {
@@ -141,15 +152,21 @@ function splitBeatTokens(line: string): string[] {
   return tokens;
 }
 
-/** Lê grupos de chaves `{...}{...}` consecutivos a partir de `i`. */
+/** Lê grupos de chaves `{...}{...}` consecutivos a partir de `i` (ciente de aspas). */
 function readBraceGroups(s: string, i: number): { groups: string; next: number } {
   let out = "";
   while (i < s.length && s[i] === "{") {
     let depth = 0;
+    let quote: string | null = null;
     let j = i;
     for (; j < s.length; j++) {
-      if (s[j] === "{") depth++;
-      else if (s[j] === "}") {
+      const ch = s[j];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === "{") depth++;
+      else if (ch === "}") {
         depth--;
         if (depth === 0) {
           j++;
@@ -178,13 +195,18 @@ function readDuration(
   return { duration: fallback, next: i };
 }
 
-/** Acha o índice do `)` que fecha o `(` inicial, respeitando chaves aninhadas. */
+/** Acha o índice do `)` que fecha o `(` inicial, respeitando chaves aninhadas
+ *  e aspas. */
 function findChordClose(t: string): number {
   let parenDepth = 0;
   let braceDepth = 0;
+  let quote: string | null = null;
   for (let k = 0; k < t.length; k++) {
     const ch = t[k];
-    if (ch === "{") braceDepth++;
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === "{") braceDepth++;
     else if (ch === "}") braceDepth = Math.max(0, braceDepth - 1);
     else if (braceDepth === 0 && ch === "(") parenDepth++;
     else if (braceDepth === 0 && ch === ")") {
@@ -195,17 +217,24 @@ function findChordClose(t: string): number {
   return -1;
 }
 
-/** Divide um sufixo "{...}{...}" nos seus grupos de chaves de nível superior. */
+/** Divide um sufixo "{...}{...}" nos seus grupos de chaves de nível superior
+ *  (ciente de aspas). */
 function splitBraceGroups(suffix: string): string[] {
   const groups: string[] = [];
   let i = 0;
   while (i < suffix.length) {
     if (suffix[i] === "{") {
       let depth = 0;
+      let quote: string | null = null;
       let j = i;
       for (; j < suffix.length; j++) {
-        if (suffix[j] === "{") depth++;
-        else if (suffix[j] === "}") {
+        const ch = suffix[j];
+        if (quote) {
+          if (ch === quote) quote = null;
+        } else if (ch === '"' || ch === "'") {
+          quote = ch;
+        } else if (ch === "{") depth++;
+        else if (ch === "}") {
           depth--;
           if (depth === 0) {
             j++;
@@ -373,12 +402,49 @@ function cloneModel(model: EditorModel): EditorModel {
 // ── Parser ─────────────────────────────────────────────────────────────────────
 
 /**
+ * Divide o alphaTex de uma trilha nos seus compassos, no MESMO critério em
+ * todo o app (editor, submit, preview, grade de bateria): `|` separa compassos
+ * apenas fora de aspas e fora de `{...}`/`(...)`. Um `|` dentro de uma string
+ * (lyrics/chord de um .gp importado) é conteúdo — dividir por caractere cru
+ * desalinhava a contagem de compassos e travava a trilha ("esperado N, recebi
+ * M" em todo save).
+ */
+export function splitBars(tex: string): string[] {
+  const bars: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let quote: string | null = null;
+  for (const ch of tex) {
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      cur += ch;
+    } else if (ch === "(" || ch === "{") {
+      depth++;
+      cur += ch;
+    } else if (ch === ")" || ch === "}") {
+      depth = Math.max(0, depth - 1);
+      cur += ch;
+    } else if (ch === "|" && depth === 0) {
+      bars.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  bars.push(cur);
+  return bars;
+}
+
+/**
  * Converte o alphaTex de uma trilha (só o conteúdo dos compassos, separados por
  * "|", sem \title nem \track) em EditorModel. Cada segmento vira exatamente um
  * compasso, para o total bater com o que `submitTrackContent` espera.
  */
 export function parseTrackTex(tex: string): EditorModel {
-  const segments = tex.split("|");
+  const segments = splitBars(tex);
   let currentDuration: BeatDuration = 4;
   const measures: EditorMeasure[] = [];
 

@@ -1,52 +1,68 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readRevisionFile } from "@/lib/storage";
+import { getCurrentUser } from "@/lib/identity";
+import { assertSongOwner, NotOwnerError } from "@/lib/authority";
+import { createNumberedRevision } from "@/lib/revisions";
 
 type Params = { params: Promise<{ id: string }> };
 
 // POST /api/revisions/:id/revert — reverter no estilo git: cria uma revisão
 // nova a partir do conteúdo da revisão :id. O histórico é imutável, então a
-// revisão antiga nunca é alterada nem apagada.
-// Body JSON opcional: { authorName? }.
-export async function POST(request: Request, { params }: Params) {
+// revisão antiga nunca é alterada nem apagada. Ato de dono: reverter troca o
+// que todo mundo ouve.
+export async function POST(_request: Request, { params }: Params) {
   const { id } = await params;
+
+  const me = await getCurrentUser();
+  if (!me) {
+    return NextResponse.json(
+      { error: "Entre para reverter uma revisão." },
+      { status: 401 },
+    );
+  }
 
   const source = await prisma.revision.findUnique({ where: { id } });
   if (!source) {
     return NextResponse.json({ error: "Revisão não encontrada." }, { status: 404 });
   }
 
-  let authorName = "anon";
+  const song = await prisma.song.findUnique({
+    where: { id: source.songId },
+    include: { owner: true },
+  });
+  if (!song) {
+    return NextResponse.json({ error: "Música não encontrada." }, { status: 404 });
+  }
   try {
-    const body = await request.json();
-    if (typeof body?.authorName === "string" && body.authorName.trim() !== "") {
-      authorName = body.authorName.trim();
+    assertSongOwner(song, me, "reverte o histórico");
+  } catch (e) {
+    if (e instanceof NotOwnerError) {
+      return NextResponse.json({ error: e.message }, { status: 403 });
     }
-  } catch {
-    // body ausente ou inválido: mantém o autor padrão
+    throw e;
   }
 
-  const last = await prisma.revision.findFirst({
-    where: { songId: source.songId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const number = (last?.number ?? 0) + 1;
+  const authorName = me.displayName;
+
   const message = `Revertido para #${source.number}`;
 
   // Revisões inline (AlphaTex): basta copiar o texto.
   if (source.source === "alphatex") {
-    const created = await prisma.revision.create({
-      data: {
-        songId: source.songId,
-        number,
-        authorName,
-        message,
-        source: "alphatex",
-        format: "alphatex",
-        alphaTex: source.alphaTex,
-      },
-    });
+    const created = await createNumberedRevision(source.songId, (number) =>
+      prisma.revision.create({
+        data: {
+          songId: source.songId,
+          number,
+          authorId: me.id,
+          authorName,
+          message,
+          source: "alphatex",
+          format: "alphatex",
+          alphaTex: source.alphaTex,
+        },
+      }),
+    );
     await prisma.song.update({
       where: { id: source.songId },
       data: { updatedAt: new Date() },
@@ -72,20 +88,24 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const created = await prisma.revision.create({
-    data: {
-      songId: source.songId,
-      number,
-      authorName,
-      message,
-      source: "file",
-      originalName: source.originalName,
-      format: source.format,
-      sizeBytes: source.sizeBytes,
-      blob: new Uint8Array(bytes), // cópia do blob de proveniência
-      alphaTex: source.alphaTex, // leva junto a forma canônica
-    },
-  });
+  const blobCopy = new Uint8Array(bytes);
+  const created = await createNumberedRevision(source.songId, (number) =>
+    prisma.revision.create({
+      data: {
+        songId: source.songId,
+        number,
+        authorId: me.id,
+        authorName,
+        message,
+        source: "file",
+        originalName: source.originalName,
+        format: source.format,
+        sizeBytes: source.sizeBytes,
+        blob: blobCopy, // cópia do blob de proveniência
+        alphaTex: source.alphaTex, // leva junto a forma canônica
+      },
+    }),
+  );
 
   await prisma.song.update({
     where: { id: source.songId },

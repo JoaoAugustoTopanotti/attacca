@@ -154,30 +154,39 @@ export type SongCompleteness = {
  * declarado e intocado lê 0%; import completo lê 100%.
  */
 export async function songCompleteness(songId: string): Promise<SongCompleteness> {
-  const [tracks, measureCount] = await Promise.all([
+  // Duas queries agregadas em vez de 2 counts POR trilha: a home chama isto
+  // para cada música do mural, e o N+1 virava dezenas de round-trips ao
+  // Postgres (Neon, com latência de rede) por carga de página.
+  const [tracks, measureCount, totals, dones] = await Promise.all([
     prisma.track.findMany({ where: { songId }, orderBy: { order: "asc" } }),
     prisma.measure.count({ where: { songId } }),
-  ]);
-
-  const perTrack: TrackCompleteness[] = await Promise.all(
-    tracks.map(async (t) => {
-      const [total, done] = await Promise.all([
-        prisma.cell.count({ where: { trackId: t.id } }),
-        prisma.cell.count({
-          where: { trackId: t.id, acceptedContributionId: { not: null } },
-        }),
-      ]);
-      return {
-        id: t.id,
-        name: t.name,
-        ownerName: t.ownerName,
-        family: instrumentLabel(t.instrument ?? 0, t.isPercussion),
-        done,
-        total,
-        percent: total ? Math.round((done / total) * 100) : 0,
-      };
+    prisma.cell.groupBy({
+      by: ["trackId"],
+      where: { songId },
+      _count: { _all: true },
     }),
-  );
+    prisma.cell.groupBy({
+      by: ["trackId"],
+      where: { songId, acceptedContributionId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const totalByTrack = new Map(totals.map((g) => [g.trackId, g._count._all]));
+  const doneByTrack = new Map(dones.map((g) => [g.trackId, g._count._all]));
+
+  const perTrack: TrackCompleteness[] = tracks.map((t) => {
+    const total = totalByTrack.get(t.id) ?? 0;
+    const done = doneByTrack.get(t.id) ?? 0;
+    return {
+      id: t.id,
+      name: t.name,
+      ownerName: t.ownerName,
+      family: instrumentLabel(t.instrument ?? 0, t.isPercussion),
+      done,
+      total,
+      percent: total ? Math.round((done / total) * 100) : 0,
+    };
+  });
 
   const totalCells = perTrack.reduce((s, t) => s + t.total, 0);
   const doneCells = perTrack.reduce((s, t) => s + t.done, 0);

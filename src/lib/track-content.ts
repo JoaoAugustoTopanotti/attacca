@@ -13,6 +13,8 @@ import {
   notifyTrackDelivered,
 } from "@/lib/notifications";
 import type { Actor } from "@/lib/cells";
+import { loadOwnedSong as loadOwned } from "@/lib/authority";
+import { splitBars } from "@/lib/alphatex-editor";
 
 const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 
@@ -67,15 +69,6 @@ export class UnresolvedConflictsError extends Error {
   }
 }
 
-function assertOwner(
-  song: { ownerId: string | null; owner: { displayName: string } | null },
-  actor: Actor,
-) {
-  if (song.ownerId && song.ownerId !== actor.id) {
-    const owner = song.owner?.displayName ?? "o dono";
-    throw new Error(`Só ${owner} (dono da música) aceita.`);
-  }
-}
 
 /** A trilha inteira como um alphaTex editável (células aceitas unidas por "|"). */
 export async function getTrackContent(songId: string, trackOrder: number) {
@@ -154,7 +147,7 @@ export async function submitTrackContent(
   });
   const cellByMeasure = new Map(cells.map((c) => [c.measureId, c]));
 
-  const fragments = fullAlphaTex.split("|").map((s) => s.trim());
+  const fragments = splitBars(fullAlphaTex).map((s) => s.trim());
   if (fragments.length !== measures.length) {
     throw new Error(
       `Esperado ${measures.length} compassos (separados por "|"), recebi ${fragments.length}. ` +
@@ -178,7 +171,7 @@ export async function submitTrackContent(
 
   // Uma contribuição por compasso alterado e não vazio. A comparação é
   // normalizada: só diferença real de conteúdo conta como mudança.
-  let changed = 0;
+  const writes: { cell: (typeof cells)[number]; body: string }[] = [];
   for (let i = 0; i < measures.length; i++) {
     const cell = cellByMeasure.get(measures[i].id);
     if (!cell) continue;
@@ -186,26 +179,33 @@ export async function submitTrackContent(
     const bodyN = normalizeFragment(body);
     const currentN = normalizeFragment(cell.acceptedContribution?.alphaTex ?? "");
     if (bodyN === "" || bodyN === currentN) continue; // vazio ou inalterado
-
-    const created = await prisma.cellContribution.create({
-      data: {
-        cellId: cell.id,
-        authorId: actor.id,
-        authorName: actor.displayName,
-        alphaTex: body,
-        status: isOwner ? "accepted" : "proposed",
-        // Merge base: o aceito sobre o qual esta edição foi escrita.
-        baseContributionId: cell.acceptedContributionId,
-      },
-    });
-    if (isOwner) {
-      await prisma.cell.update({
-        where: { id: cell.id },
-        data: { acceptedContributionId: created.id },
-      });
-    }
-    changed++;
+    writes.push({ cell, body });
   }
+
+  // Grava tudo numa transação: uma falha no meio do loop deixaria a trilha num
+  // híbrido velho/novo que nunca passou pela validação acima.
+  await prisma.$transaction(async (tx) => {
+    for (const { cell, body } of writes) {
+      const created = await tx.cellContribution.create({
+        data: {
+          cellId: cell.id,
+          authorId: actor.id,
+          authorName: actor.displayName,
+          alphaTex: body,
+          status: isOwner ? "accepted" : "proposed",
+          // Merge base: o aceito sobre o qual esta edição foi escrita.
+          baseContributionId: cell.acceptedContributionId,
+        },
+      });
+      if (isOwner) {
+        await tx.cell.update({
+          where: { id: cell.id },
+          data: { acceptedContributionId: created.id },
+        });
+      }
+    }
+  });
+  const changed = writes.length;
 
   // Sem snapshot aqui de propósito: o Histórico registra só o handoff entre
   // pessoas (ver acceptTrackProposals), não cada save do próprio dono.
@@ -249,7 +249,7 @@ export async function previewTrackContent(
   const cells = await prisma.cell.findMany({ where: { trackId: track.id } });
   const cellByMeasure = new Map(cells.map((c) => [c.measureId, c]));
 
-  const fragments = fullAlphaTex.split("|").map((s) => s.trim());
+  const fragments = splitBars(fullAlphaTex).map((s) => s.trim());
   if (fragments.length !== measures.length) {
     throw new Error(
       `Esperado ${measures.length} compassos, recebi ${fragments.length}.`,
@@ -390,13 +390,8 @@ export async function pendingTrackProposals(songId: string) {
     .sort((a, b) => a.trackOrder - b.trackOrder);
 }
 
-async function loadOwnedSong(songId: string, actor: Actor) {
-  const song = await prisma.song.findUnique({
-    where: { id: songId },
-    include: { owner: true },
-  });
-  if (song) assertOwner(song, actor);
-  return song;
+function loadOwnedSong(songId: string, actor: Actor) {
+  return loadOwned(songId, actor, "aceita");
 }
 
 /**
@@ -444,22 +439,39 @@ export async function acceptTrackProposals(
     return rejectTrackProposals(songId, trackOrder, authorId, actor);
   }
 
-  // Valida o documento com as propostas mantidas já aplicadas.
-  const overrides = new Map(keep.map((p) => [p.cellId, p.alphaTex]));
+  // Re-proposta na mesma célula: só a mais nova ENTRA (props vem em createdAt
+  // asc, então a última vence). As anteriores nunca entraram na grade e não
+  // podem ficar como "accepted" — viram histórico rejeitado.
+  const newestByCell = new Map<string, (typeof keep)[number]>();
+  for (const p of keep) newestByCell.set(p.cellId, p);
+  const enter = [...newestByCell.values()];
+  const superseded = keep.filter((p) => !enter.includes(p));
+
+  // Valida o documento com as propostas que entram já aplicadas.
+  const overrides = new Map(enter.map((p) => [p.cellId, p.alphaTex]));
   const { valid, error } = await assembleSongAlphaTex(songId, overrides);
   if (!valid) throw new Error(`Aceitar deixaria inválido${error ? `: ${error}` : "."}`);
 
   await prisma.$transaction([
-    ...keep.map((p) =>
+    ...enter.map((p) =>
       prisma.cellContribution.update({
         where: { id: p.id },
         data: { status: "accepted" },
       }),
     ),
-    ...keep.map((p) =>
+    ...enter.map((p) =>
       prisma.cell.update({
         where: { id: p.cellId },
         data: { acceptedContributionId: p.id },
+      }),
+    ),
+    ...superseded.map((p) =>
+      prisma.cellContribution.update({
+        where: { id: p.id },
+        data: {
+          status: "rejected",
+          message: "substituída por uma proposta mais nova do mesmo autor",
+        },
       }),
     ),
     ...drop.map((p) =>
@@ -473,15 +485,21 @@ export async function acceptTrackProposals(
     ),
   ]);
 
-  const keptCells = new Set(keep.map((p) => p.cellId)).size;
+  const keptCells = enter.length;
 
   // A proposta entrou na grade viva: registra o snapshot de histórico creditando
   // quem propôs. Este é o passo de revezamento que o Histórico mostra.
-  await snapshotGrid(
-    songId,
-    props[0].authorName,
-    `${track.name} — ${pluralBars(keptCells)} (proposta de ${props[0].authorName})`,
-  );
+  // Best-effort: o aceite acima já foi gravado — uma falha aqui não pode virar
+  // erro para o dono num aceite que funcionou.
+  try {
+    await snapshotGrid(
+      songId,
+      { id: authorId, name: props[0].authorName },
+      `${track.name} — ${pluralBars(keptCells)} (proposta de ${props[0].authorName})`,
+    );
+  } catch (e) {
+    console.error("snapshotGrid após aceite falhou (aceite mantido)", e);
+  }
 
   // Fecha o ciclo: o proponente sabe que foi aceito e quem segue a música sabe
   // que a trilha foi entregue.

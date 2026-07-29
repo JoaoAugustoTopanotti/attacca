@@ -39,21 +39,26 @@ export default function WelcomeInstrumentsModal({ onClose }: { onClose: () => vo
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instruments: selected }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) {
-      setError(data.error ?? "Não foi possível salvar.");
-      return;
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruments: selected }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível salvar.");
+        return;
+      }
+      emitMeChanged(data);
+      // O mural é um server component e ordena pelo que a pessoa toca.
+      router.refresh();
+      onClose();
+    } catch {
+      setError("Falha de rede — tente de novo.");
+    } finally {
+      setSaving(false);
     }
-    emitMeChanged(data);
-    // O mural é um server component e ordena pelo que a pessoa toca.
-    router.refresh();
-    onClose();
   }
 
   if (!mounted) return null;

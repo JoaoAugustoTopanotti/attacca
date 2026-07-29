@@ -23,16 +23,6 @@ export default function UploadForm({
     return () => clearTimeout(t);
   }, [submitting]);
 
-  // Preenche o autor pela identidade da sessão, para a pessoa não redigitar o
-  // nome. Vazio faz o servidor usar "anon".
-  const [authorName, setAuthorName] = useState("");
-  useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((u) => { if (u?.displayName) setAuthorName(u.displayName); })
-      .catch(() => {});
-  }, []);
-
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFileName(e.target.files?.[0]?.name ?? null);
   }
@@ -47,9 +37,9 @@ export default function UploadForm({
       return;
     }
 
+    // O autor vem da sessão no servidor (upload exige identidade).
     const form = new FormData();
     form.append("file", file);
-    form.append("authorName", authorName);
     form.append("message", message);
 
     setSubmitting(true);

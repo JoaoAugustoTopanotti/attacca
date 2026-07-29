@@ -10,18 +10,21 @@ type Data = {
 
 export default function ContribPanel({ songId }: { songId: string }) {
   const [data, setData] = useState<Data | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     fetch(`/api/songs/${songId}/contributors`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setData)
-      .catch(() => {});
+      .catch(() => setFailed(true));
   }, [songId]);
 
   if (!data) {
     return (
       <div className="contrib-panel">
-        <p className="sub">Carregando…</p>
+        <p className="sub">
+          {failed ? "Não foi possível carregar os contribuidores." : "Carregando…"}
+        </p>
       </div>
     );
   }

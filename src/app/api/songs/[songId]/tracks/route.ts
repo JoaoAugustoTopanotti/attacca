@@ -23,8 +23,14 @@ export async function POST(request: Request, { params }: Params) {
   if (typeof body.presetKey !== "string") {
     return NextResponse.json({ error: "presetKey é obrigatório." }, { status: 400 });
   }
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Entre para declarar um instrumento." },
+      { status: 401 },
+    );
+  }
   try {
-    const user = await getCurrentUser();
     const track = await declareTrack(
       songId,
       body.presetKey,

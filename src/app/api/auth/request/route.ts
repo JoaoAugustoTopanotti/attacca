@@ -7,6 +7,7 @@ import {
 } from "@/lib/identity";
 import { sendMagicLink, emailConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,6 +27,17 @@ export async function POST(request: Request) {
 
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
+  }
+
+  // E-mail é o recurso caro/abusável aqui: limita por destinatário (não
+  // encher a caixa de um terceiro) e por origem (não varrer endereços).
+  const okByEmail = rateLimit(`magic:email:${email}`, 3, 15 * 60_000);
+  const okByIp = rateLimit(`magic:ip:${clientIp(request)}`, 10, 15 * 60_000);
+  if (!okByEmail || !okByIp) {
+    return NextResponse.json(
+      { error: "Muitas tentativas — aguarde alguns minutos e tente de novo." },
+      { status: 429 },
+    );
   }
 
   // Se o navegador ainda tem o cookie de identidade legado, anexa este e-mail à

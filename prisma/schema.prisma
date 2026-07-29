@@ -50,8 +50,11 @@ model Revision {
   /// Sequential per-song number (1, 2, 3, …). The current revision is the max.
   number Int
 
-  /// Stub author until real auth exists.
+  // Authorship: authorId is the real identity; authorName is a denormalized
+  // display cache kept in sync on rename (also covers legacy/anon rows).
   authorName String  @default("anon")
+  authorId   String?
+  author     User?   @relation("revisionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   /// Optional note describing the upload ("started the guitar track").
   message    String?
 
@@ -78,6 +81,7 @@ model Revision {
   createdAt DateTime @default(now())
 
   @@unique([songId, number])
+  @@index([authorId])
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +213,7 @@ model User {
   ownedSongs    Song[]
   ownedTracks   Track[]
   contributions CellContribution[]
+  revisions     Revision[]         @relation("revisionAuthor")
   watches       SongWatch[]
   notifications Notification[]
 }

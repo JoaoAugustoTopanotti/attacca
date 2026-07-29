@@ -15,23 +15,6 @@ function resolveInStorage(relativePath: string): string {
   return full;
 }
 
-/**
- * Grava os bytes de uma revisão e devolve o caminho relativo a storage/.
- * Layout: storage/<songId>/<revisionId>.<extensão>
- */
-export async function saveRevisionFile(
-  songId: string,
-  revisionId: string,
-  extension: string,
-  data: Uint8Array,
-): Promise<string> {
-  const relativePath = path.join(songId, `${revisionId}.${extension}`);
-  const full = resolveInStorage(relativePath);
-  await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, data);
-  return relativePath.split(path.sep).join("/");
-}
-
 export async function readRevisionFile(relativePath: string): Promise<Buffer> {
   return fs.readFile(resolveInStorage(relativePath));
 }

@@ -181,8 +181,6 @@ type Props = {
   initialTempo?: number | null;
   /** Clique num beat → pede seek da música completa para este tick. */
   onSeek?: (tick: number) => void;
-  /** Percussão usa notação própria — força edição em texto (sem modo visual). */
-  percussion?: boolean;
   /** Dono da música pode alterar a estrutura (adicionar/remover compassos). */
   canEditStructure?: boolean;
   /** Inserir um compasso vazio DEPOIS de measureIndex (todas as trilhas). */
@@ -217,7 +215,6 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     measureMeta,
     initialTempo,
     onSeek,
-    percussion = false,
     canEditStructure = false,
     onAddMeasure,
     onDeleteMeasure,
@@ -233,8 +230,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const [duration, setDuration] = useState<BeatDuration>(4);
   const [rawMode, setRawMode] = useState(false);
   const [apiReady, setApiReady] = useState(false);
-  // Percussão: sempre texto (a notação "Kick (hit)".8 não cabe no modelo visual).
-  const raw = rawMode || percussion;
+  const raw = rawMode;
   // Incrementado a cada render do alphaTab; dispara o recálculo dos overlays.
   const [renderEpoch, setRenderEpoch] = useState(0);
   // Aviso transitório de ação bloqueada (compasso cheio, corda ocupada).
@@ -367,10 +363,6 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
   // ── Inicialização do alphaTab (uma vez na montagem) ────────────────────────
   useEffect(() => {
-    // Percussão fica em modo texto permanente: a notação de percussão não passa
-    // pelo modelo do editor e quebraria o render.
-    if (percussion) return;
-
     let api: AlphaTabApi | null = null;
     let disposed = false;
 
@@ -1501,24 +1493,18 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       {/* ── Cabeçalho: label + toggle ── */}
       <div className="tab-editor-header">
         <span className="tab-editor-section-label">
-          {percussion
-            ? "Percussão (texto) — edição visual em breve"
-            : raw
-              ? "Tablatura da faixa (texto)"
-              : "Editor visual"}
+          {raw ? "Tablatura da faixa (texto)" : "Editor visual"}
         </span>
         <div className="tab-editor-header-right">
           {error && <span className="form-error" style={{ fontSize: "0.75rem" }}>{error}</span>}
           {info  && <span className="form-ok"   style={{ fontSize: "0.75rem" }}>{info}</span>}
-          {!percussion && (
-            <button
-              type="button"
-              className="tab-editor-raw-toggle"
-              onClick={() => setRawMode((m) => !m)}
-            >
-              {rawMode ? "usar editor visual" : "editar como texto"}
-            </button>
-          )}
+          <button
+            type="button"
+            className="tab-editor-raw-toggle"
+            onClick={() => setRawMode((m) => !m)}
+          >
+            {rawMode ? "usar editor visual" : "editar como texto"}
+          </button>
         </div>
       </div>
 

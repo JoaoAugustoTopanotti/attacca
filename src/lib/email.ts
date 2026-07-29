@@ -55,6 +55,18 @@ export async function sendEmail(msg: EmailMessage): Promise<boolean> {
 const BRAND = "#e5432b";
 const INK = "#141414";
 
+/** Escapa texto interpolado no HTML do e-mail. As mensagens de notificação
+ *  carregam displayName de usuário — sem escapar, um nome com marcação viraria
+ *  HTML injetado na caixa de entrada de outra pessoa. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** Casca HTML mínima com estilo inline, para renderizar em qualquer cliente. */
 function shell(bodyHtml: string): string {
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1b1f24;">
@@ -96,8 +108,8 @@ export async function sendNotificationEmail(args: {
     subject: `${args.title} · ${args.songTitle}`,
     text: `${args.message}\n\nAbra: ${args.url}`,
     html: shell(
-      `<p style="font-size:15px;line-height:1.5;"><strong>${args.title}</strong></p>
-       <p style="font-size:15px;line-height:1.5;">${args.message}</p>
+      `<p style="font-size:15px;line-height:1.5;"><strong>${escapeHtml(args.title)}</strong></p>
+       <p style="font-size:15px;line-height:1.5;">${escapeHtml(args.message)}</p>
        <p style="margin:20px 0;">${button(args.url, "Abrir no attacca")}</p>`,
     ),
   });
