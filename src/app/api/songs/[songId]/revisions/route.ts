@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { detectUploadFormat } from "@/lib/format";
 import { scoreBytesToAlphaTex } from "@/lib/canonical";
 import { getCurrentUser } from "@/lib/identity";
+import { assertSongOwner, NotOwnerError } from "@/lib/authority";
 import { materializeSongGrid } from "@/lib/materialize";
 
 type Params = { params: Promise<{ songId: string }> };
@@ -33,14 +34,40 @@ export async function GET(_request: Request, { params }: Params) {
   return NextResponse.json(revisions);
 }
 
+// Cap de upload: um .gp real tem centenas de KB; o arquivo inteiro vai para a
+// memória e para o banco, então sem limite um único POST derruba o processo.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
 // POST /api/songs/:songId/revisions — envia um arquivo como nova revisão.
-// multipart/form-data: file (obrigatório), authorName?, message?
+// multipart/form-data: file (obrigatório), message?
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
 
-  const song = await prisma.song.findUnique({ where: { id: songId } });
+  // Upload é ato de dono: o primeiro upload define o conteúdo inicial da grade
+  // e os demais entram no histórico como revisões. Música sem dono (seed/
+  // legado) segue aberta a qualquer pessoa identificada.
+  const me = await getCurrentUser();
+  if (!me) {
+    return NextResponse.json(
+      { error: "Entre para enviar um arquivo." },
+      { status: 401 },
+    );
+  }
+
+  const song = await prisma.song.findUnique({
+    where: { id: songId },
+    include: { owner: true },
+  });
   if (!song) {
     return NextResponse.json({ error: "Música não encontrada." }, { status: 404 });
+  }
+  try {
+    assertSongOwner(song, me, "envia arquivos");
+  } catch (e) {
+    if (e instanceof NotOwnerError) {
+      return NextResponse.json({ error: e.message }, { status: 403 });
+    }
+    throw e;
   }
 
   let form: FormData;
@@ -57,21 +84,20 @@ export async function POST(request: Request, { params }: Params) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
   }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: "Arquivo grande demais (limite: 10 MB)." },
+      { status: 413 },
+    );
+  }
 
   const check = detectUploadFormat(file.name);
   if (!check.ok) {
     return NextResponse.json({ error: check.reason }, { status: 415 });
   }
 
-  const authorRaw = form.get("authorName");
   const messageRaw = form.get("message");
-  // Prefere a identidade da sessão, caindo para o campo do formulário ou "anon".
-  const me = await getCurrentUser();
-  const authorName =
-    me?.displayName ??
-    (typeof authorRaw === "string" && authorRaw.trim() !== ""
-      ? authorRaw.trim()
-      : "anon");
+  const authorName = me.displayName;
   const message =
     typeof messageRaw === "string" && messageRaw.trim() !== ""
       ? messageRaw.trim()

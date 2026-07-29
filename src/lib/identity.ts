@@ -15,11 +15,22 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
-const SECRET =
-  process.env.GS_AUTH_SECRET ??
-  process.env.GS_COOKIE_SECRET ??
-  "dev-insecure-change-me";
-const secretKey = new TextEncoder().encode(SECRET);
+// Resolvido de forma preguiçosa para o erro estourar no primeiro uso em
+// runtime (não no build): sem segredo em produção, qualquer sessão poderia
+// ser forjada com o fallback público — melhor cair do que abrir.
+let cachedSecretKey: Uint8Array | null = null;
+function secretKey(): Uint8Array {
+  if (!cachedSecretKey) {
+    const secret = process.env.GS_AUTH_SECRET ?? process.env.GS_COOKIE_SECRET;
+    if (!secret && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "GS_AUTH_SECRET (ou GS_COOKIE_SECRET) é obrigatório em produção.",
+      );
+    }
+    cachedSecretKey = new TextEncoder().encode(secret ?? "dev-insecure-change-me");
+  }
+  return cachedSecretKey;
+}
 
 export const SESSION_COOKIE = "gs_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
@@ -44,13 +55,13 @@ export async function signSessionToken(userId: string): Promise<string> {
     .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .sign(secretKey);
+    .sign(secretKey());
 }
 
 async function userIdFromToken(token: string | undefined): Promise<string | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secretKey, { algorithms: ["HS256"] });
+    const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
     return typeof payload.sub === "string" ? payload.sub : null;
   } catch {
     return null;
@@ -188,8 +199,14 @@ export async function readLegacyCookieUserId(): Promise<string | null> {
   if (dot < 0) return null;
   const id = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  const legacySecret = process.env.GS_COOKIE_SECRET ?? "dev-insecure-change-me";
-  const expected = createHmac("sha256", legacySecret).update(id).digest("base64url");
+  const legacySecret = process.env.GS_COOKIE_SECRET;
+  // Sem o segredo legado em produção, não dá para verificar a assinatura —
+  // aceitar contra o fallback público deixaria forjar o cookie e reivindicar
+  // a autoria de qualquer conta antiga.
+  if (!legacySecret && process.env.NODE_ENV === "production") return null;
+  const expected = createHmac("sha256", legacySecret ?? "dev-insecure-change-me")
+    .update(id)
+    .digest("base64url");
   try {
     if (sig.length === expected.length && timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
       return id;

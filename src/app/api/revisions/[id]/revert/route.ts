@@ -1,30 +1,48 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readRevisionFile } from "@/lib/storage";
+import { getCurrentUser } from "@/lib/identity";
+import { assertSongOwner, NotOwnerError } from "@/lib/authority";
 
 type Params = { params: Promise<{ id: string }> };
 
 // POST /api/revisions/:id/revert — reverter no estilo git: cria uma revisão
 // nova a partir do conteúdo da revisão :id. O histórico é imutável, então a
-// revisão antiga nunca é alterada nem apagada.
-// Body JSON opcional: { authorName? }.
-export async function POST(request: Request, { params }: Params) {
+// revisão antiga nunca é alterada nem apagada. Ato de dono: reverter troca o
+// que todo mundo ouve.
+export async function POST(_request: Request, { params }: Params) {
   const { id } = await params;
+
+  const me = await getCurrentUser();
+  if (!me) {
+    return NextResponse.json(
+      { error: "Entre para reverter uma revisão." },
+      { status: 401 },
+    );
+  }
 
   const source = await prisma.revision.findUnique({ where: { id } });
   if (!source) {
     return NextResponse.json({ error: "Revisão não encontrada." }, { status: 404 });
   }
 
-  let authorName = "anon";
-  try {
-    const body = await request.json();
-    if (typeof body?.authorName === "string" && body.authorName.trim() !== "") {
-      authorName = body.authorName.trim();
-    }
-  } catch {
-    // body ausente ou inválido: mantém o autor padrão
+  const song = await prisma.song.findUnique({
+    where: { id: source.songId },
+    include: { owner: true },
+  });
+  if (!song) {
+    return NextResponse.json({ error: "Música não encontrada." }, { status: 404 });
   }
+  try {
+    assertSongOwner(song, me, "reverte o histórico");
+  } catch (e) {
+    if (e instanceof NotOwnerError) {
+      return NextResponse.json({ error: e.message }, { status: 403 });
+    }
+    throw e;
+  }
+
+  const authorName = me.displayName;
 
   const last = await prisma.revision.findFirst({
     where: { songId: source.songId },

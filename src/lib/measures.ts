@@ -5,18 +5,10 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Actor } from "@/lib/cells";
+import { loadOwnedSong as loadOwned } from "@/lib/authority";
 
-async function loadOwnedSong(songId: string, actor: Actor) {
-  const song = await prisma.song.findUnique({
-    where: { id: songId },
-    include: { owner: true },
-  });
-  if (!song) throw new Error("Música não encontrada.");
-  if (song.ownerId && song.ownerId !== actor.id) {
-    const owner = song.owner?.displayName ?? "o dono";
-    throw new Error(`Só ${owner} (dono da música) altera a estrutura de compassos.`);
-  }
-  return song;
+function loadOwnedSong(songId: string, actor: Actor) {
+  return loadOwned(songId, actor, "altera a estrutura de compassos");
 }
 
 /**

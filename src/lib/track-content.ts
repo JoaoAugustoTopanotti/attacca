@@ -13,6 +13,7 @@ import {
   notifyTrackDelivered,
 } from "@/lib/notifications";
 import type { Actor } from "@/lib/cells";
+import { loadOwnedSong as loadOwned } from "@/lib/authority";
 
 const pluralBars = (n: number) => `${n} compasso${n === 1 ? "" : "s"}`;
 
@@ -67,15 +68,6 @@ export class UnresolvedConflictsError extends Error {
   }
 }
 
-function assertOwner(
-  song: { ownerId: string | null; owner: { displayName: string } | null },
-  actor: Actor,
-) {
-  if (song.ownerId && song.ownerId !== actor.id) {
-    const owner = song.owner?.displayName ?? "o dono";
-    throw new Error(`Só ${owner} (dono da música) aceita.`);
-  }
-}
 
 /** A trilha inteira como um alphaTex editável (células aceitas unidas por "|"). */
 export async function getTrackContent(songId: string, trackOrder: number) {
@@ -390,13 +382,8 @@ export async function pendingTrackProposals(songId: string) {
     .sort((a, b) => a.trackOrder - b.trackOrder);
 }
 
-async function loadOwnedSong(songId: string, actor: Actor) {
-  const song = await prisma.song.findUnique({
-    where: { id: songId },
-    include: { owner: true },
-  });
-  if (song) assertOwner(song, actor);
-  return song;
+function loadOwnedSong(songId: string, actor: Actor) {
+  return loadOwned(songId, actor, "aceita");
 }
 
 /**
