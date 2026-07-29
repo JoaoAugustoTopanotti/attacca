@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { readRevisionFile } from "@/lib/storage";
 import { getCurrentUser } from "@/lib/identity";
 import { assertSongOwner, NotOwnerError } from "@/lib/authority";
+import { createNumberedRevision } from "@/lib/revisions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,27 +45,23 @@ export async function POST(_request: Request, { params }: Params) {
 
   const authorName = me.displayName;
 
-  const last = await prisma.revision.findFirst({
-    where: { songId: source.songId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const number = (last?.number ?? 0) + 1;
   const message = `Revertido para #${source.number}`;
 
   // Revisões inline (AlphaTex): basta copiar o texto.
   if (source.source === "alphatex") {
-    const created = await prisma.revision.create({
-      data: {
-        songId: source.songId,
-        number,
-        authorName,
-        message,
-        source: "alphatex",
-        format: "alphatex",
-        alphaTex: source.alphaTex,
-      },
-    });
+    const created = await createNumberedRevision(source.songId, (number) =>
+      prisma.revision.create({
+        data: {
+          songId: source.songId,
+          number,
+          authorName,
+          message,
+          source: "alphatex",
+          format: "alphatex",
+          alphaTex: source.alphaTex,
+        },
+      }),
+    );
     await prisma.song.update({
       where: { id: source.songId },
       data: { updatedAt: new Date() },
@@ -90,20 +87,23 @@ export async function POST(_request: Request, { params }: Params) {
     );
   }
 
-  const created = await prisma.revision.create({
-    data: {
-      songId: source.songId,
-      number,
-      authorName,
-      message,
-      source: "file",
-      originalName: source.originalName,
-      format: source.format,
-      sizeBytes: source.sizeBytes,
-      blob: new Uint8Array(bytes), // cópia do blob de proveniência
-      alphaTex: source.alphaTex, // leva junto a forma canônica
-    },
-  });
+  const blobCopy = new Uint8Array(bytes);
+  const created = await createNumberedRevision(source.songId, (number) =>
+    prisma.revision.create({
+      data: {
+        songId: source.songId,
+        number,
+        authorName,
+        message,
+        source: "file",
+        originalName: source.originalName,
+        format: source.format,
+        sizeBytes: source.sizeBytes,
+        blob: blobCopy, // cópia do blob de proveniência
+        alphaTex: source.alphaTex, // leva junto a forma canônica
+      },
+    }),
+  );
 
   await prisma.song.update({
     where: { id: source.songId },

@@ -4,6 +4,7 @@ import { detectUploadFormat } from "@/lib/format";
 import { scoreBytesToAlphaTex } from "@/lib/canonical";
 import { getCurrentUser } from "@/lib/identity";
 import { assertSongOwner, NotOwnerError } from "@/lib/authority";
+import { createNumberedRevision } from "@/lib/revisions";
 import { materializeSongGrid } from "@/lib/materialize";
 
 type Params = { params: Promise<{ songId: string }> };
@@ -105,14 +106,6 @@ export async function POST(request: Request, { params }: Params) {
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
-  // Próximo número de revisão desta música.
-  const last = await prisma.revision.findFirst({
-    where: { songId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const number = (last?.number ?? 0) + 1;
-
   // Deriva o alphaTex canônico, a forma versionável. Sem canônico não há grade
   // de colaboração, e música sem grade é um beco sem saída: o upload é barrado
   // aqui em vez de aceito pela metade.
@@ -129,31 +122,33 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   // O blob de proveniência vive no banco, sem depender de disco no deploy.
-  const revision = await prisma.revision.create({
-    data: {
-      songId,
-      number,
-      authorName,
-      message,
-      source: "file",
-      originalName: file.name,
-      format: check.format,
-      sizeBytes: bytes.byteLength,
-      blob: Buffer.from(bytes),
-      alphaTex,
-    },
-    select: {
-      id: true,
-      number: true,
-      authorName: true,
-      message: true,
-      source: true,
-      format: true,
-      originalName: true,
-      kind: true,
-      createdAt: true,
-    },
-  });
+  const revision = await createNumberedRevision(songId, (number) =>
+    prisma.revision.create({
+      data: {
+        songId,
+        number,
+        authorName,
+        message,
+        source: "file",
+        originalName: file.name,
+        format: check.format,
+        sizeBytes: bytes.byteLength,
+        blob: Buffer.from(bytes),
+        alphaTex,
+      },
+      select: {
+        id: true,
+        number: true,
+        authorName: true,
+        message: true,
+        source: true,
+        format: true,
+        originalName: true,
+        kind: true,
+        createdAt: true,
+      },
+    }),
+  );
 
   // Materializa a grade trilha×compasso já no upload, para colaborar não
   // depender de um passo manual. Só quando a música ainda não tem grade:

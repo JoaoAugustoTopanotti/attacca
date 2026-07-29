@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/identity";
 import { assertSongOwner, NotOwnerError } from "@/lib/authority";
+import { createNumberedRevision } from "@/lib/revisions";
 import { materializeSongGrid } from "@/lib/materialize";
 import { blankAlphaTex, attaccaTemplateAlphaTex } from "@/lib/templates";
 
@@ -61,26 +62,21 @@ export async function POST(request: Request, { params }: Params) {
       ? attaccaTemplateAlphaTex(song.title)
       : blankAlphaTex(song.title);
 
-  const last = await prisma.revision.findFirst({
-    where: { songId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const number = (last?.number ?? 0) + 1;
-
-  const revision = await prisma.revision.create({
-    data: {
-      songId,
-      number,
-      authorName,
-      message:
-        template === "attacca" ? "Criada a partir do template do attacca" : "Criada do zero",
-      source: "alphatex",
-      format: "alphatex",
-      alphaTex,
-      sizeBytes: alphaTex.length,
-    },
-  });
+  const revision = await createNumberedRevision(songId, (number) =>
+    prisma.revision.create({
+      data: {
+        songId,
+        number,
+        authorName,
+        message:
+          template === "attacca" ? "Criada a partir do template do attacca" : "Criada do zero",
+        source: "alphatex",
+        format: "alphatex",
+        alphaTex,
+        sizeBytes: alphaTex.length,
+      },
+    }),
+  );
 
   try {
     await materializeSongGrid(songId);

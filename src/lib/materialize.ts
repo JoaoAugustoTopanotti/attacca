@@ -1,10 +1,13 @@
 // Materialização: transforma o alphaTex canônico de uma música (vindo de um
 // import) na grade viva de células (Track / Measure / Cell / CellContribution).
-// Dado derivado, seguro de refazer. Usa o mesmo código de decompor/remontar de
+// Só roda em música AINDA SEM grade: depois que o revezamento começa, as
+// contribuições carregam autor/status/base e não são deriváveis — re-materializar
+// apagaria a autoria por pedaço. Usa o mesmo código de decompor/remontar de
 // src/lib/alphatex-grid.
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { createNumberedRevision } from "@/lib/revisions";
 import {
   decompose,
   toNormalized,
@@ -32,7 +35,10 @@ export type MaterializeResult = {
 
 /**
  * Constrói a grade de células da música a partir do alphaTex canônico.
- * Idempotente: substitui a grade existente, tudo-ou-nada numa transação.
+ * Tudo-ou-nada numa transação. Recusa música que JÁ tem grade: as
+ * contribuições vivas não são deriváveis (autor/status/base) e reconstruir a
+ * grade apagaria o revezamento. Os chamadores (upload/scaffold) só chegam aqui
+ * quando a música ainda não tem grade; este guard é a defesa em profundidade.
  */
 export async function materializeSongGrid(
   songId: string,
@@ -42,6 +48,14 @@ export async function materializeSongGrid(
     include: { revisions: { orderBy: { number: "desc" } } },
   });
   if (!song) throw new Error("Música não encontrada.");
+
+  const hasGrid = (await prisma.measure.count({ where: { songId } })) > 0;
+  if (hasGrid) {
+    throw new Error(
+      "Esta música já tem uma grade de colaboração — re-materializar apagaria as contribuições.",
+    );
+  }
+
   const rev = song.revisions.find((r) => r.alphaTex && r.alphaTex.length > 0);
   if (!rev?.alphaTex) {
     throw new Error("Sem alphaTex canônico para materializar (faça um upload).");
@@ -154,31 +168,26 @@ export async function snapshotGrid(
   const { alphaTex, valid } = await assembleSongAlphaTex(songId);
   if (!valid) return null;
 
-  const last = await prisma.revision.findFirst({
-    where: { songId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const number = (last?.number ?? 0) + 1;
-
-  await prisma.revision.create({
-    data: {
-      songId,
-      number,
-      authorName,
-      message,
-      source: "alphatex",
-      format: "alphatex",
-      kind: "snapshot",
-      alphaTex,
-      sizeBytes: alphaTex.length,
-    },
-  });
+  const created = await createNumberedRevision(songId, (number) =>
+    prisma.revision.create({
+      data: {
+        songId,
+        number,
+        authorName,
+        message,
+        source: "alphatex",
+        format: "alphatex",
+        kind: "snapshot",
+        alphaTex,
+        sizeBytes: alphaTex.length,
+      },
+    }),
+  );
   await prisma.song.update({
     where: { id: songId },
     data: { updatedAt: new Date() },
   });
-  return number;
+  return created.number;
 }
 
 /**
