@@ -111,6 +111,12 @@ export async function issueLoginToken(args: {
       expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
     },
   });
+  // Faxina best-effort: sem isto, hash+e-mail de todo login ficariam no banco
+  // para sempre. Um dia de margem preserva o diagnóstico de "link expirado".
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  prisma.loginToken
+    .deleteMany({ where: { expiresAt: { lt: dayAgo } } })
+    .catch(() => {});
   return raw;
 }
 
@@ -170,13 +176,22 @@ export async function consumeLoginToken(
   if (!token || token.consumedAt) return { error: "invalid" };
   if (token.expiresAt.getTime() < Date.now()) return { error: "expired" };
 
+  // Reivindica o token ATOMICAMENTE antes de resolver o usuário: dois requests
+  // concorrentes com o mesmo link passariam ambos na checagem acima, mas só um
+  // vence este update condicional — uso único de verdade.
+  const claimed = await prisma.loginToken.updateMany({
+    where: { id: token.id, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+  if (claimed.count === 0) return { error: "invalid" };
+
   const user = await resolveUserForEmail({
     email: token.email,
     displayName: token.displayName,
     claimUserId: token.claimUserId,
   });
 
-  // Queima este token e os demais pendentes do mesmo e-mail.
+  // Queima os demais tokens pendentes do mesmo e-mail.
   await prisma.loginToken.updateMany({
     where: { email: token.email, consumedAt: null },
     data: { consumedAt: new Date() },

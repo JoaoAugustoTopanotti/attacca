@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, issueLoginToken, appBaseUrl } from "@/lib/identity";
 import { sendMagicLink, emailConfigured } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/ratelimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,6 +24,17 @@ export async function POST(request: Request) {
   }
   if (email === user.email) {
     return NextResponse.json({ error: "Esse já é o seu e-mail." }, { status: 400 });
+  }
+
+  // Cada troca dispara um e-mail para um endereço arbitrário: limita por conta
+  // e por destinatário.
+  const okByUser = rateLimit(`chmail:user:${user.id}`, 3, 15 * 60_000);
+  const okByEmail = rateLimit(`magic:email:${email}`, 3, 15 * 60_000);
+  if (!okByUser || !okByEmail) {
+    return NextResponse.json(
+      { error: "Muitas tentativas — aguarde alguns minutos e tente de novo." },
+      { status: 429 },
+    );
   }
 
   const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
