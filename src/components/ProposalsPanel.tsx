@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AlphaTabPlayer from "@/components/AlphaTabPlayer";
 import TabSnippet from "@/components/TabSnippet";
 import { diffStat } from "@/lib/linediff";
@@ -125,10 +125,20 @@ export default function ProposalsPanel({
   const [detail, setDetail] = useState<Detail>(null); // null = carregando
   // Escolha do dono por compasso em conflito (measureOrder → versão).
   const [choices, setChoices] = useState<Record<number, "current" | "proposed">>({});
+  // Sequência do fetch de detalhe: invalida respostas de proposta já fechada.
+  const detailSeqRef = useRef(0);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/songs/${songId}/proposals`);
-    if (res.ok) setData(await res.json());
+    try {
+      const res = await fetch(`/api/songs/${songId}/proposals`);
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setError("Não foi possível carregar as propostas — recarregue a página.");
+      }
+    } catch {
+      setError("Falha de rede ao carregar as propostas.");
+    }
   }, [songId]);
 
   useEffect(() => {
@@ -140,6 +150,9 @@ export default function ProposalsPanel({
     setOpen(p);
     setDetail(null);
     setChoices({});
+    // Guard de corrida: abrir A e logo em seguida B dispara dois fetches; sem
+    // invalidar o primeiro, o diff/realce de A podia aterrissar na tela de B.
+    const seq = ++detailSeqRef.current;
     const empty: Detail = {
       add: 0, del: 0, highlight: [], conflicts: [], trackHeader: null, isPercussion: false,
     };
@@ -153,6 +166,7 @@ export default function ProposalsPanel({
           trackHeader?: string | null;
           isPercussion?: boolean;
         } | null) => {
+          if (seq !== detailSeqRef.current) return;
           if (!c) { setDetail(empty); return; }
           const stat = diffStat(c.currentAlphaTex, c.proposedAlphaTex);
           setDetail({
@@ -164,7 +178,9 @@ export default function ProposalsPanel({
           });
         },
       )
-      .catch(() => setDetail(empty));
+      .catch(() => {
+        if (seq === detailSeqRef.current) setDetail(empty);
+      });
   }
   function close() { setOpen(null); setDetail(null); setChoices({}); }
 
@@ -204,7 +220,7 @@ export default function ProposalsPanel({
   if (!data) {
     return (
       <div className="proposals-panel">
-        <p className="sub">Carregando…</p>
+        {error ? <p className="form-error">{error}</p> : <p className="sub">Carregando…</p>}
       </div>
     );
   }

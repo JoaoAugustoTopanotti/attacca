@@ -101,9 +101,13 @@ export default function CollabPanel({
               <div className="action-upload-area">
                 <UploadForm
                   songId={songId}
-                  onUploaded={(id) => {
-                    refreshRevisions(id);
+                  onUploaded={() => {
+                    // O upload auto-materializa a grade: o player deve seguir
+                    // na visão viva. Selecionar a revisão aqui (com o
+                    // `materialized` ainda falso na closure) abria o snapshot
+                    // "#1 do histórico" logo após o primeiro upload.
                     onScaffolded();
+                    refreshRevisions();
                     setUploadOpen(false);
                   }}
                 />

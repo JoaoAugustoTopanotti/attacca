@@ -69,23 +69,29 @@ function ProfileSection({
     setSaving(true);
     setError(null);
     setFeedback(null);
-    const res = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: name }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) {
-      setError(data.error ?? "Não foi possível salvar.");
-      return;
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível salvar.");
+        return;
+      }
+      setName(data.displayName);
+      onSaved(data);
+      setFeedback("Nome atualizado.");
+      // O nome também assina as contribuições renderizadas no servidor, então a
+      // página precisa ser revalidada.
+      router.refresh();
+    } catch {
+      setError("Falha de rede — tente de novo.");
+    } finally {
+      // Sem o finally, uma falha de rede deixava o botão preso em "Salvando…".
+      setSaving(false);
     }
-    setName(data.displayName);
-    onSaved(data);
-    setFeedback("Nome atualizado.");
-    // O nome também assina as contribuições renderizadas no servidor, então a
-    // página precisa ser revalidada.
-    router.refresh();
   }
 
   return (
@@ -143,20 +149,25 @@ function EmailSection({ currentEmail }: { currentEmail: string | null }) {
     setError(null);
     setSent(null);
     setDevUrl(null);
-    const res = await fetch("/api/me/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSending(false);
-    if (!res.ok) {
-      setError(data.error ?? "Não foi possível enviar o link.");
-      return;
+    try {
+      const res = await fetch("/api/me/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível enviar o link.");
+        return;
+      }
+      setSent(email);
+      setDevUrl(data.devUrl ?? null);
+      setEmail("");
+    } catch {
+      setError("Falha de rede — tente de novo.");
+    } finally {
+      setSending(false);
     }
-    setSent(email);
-    setDevUrl(data.devUrl ?? null);
-    setEmail("");
   }
 
   return (
@@ -245,23 +256,28 @@ function InstrumentsSection({
     setSaving(true);
     setError(null);
     setFeedback(null);
-    const res = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instruments: selected }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) {
-      setError(data.error ?? "Não foi possível salvar.");
-      return;
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruments: selected }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível salvar.");
+        return;
+      }
+      setSelected(data.instruments);
+      onSaved(data);
+      setFeedback("Instrumentos atualizados.");
+      // O mural é um server component e usa os instrumentos para marcar "precisa
+      // do seu instrumento": revalida para ele já vir certo na próxima navegação.
+      router.refresh();
+    } catch {
+      setError("Falha de rede — tente de novo.");
+    } finally {
+      setSaving(false);
     }
-    setSelected(data.instruments);
-    onSaved(data);
-    setFeedback("Instrumentos atualizados.");
-    // O mural é um server component e usa os instrumentos para marcar "precisa
-    // do seu instrumento": revalida para ele já vir certo na próxima navegação.
-    router.refresh();
   }
 
   return (
