@@ -54,6 +54,7 @@ export async function POST(_request: Request, { params }: Params) {
         data: {
           songId: source.songId,
           number,
+          authorId: me.id,
           authorName,
           message,
           source: "alphatex",
@@ -93,6 +94,7 @@ export async function POST(_request: Request, { params }: Params) {
       data: {
         songId: source.songId,
         number,
+        authorId: me.id,
         authorName,
         message,
         source: "file",

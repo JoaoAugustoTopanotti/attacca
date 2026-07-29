@@ -494,7 +494,7 @@ export async function acceptTrackProposals(
   try {
     await snapshotGrid(
       songId,
-      props[0].authorName,
+      { id: authorId, name: props[0].authorName },
       `${track.name} — ${pluralBars(keptCells)} (proposta de ${props[0].authorName})`,
     );
   } catch (e) {

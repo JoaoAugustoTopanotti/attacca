@@ -53,6 +53,12 @@ export async function updateProfile(userId: string, input: ProfileInput) {
         where: { ownerId: userId },
         data: { ownerName: data.displayName },
       }),
+      // O Histórico credita snapshots pelo cache de nome; sem reescrever aqui,
+      // o nome antigo ficava congelado e uma pessoa lia como duas.
+      prisma.revision.updateMany({
+        where: { authorId: userId },
+        data: { authorName: data.displayName },
+      }),
     ]);
   }
 

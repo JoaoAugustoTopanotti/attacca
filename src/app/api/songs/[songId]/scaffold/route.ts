@@ -67,6 +67,7 @@ export async function POST(request: Request, { params }: Params) {
       data: {
         songId,
         number,
+        authorId: me.id,
         authorName,
         message:
           template === "attacca" ? "Criada a partir do template do attacca" : "Criada do zero",

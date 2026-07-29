@@ -162,7 +162,7 @@ export async function materializeSongGrid(
  */
 export async function snapshotGrid(
   songId: string,
-  authorName: string,
+  author: { id: string | null; name: string },
   message: string,
 ): Promise<number | null> {
   const { alphaTex, valid } = await assembleSongAlphaTex(songId);
@@ -173,7 +173,8 @@ export async function snapshotGrid(
       data: {
         songId,
         number,
-        authorName,
+        authorId: author.id,
+        authorName: author.name,
         message,
         source: "alphatex",
         format: "alphatex",

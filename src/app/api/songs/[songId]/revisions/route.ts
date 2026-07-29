@@ -127,6 +127,7 @@ export async function POST(request: Request, { params }: Params) {
       data: {
         songId,
         number,
+        authorId: me.id,
         authorName,
         message,
         source: "file",
