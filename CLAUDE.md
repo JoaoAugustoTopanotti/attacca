@@ -587,6 +587,44 @@ O raciocínio que levou à decisão (mantido como contexto):
   soava violão de aço; trilhas já declaradas guardam o próprio `\instrument`).
   ⚠️ `declareTrack` escapa o label no regex de numeração ("Violão (aço)" tem
   metacaracteres).
+- **Endurecimento pós-code-review (2026-07-29, branch `refactor/code-review-fixes`, 7
+  commits)** — auditoria de tech lead aplicada em etapas:
+  (1) **Código morto removido** (−1072 linhas): CellEditor + as 4 rotas por-célula
+  (`/api/cells/*`, `/songs/[id]/cell`), a rota manual `/materialize` (era DESTRUTIVA e
+  sem auth — re-materializava a grade viva apagando autoria), RevisionList, Contributors,
+  NewSongForm/Toggle, SongWorkspace, caminho `percussion` do TabEditor, exports/CSS órfãos.
+  `cells.ts` ficou só com `Actor` + `songContributors`. `materializeSongGrid` agora RECUSA
+  música que já tem grade (defesa em profundidade).
+  (2) **Autorização**: regra do dono consolidada em `src/lib/authority.ts`
+  (`assertSongOwner`/`loadOwnedSong`, `NotOwnerError` → 403); revert/upload/scaffold =
+  ato de dono (401/403; autor vem da SESSÃO, não de campo livre); declarar trilha exige
+  identidade; propostas com visibilidade no SERVIDOR (dono vê tudo; autor vê as suas —
+  inclusive no preview `/assembled?track=&author=`); upload com cap de 10 MB; segredo de
+  sessão OBRIGATÓRIO em produção (`identity.ts` lança no 1º uso; cookie legado ignorado
+  em prod sem `GS_COOKIE_SECRET`).
+  (3) **E-mail**: rate limit em memória (`src/lib/ratelimit.ts`) no magic link (3/15min
+  por e-mail, 10/15min por IP) e na troca de e-mail; HTML de notificação escapa
+  displayName (injeção); token de login consumido ATOMICAMENTE (updateMany condicional);
+  purga de LoginToken expirado a cada emissão.
+  (4) **Escrita atômica**: `submitTrackContent` grava tudo numa transação; numeração de
+  revisão via `createNumberedRevision` (`src/lib/revisions.ts`, retry em P2002); snapshot
+  pós-aceite é best-effort (aceite já commitado nunca vira 500); re-propostas na mesma
+  célula: só a mais nova entra (antigas viram rejected/superseded, não "accepted" falso).
+  (5) **Parsing**: `splitBars()` em alphatex-editor — `|` separa compasso só FORA de
+  aspas/chaves/parênteses (um `|` em lyrics de `.gp` desalinhava a contagem e travava a
+  trilha) — adotado por parseTrackTex/submit/preview/DrumGrid; tokenizadores cientes de
+  aspas; `BeatDuration` aceita 128 (era descartada em silêncio); drum-grid acha o `)` do
+  acorde por profundidade (`{tu (3 2)}` parseava errado). **Testes: `npm test`**
+  (`tests/alphatex-parsing.test.ts`, node:test via tsx — 11 casos).
+  (6) **UI**: trocar de trilha (dropdown ou +trilha) SALVA a edição pendente antes
+  (nunca descarta — mesmo princípio das operações estruturais); `loadTrack` e
+  ProposalsPanel com erro visível + guard de corrida (seq ref invalida resposta velha);
+  saves de Configurações/Boas-vindas com try/finally (não travam mais em "Salvando…");
+  1º upload mantém o player na grade viva (não abre o snapshot).
+  (7) **Dados**: `Revision.authorId` (migração `20260729000000_revision_author`; rename
+  reescreve também `Revision.authorName` — Histórico não congela mais nome antigo);
+  `songCompleteness` em 2 `groupBy` (era 2 counts POR trilha — N+1 no mural);
+  `.env.example` corrigido para o Postgres do Docker.
 - ⚠️ **Limites atuais**: vozes 1+ são opacas (edita-se a voz 0); percussão sem editor
   visual; add/remover compasso é só do dono (estrutural-como-proposta precisa de design
   próprio: compassos têm IDENTIDADE por id, não por índice — insert+delete ≠ edição);
