@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { addMeasure, deleteMeasure } from "@/lib/measures";
+import { addMeasure, deleteMeasure, MAX_MEASURES_PER_ADD } from "@/lib/measures";
 import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
 
-// POST { afterOrder } — insere um compasso vazio após `afterOrder`. Só o dono.
+// POST { afterOrder, count? } — insere `count` compassos vazios (padrão 1) após
+// `afterOrder`. Só o dono.
 export async function POST(request: Request, { params }: Params) {
   const { songId } = await params;
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Identifique-se primeiro." }, { status: 401 });
   }
-  let body: { afterOrder?: unknown };
+  let body: { afterOrder?: unknown; count?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -20,8 +21,20 @@ export async function POST(request: Request, { params }: Params) {
   if (typeof body.afterOrder !== "number") {
     return NextResponse.json({ error: "afterOrder é obrigatório." }, { status: 400 });
   }
+  const count = body.count === undefined ? 1 : body.count;
+  if (
+    typeof count !== "number" ||
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > MAX_MEASURES_PER_ADD
+  ) {
+    return NextResponse.json(
+      { error: `count deve ser um inteiro de 1 a ${MAX_MEASURES_PER_ADD}.` },
+      { status: 400 },
+    );
+  }
   try {
-    const result = await addMeasure(songId, body.afterOrder, user);
+    const result = await addMeasure(songId, body.afterOrder, user, count);
     return NextResponse.json(result, { status: 201 });
   } catch (e) {
     return NextResponse.json(

@@ -37,7 +37,8 @@ type Props = {
   disabled?: boolean;
   measureMeta?: MeasureMeta[];
   canEditStructure?: boolean;
-  onAddMeasure?: (afterMeasureIndex: number) => void;
+  /** Inserir `count` compassos vazios depois de measureIndex (todas as trilhas). */
+  onAddMeasure?: (afterMeasureIndex: number, count?: number) => void | Promise<boolean>;
   onDeleteMeasure?: (measureIndex: number) => void;
   error?: string | null;
   info?: string | null;
@@ -162,6 +163,10 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
   >(null);
   const lastEmittedRef = useRef<string | null>(null);
   const origsRef = useRef<BarOrigin[]>([]);
+  // Colagem que não coube na grade: os compassos que faltavam foram pedidos ao
+  // servidor e o groove entra sozinho quando a grade nova chega (em vez de
+  // "colei 2 de 4 — acabaram os compassos").
+  const pendingPasteRef = useRef<{ src: Bar[]; at: number; expected: number } | null>(null);
   // Pilhas de undo/redo, zeradas a cada mudança externa do texto.
   const histRef = useRef<{ past: Snapshot[]; future: Snapshot[] }>({
     past: [],
@@ -261,6 +266,14 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
       return;
     }
     applyBars(parsed.bars);
+    // Colagem à espera dos compassos novos: a grade chegou com o tamanho
+    // pedido, então o groove entra agora.
+    const pending = pendingPasteRef.current;
+    pendingPasteRef.current = null;
+    if (pending && parsed.bars.length === pending.expected) {
+      pasteBarsAt(pending.src, pending.at);
+      setSel({ anchor: pending.at, head: pending.at + pending.src.length - 1 });
+    }
     const present = midisInBars(parsed.bars);
     setLanes((prev) => {
       const set = new Set([...DEFAULT_LANES, ...prev, ...present]);
@@ -518,6 +531,40 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
     return n;
   }
 
+  /**
+   * O trecho não cabe na grade: pede os compassos que faltam e deixa a colagem
+   * pendente para quando a grade nova chegar. Devolve se o pedido foi feito.
+   */
+  function requestMeasuresFor(src: Bar[], at: number): boolean {
+    const missing = at + src.length - barsRef.current.length;
+    // Espelha MAX_MEASURES_PER_ADD do servidor (lib/measures.ts importa Prisma).
+    if (missing > 64) {
+      setWarn(`Faltam ${missing} compassos — a criação em lote vai até 64 por vez.`);
+      return false;
+    }
+    if (!canEditStructure || !onAddMeasure) {
+      setWarn(`Faltam ${missing} compasso(s) — só o dono pode adicionar compassos.`);
+      return false;
+    }
+    pendingPasteRef.current = {
+      src: src.map(cloneBar),
+      at,
+      expected: barsRef.current.length + missing,
+    };
+    setWarn(
+      missing === 1
+        ? "Criando 1 compasso para a colagem…"
+        : `Criando ${missing} compassos para a colagem…`,
+    );
+    void Promise.resolve(onAddMeasure(barsRef.current.length - 1, missing)).then((ok) => {
+      if (ok === false) {
+        pendingPasteRef.current = null;
+        setWarn("Não deu para adicionar os compassos — tente de novo.");
+      }
+    });
+    return true;
+  }
+
   function pasteSel() {
     if (disabled) return;
     if (!drumClipboard || drumClipboard.length === 0) {
@@ -528,12 +575,12 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
       setWarn("Clique num “compasso N” para escolher onde colar.");
       return;
     }
-    const n = pasteBarsAt(drumClipboard, selRange.from);
-    if (n < drumClipboard.length) {
-      setWarn(`Colei ${n} de ${drumClipboard.length} — acabaram os compassos.`);
-    } else {
-      setWarn(null);
+    if (selRange.from + drumClipboard.length > barsRef.current.length) {
+      requestMeasuresFor(drumClipboard, selRange.from);
+      return;
     }
+    const n = pasteBarsAt(drumClipboard, selRange.from);
+    setWarn(null);
     if (n > 0) setSel({ anchor: selRange.from, head: selRange.from + n - 1 });
   }
 
@@ -546,12 +593,13 @@ const DrumGridEditor = forwardRef<TabEditorHandle, Props>(function DrumGridEdito
       src.push(cloneBar(barsRef.current[i]));
     }
     const at = selRange.to + 1;
-    const n = pasteBarsAt(src, at);
-    if (n === 0) {
-      setWarn("Sem compassos depois da seleção — adicione compassos primeiro.");
+    if (at + src.length > barsRef.current.length) {
+      // Repetir adiante é o gesto de compor: cria os compassos que faltam.
+      requestMeasuresFor(src, at);
       return;
     }
-    setWarn(n < src.length ? `Repeti ${n} de ${src.length} — acabaram os compassos.` : null);
+    const n = pasteBarsAt(src, at);
+    setWarn(null);
     setSel({ anchor: at, head: at + n - 1 });
   }
 

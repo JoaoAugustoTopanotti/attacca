@@ -476,8 +476,12 @@ export default function TrackEditor({
   // ── Estrutura: adicionar/remover compasso, afetando todas as trilhas ────────
   // Compor do zero é feito compasso a compasso, então a edição pendente é salva
   // antes de mexer na grade, nunca descartada. Só o dono chega aqui.
-  async function addMeasureAfter(afterIndex: number) {
-    if (busy) return;
+  // `count > 1` vem da colagem que não coube na grade: o editor pede os
+  // compassos que faltam e cola sozinho quando a grade nova chega.
+  // Devolve se os compassos entraram mesmo: o editor só espera a grade nova
+  // quando a operação aconteceu (senão uma colagem pendente ficaria no ar).
+  async function addMeasureAfter(afterIndex: number, count = 1): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -486,16 +490,22 @@ export default function TrackEditor({
       const res = await fetch(`/api/songs/${songId}/measures`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ afterOrder: afterIndex }),
+        body: JSON.stringify({ afterOrder: afterIndex, count }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
-      setInfo(`Compasso adicionado após o ${afterIndex + 1}.`);
+      setInfo(
+        count === 1
+          ? `Compasso adicionado após o ${afterIndex + 1}.`
+          : `${count} compassos adicionados após o ${afterIndex + 1}.`,
+      );
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       await loadTrack();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro.");
+      return false;
     } finally {
       setBusy(false);
     }

@@ -184,8 +184,11 @@ type Props = {
   onSeek?: (tick: number) => void;
   /** Dono da música pode alterar a estrutura (adicionar/remover compassos). */
   canEditStructure?: boolean;
-  /** Inserir um compasso vazio DEPOIS de measureIndex (todas as trilhas). */
-  onAddMeasure?: (afterMeasureIndex: number) => void;
+  /**
+   * Inserir `count` compassos vazios DEPOIS de measureIndex (todas as trilhas).
+   * Resolve false quando a operação não aconteceu (ocupado ou erro).
+   */
+  onAddMeasure?: (afterMeasureIndex: number, count?: number) => void | Promise<boolean>;
   /** Remover o compasso measureIndex (todas as trilhas). */
   onDeleteMeasure?: (measureIndex: number) => void;
   /** Definir/remover (bpm null) o andamento A PARTIR do compasso measureIndex. */
@@ -304,6 +307,22 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // um compasso novo via onAddMeasure (refetch assíncrono) e o cursor deve cair
   // nele, não voltar a null.
   const pendingCursorRef = useRef<{ measureIndex: number; beatIndex: number; string: number } | null>(null);
+  // Colagem/repetição de compassos inteiros que não coube na grade: os compassos
+  // que faltavam foram pedidos ao servidor (onAddMeasure) e o trecho entra
+  // sozinho quando a grade nova chega. Copiar 3 compassos e parar num aviso
+  // "adicione compassos antes de colar" obrigava a contar na mão o que falta.
+  const pendingWriteRef = useRef<{
+    startMi: number;
+    chunks: EditorBeat[][];
+    string: number;
+    /** Nº de compassos esperado depois do crescimento: identifica a grade certa. */
+    expected: number;
+    label: string;
+  } | null>(null);
+  // Aplica a escrita pendente na grade recém-chegada (true = aplicou). Atribuída
+  // mais abaixo, onde os helpers já existem — o effect de mudança externa é
+  // declarado antes deles e não pode citá-los nas dependências (TDZ).
+  const applyPendingWriteRef = useRef<((m: EditorModel) => boolean) | null>(null);
   // Um render por vez (ver loadTex): render no ar + tex novo na fila.
   const renderBusyRef = useRef(false);
   const pendingTexRef = useRef<string | null>(null);
@@ -392,6 +411,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     if (alphaTex !== lastEmittedRef.current) {
       lastEmittedRef.current = alphaTex;
       const m = parseTrackTex(alphaTex);
+      // Colagem/repetição esperando os compassos que faltavam: se a grade veio
+      // com o tamanho pedido, o trecho entra agora, em vez de sumir.
+      if (applyPendingWriteRef.current?.(m)) return;
       setModel(m);
       const pending = pendingCursorRef.current;
       pendingCursorRef.current = null;
@@ -740,8 +762,110 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     [applyModel, deleteRange, disabled, getSelection, showFlash],
   );
 
+  /**
+   * Escreve compassos inteiros a partir de `startMi`, um chunk por compasso.
+   * Devolve o modelo novo ou o índice do compasso que estouraria a fórmula.
+   */
+  const writeMeasureChunks = useCallback(
+    (
+      mod: EditorModel,
+      startMi: number,
+      chunks: EditorBeat[][],
+    ): { model: EditorModel } | { overflowAt: number } => {
+      let trial = mod;
+      for (let k = 0; k < chunks.length; k++) {
+        const mi = startMi + k;
+        trial = replaceBeatsInMeasure(trial, mi, 0, trial.measures[mi].beats.length, chunks[k]);
+      }
+      for (let k = 0; k < chunks.length; k++) {
+        if (wouldOverflow(mod, trial, startMi + k)) return { overflowAt: startMi + k };
+      }
+      return { model: trial };
+    },
+    [wouldOverflow],
+  );
+
+  /**
+   * O trecho não cabe na grade atual: pede os compassos que faltam e deixa a
+   * escrita pendente para quando a grade nova chegar. Devolve false sempre —
+   * quem chamou não escreve agora.
+   */
+  const requestMeasuresFor = useCallback(
+    (startMi: number, chunks: EditorBeat[][], string: number, label: string): false => {
+      const mod = modelRef.current;
+      const missing = startMi + chunks.length - mod.measures.length;
+      // Espelha MAX_MEASURES_PER_ADD do servidor (lib/measures.ts não pode vir
+      // para o cliente: importa o Prisma).
+      if (missing > 64) {
+        showWarn(`Faltam ${missing} compassos — a criação em lote vai até 64 por vez.`);
+        return false;
+      }
+      if (!canEditStructure || !onAddMeasure) {
+        showWarn(
+          `Não cabem ${chunks.length} compassos a partir do ${startMi + 1} — só o dono pode adicionar compassos.`,
+        );
+        return false;
+      }
+      pendingWriteRef.current = {
+        startMi,
+        chunks,
+        string,
+        expected: mod.measures.length + missing,
+        label,
+      };
+      showFlash(
+        missing === 1
+          ? `Criando 1 compasso para a ${label}…`
+          : `Criando ${missing} compassos para a ${label}…`,
+      );
+      // Cresce pelo fim: os compassos que faltam entram depois do último.
+      void Promise.resolve(onAddMeasure(mod.measures.length - 1, missing)).then((ok) => {
+        if (ok === false) {
+          pendingWriteRef.current = null;
+          showWarn("Não deu para adicionar os compassos — tente de novo.");
+        }
+      });
+      return false;
+    },
+    [canEditStructure, onAddMeasure, showFlash, showWarn],
+  );
+
+  // Chegou grade nova: escreve o trecho que estava esperando os compassos.
+  applyPendingWriteRef.current = (m: EditorModel): boolean => {
+    const write = pendingWriteRef.current;
+    pendingWriteRef.current = null;
+    if (!write || m.measures.length !== write.expected) return false;
+    const written = writeMeasureChunks(m, write.startMi, write.chunks);
+    if ("overflowAt" in written) {
+      showWarn(
+        `A ${write.label} não coube no compasso ${written.overflowAt + 1} — ` +
+          "os compassos novos ficaram vazios.",
+      );
+      return false;
+    }
+    // O histórico começa na grade vazia: Ctrl+Z desfaz a colagem, não a criação
+    // dos compassos (essa é estrutural e já está gravada).
+    historyRef.current = { past: [m], future: [] };
+    applyModelRaw(written.model);
+    setSelAnchor({ measureIndex: write.startMi, beatIndex: 0 });
+    setCursor(
+      clampCursor(written.model, {
+        measureIndex: write.startMi + write.chunks.length - 1,
+        beatIndex: Math.max(0, write.chunks[write.chunks.length - 1].length - 1),
+        string: write.string,
+      }),
+    );
+    showFlash(
+      write.chunks.length === 1
+        ? "1 compasso colado no compasso novo"
+        : `${write.chunks.length} compassos colados nos compassos novos`,
+    );
+    return true;
+  };
+
   // Colar: 1 compasso de origem → substitui a seleção (ou o beat do cursor);
-  // vários compassos → substitui compassos inteiros a partir do cursor.
+  // vários compassos → substitui compassos inteiros a partir do cursor,
+  // criando os que faltarem no fim da música.
   const doPaste = useCallback(() => {
     if (disabled) return;
     const cur = cursorRef.current;
@@ -779,28 +903,27 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
     const startMi = cur.measureIndex;
     if (startMi + clip.length > mod.measures.length) {
-      showWarn(`Não cabem ${clip.length} compassos a partir do ${startMi + 1} — adicione compassos antes de colar.`);
+      // Faltam compassos: cria e cola quando a grade nova chegar.
+      requestMeasuresFor(startMi, clip, cur.string, "colagem");
       return;
     }
-    let trial = mod;
-    for (let k = 0; k < clip.length; k++) {
-      trial = replaceBeatsInMeasure(trial, startMi + k, 0, trial.measures[startMi + k].beats.length, clip[k]);
+    const written = writeMeasureChunks(mod, startMi, clip);
+    if ("overflowAt" in written) {
+      const { num, den } = measureTs(written.overflowAt);
+      showWarn(`A colagem não cabe no compasso ${written.overflowAt + 1} (${num}/${den}).`);
+      return;
     }
-    for (let k = 0; k < clip.length; k++) {
-      if (wouldOverflow(mod, trial, startMi + k)) {
-        const { num, den } = measureTs(startMi + k);
-        showWarn(`A colagem não cabe no compasso ${startMi + k + 1} (${num}/${den}).`);
-        return;
-      }
-    }
-    applyModel(trial);
+    applyModel(written.model);
     setSelAnchor({ measureIndex: startMi, beatIndex: 0 });
     setCursor({
       measureIndex: startMi + clip.length - 1,
       beatIndex: Math.max(0, clip[clip.length - 1].length - 1),
       string: cur.string,
     });
-  }, [applyModel, disabled, measureTs, showWarn, wouldOverflow]);
+  }, [
+    applyModel, disabled, measureTs, requestMeasuresFor, showWarn, wouldOverflow,
+    writeMeasureChunks,
+  ]);
 
   // Ctrl+D repete a seleção logo adiante. É o "R" do MuseScore/Flat, mapeado em
   // Ctrl+D porque "r" já insere pausa, pela convenção do Guitar Pro.
@@ -837,28 +960,27 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     }
     const targetStart = end.measureIndex + 1;
     if (targetStart + chunks.length > mod.measures.length) {
-      showWarn(`Sem compassos suficientes depois do ${end.measureIndex + 1} — adicione compassos antes de repetir.`);
+      // Repetir adiante é o gesto de compor: cria os compassos que faltam.
+      requestMeasuresFor(targetStart, chunks, cur.string, "repetição");
       return;
     }
-    let trial = mod;
-    for (let k = 0; k < chunks.length; k++) {
-      trial = replaceBeatsInMeasure(trial, targetStart + k, 0, trial.measures[targetStart + k].beats.length, chunks[k]);
+    const written = writeMeasureChunks(mod, targetStart, chunks);
+    if ("overflowAt" in written) {
+      const { num, den } = measureTs(written.overflowAt);
+      showWarn(`A repetição não cabe no compasso ${written.overflowAt + 1} (${num}/${den}).`);
+      return;
     }
-    for (let k = 0; k < chunks.length; k++) {
-      if (wouldOverflow(mod, trial, targetStart + k)) {
-        const { num, den } = measureTs(targetStart + k);
-        showWarn(`A repetição não cabe no compasso ${targetStart + k + 1} (${num}/${den}).`);
-        return;
-      }
-    }
-    applyModel(trial);
+    applyModel(written.model);
     setSelAnchor({ measureIndex: targetStart, beatIndex: 0 });
     setCursor({
       measureIndex: targetStart + chunks.length - 1,
       beatIndex: Math.max(0, chunks[chunks.length - 1].length - 1),
       string: cur.string,
     });
-  }, [applyModel, disabled, getSelection, measureTs, showWarn, wouldOverflow]);
+  }, [
+    applyModel, disabled, getSelection, measureTs, requestMeasuresFor, showWarn,
+    wouldOverflow, writeMeasureChunks,
+  ]);
 
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const doUndo = useCallback(() => {

@@ -543,6 +543,22 @@ O raciocínio que levou à decisão (mantido como contexto):
   de capacidade (`wouldOverflow`: só bloqueia o que AUMENTA além da fórmula). Lib
   coberta por teste manual em Node (23 casos, scratchpad). Delete numa seleção apaga
   o range; Esc desfaz a seleção.
+- **Colar/repetir CRIA os compassos que faltam (2026-07-30, pós-teste de composição)** —
+  copiar 3 compassos e colar no último parava num aviso ("adicione compassos antes de
+  colar"), obrigando a contar na mão quantos faltavam e clicar "+" N vezes — atrito bem
+  no gesto mais comum de compor (a parte nova repete a anterior). Agora `addMeasure`
+  aceita **quantidade** (`count`, teto `MAX_MEASURES_PER_ADD` = 64; `POST /measures`
+  recebe `{afterOrder, count}`; ordens deslizam de `+n` de uma vez, na mesma transação),
+  e os dois editores pedem o que falta **pelo fim** e escrevem sozinhos quando a grade
+  volta: `pendingWriteRef`/`pendingPasteRef` guardam o trecho e o **nº de compassos
+  esperado** (a grade só é a certa se bater o tamanho), aplicados no effect de mudança
+  externa. Vale para **Ctrl+V e Ctrl+D** no TabEditor e no DrumGridEditor (que antes
+  truncava em silêncio: "colei 2 de 4"). `addMeasureAfter` devolve **boolean** — se a
+  criação não aconteceu (ocupado/erro), a colagem pendente é descartada em vez de ficar
+  no ar para a próxima mudança externa. Undo volta à grade recém-criada (o histórico
+  começa nela; criar compasso é estrutural e já está gravado). Não-dono continua com o
+  aviso (estrutura é ato de dono), e trecho que **estoura a fórmula** do compasso novo
+  ainda é recusado (os compassos ficam vazios, com aviso).
 - **Conflito de mesma célula (M3, 2026-07-16) — detectar + humano escolhe, nunca
   sobrescrever em silêncio** — `CellContribution.baseContributionId` (migração
   `20260716000000_m3_conflict_base`) grava o **merge base** estilo git: o que estava

@@ -11,13 +11,27 @@ function loadOwnedSong(songId: string, actor: Actor) {
   return loadOwned(songId, actor, "altera a estrutura de compassos");
 }
 
+/** Teto de compassos por chamada: colar um trecho longo não vira migração. */
+export const MAX_MEASURES_PER_ADD = 64;
+
 /**
- * Insere um compasso vazio depois de `afterOrder`, em todas as trilhas.
- * O novo compasso herda a fórmula de compasso do vizinho e nasce sem estrutura
- * própria: `\ts` e afins continuam valendo por herança na remontagem.
+ * Insere `count` compassos vazios depois de `afterOrder`, em todas as trilhas.
+ * Os novos compassos herdam a fórmula de compasso do vizinho e nascem sem
+ * estrutura própria: `\ts` e afins continuam valendo por herança na remontagem.
+ * `count > 1` atende à colagem que não cabe na grade atual (o editor pede os
+ * compassos que faltam e cola em seguida).
  */
-export async function addMeasure(songId: string, afterOrder: number, actor: Actor) {
+export async function addMeasure(
+  songId: string,
+  afterOrder: number,
+  actor: Actor,
+  count = 1,
+) {
   await loadOwnedSong(songId, actor);
+  const n = count;
+  if (!Number.isInteger(n) || n < 1 || n > MAX_MEASURES_PER_ADD) {
+    throw new Error(`Quantidade de compassos inválida (1 a ${MAX_MEASURES_PER_ADD}).`);
+  }
   const measures = await prisma.measure.findMany({
     where: { songId },
     orderBy: { order: "asc" },
@@ -34,30 +48,32 @@ export async function addMeasure(songId: string, afterOrder: number, actor: Acto
     for (let i = toShift.length - 1; i >= 0; i--) {
       await tx.measure.update({
         where: { id: toShift[i].id },
-        data: { order: toShift[i].order + 1 },
+        data: { order: toShift[i].order + n },
       });
     }
-    const created = await tx.measure.create({
-      data: {
-        songId,
-        order: ref.order + 1,
-        tsNumerator: ref.tsNumerator,
-        tsDenominator: ref.tsDenominator,
-      },
-    });
-    // Uma célula vazia por trilha: o slot em branco é o convite à contribuição.
-    await tx.cell.createMany({
-      data: tracks.map((t) => ({
-        songId,
-        trackId: t.id,
-        measureId: created.id,
-      })),
-    });
+    for (let k = 0; k < n; k++) {
+      const created = await tx.measure.create({
+        data: {
+          songId,
+          order: ref.order + 1 + k,
+          tsNumerator: ref.tsNumerator,
+          tsDenominator: ref.tsDenominator,
+        },
+      });
+      // Uma célula vazia por trilha: o slot em branco é o convite à contribuição.
+      await tx.cell.createMany({
+        data: tracks.map((t) => ({
+          songId,
+          trackId: t.id,
+          measureId: created.id,
+        })),
+      });
+    }
   });
 
   // Sem snapshot: estrutura não é passo de revezamento, e compor do zero
   // compasso a compasso encheria o Histórico de entradas sem significado.
-  return { order: ref.order + 1 };
+  return { order: ref.order + 1, count: n };
 }
 
 /**
