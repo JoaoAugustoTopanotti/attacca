@@ -559,6 +559,22 @@ O raciocínio que levou à decisão (mantido como contexto):
   começa nela; criar compasso é estrutural e já está gravado). Não-dono continua com o
   aviso (estrutura é ato de dono), e trecho que **estoura a fórmula** do compasso novo
   ainda é recusado (os compassos ficam vazios, com aviso).
+- **Remover compasso: aviso PROPORCIONAL, e no visual do app (2026-07-30)** — o
+  `window.confirm` ("Remover o compasso N de TODAS as trilhas? As contribuições serão
+  apagadas") aparecia em **todo** clique no "−", com a cara do navegador. O caso comum
+  não é destrutivo — é o "+" apertado sem querer ou um trecho recém-escrito que não vai
+  ser usado —, e o aviso máximo em toda remoção só ensina a clicar em OK sem ler.
+  `measureOccupancy` (`src/lib/measures.ts`, `GET /api/songs/[id]/measures?order=N`)
+  responde **o que se perde**: trilhas com conteúdo aceito na coluna, propostas em aberto
+  e `hasStructure`. Compasso vazio em todas as trilhas **sai direto, sem perguntar**
+  (recriar é um clique no "+"); com conteúdo, abre o `ConfirmDialog` (`auth-modal
+  danger-modal`, Esc/backdrop cancelam, foco começa no Cancelar) **nomeando as trilhas**
+  que perdem coisa. A edição não salva da trilha atual conta como conteúdo (ela é gravada
+  antes da remoção). `hasStructure` vira aviso **antes** do clique, em vez de erro do
+  servidor depois. Remover trilha usa o mesmo `ConfirmDialog`. ⚠️ `setInfo` seguido de
+  `loadTrack()` é apagado (`loadTrack` reseta as mensagens) — as confirmações de
+  adicionar/remover compasso passaram a usar `pendingInfoRef`, senão o feedback do
+  caminho sem pergunta não apareceria.
 - **Conflito de mesma célula (M3, 2026-07-16) — detectar + humano escolhe, nunca
   sobrescrever em silêncio** — `CellContribution.baseContributionId` (migração
   `20260716000000_m3_conflict_base`) grava o **merge base** estilo git: o que estava

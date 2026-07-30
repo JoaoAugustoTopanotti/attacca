@@ -77,6 +77,45 @@ export async function addMeasure(
 }
 
 /**
+ * O que se perde ao remover o compasso `order`: as trilhas com conteúdo aceito
+ * na coluna e as propostas em aberto. A remoção é sempre da coluna inteira (a
+ * grade é retangular), mas o aviso precisa ser proporcional — apagar um
+ * compasso que ninguém preencheu, o "+" clicado sem querer, não merece
+ * confirmação nenhuma.
+ */
+export async function measureOccupancy(songId: string, order: number) {
+  const measure = await prisma.measure.findFirst({ where: { songId, order } });
+  if (!measure) throw new Error("Compasso não encontrado.");
+
+  const cells = await prisma.cell.findMany({
+    where: { measureId: measure.id },
+    include: {
+      track: { select: { order: true, name: true } },
+      acceptedContribution: { select: { alphaTex: true } },
+      contributions: { where: { status: "proposed" }, select: { id: true } },
+    },
+  });
+
+  const tracks = cells
+    .map((c) => ({
+      order: c.track.order,
+      name: c.track.name,
+      hasContent: !!c.acceptedContribution?.alphaTex.trim(),
+      proposals: c.contributions.length,
+    }))
+    .sort((a, b) => a.order - b.order);
+
+  return {
+    order,
+    bar: order + 1, // número humano do compasso
+    tracks,
+    // Estrutura própria (fórmula, andamento, seção) bloqueia a remoção: a UI
+    // avisa antes em vez de deixar o erro estourar depois do clique.
+    hasStructure: !!measure.structPrefix?.trim(),
+  };
+}
+
+/**
  * Remove o compasso `order` em todas as trilhas, apagando as contribuições das
  * células daquela coluna. Por ser destrutivo, é restrito ao dono.
  */

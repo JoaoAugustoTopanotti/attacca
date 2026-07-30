@@ -580,6 +580,27 @@ label {
 .danger-confirm:disabled {
   background: var(--panel-2); color: var(--sub); cursor: not-allowed;
 }
+
+/* Confirmação de ação destrutiva (ConfirmDialog): sair fica à esquerda e
+   neutro; a ação vermelha à direita, sem virar o alvo fácil do Enter. */
+.confirm-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.confirm-actions .danger-confirm { width: auto; padding: 9px 18px; }
+.confirm-cancel {
+  padding: 9px 18px;
+  background: transparent; color: var(--sub);
+  border: 1px solid var(--border); border-radius: 999px;
+  font-size: 0.88rem; font-weight: 600; font-family: inherit;
+  cursor: pointer;
+}
+.confirm-cancel:hover { color: var(--text); border-color: var(--muted); }
+.confirm-list {
+  font-family: var(--mono); font-size: 0.76rem; color: var(--text);
+  margin: 10px 0 0; padding: 0; list-style: none;
+}
+.confirm-list li { padding: 2px 0; }
+.confirm-list .confirm-list-prop { color: var(--accent); }
 .follow-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; background: transparent;

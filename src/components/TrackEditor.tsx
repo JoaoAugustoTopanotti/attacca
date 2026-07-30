@@ -11,7 +11,9 @@ import {
   tuningSummary,
 } from "@/lib/tuning";
 import InstrumentPicker, { defaultSpec, specLabel } from "@/components/InstrumentPicker";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import type { DeclareSpec } from "@/lib/instrument-presets";
+import { splitBars } from "@/lib/alphatex-editor";
 
 type Me = { id: string; displayName: string } | null;
 type Content = {
@@ -29,6 +31,16 @@ type Content = {
   measures: MeasureMeta[];
   song: { ownerId: string | null; ownerName: string | null; tempo: number | null };
 };
+
+/** Confirmação destrutiva pendente (modal do app, no lugar do window.confirm). */
+type PendingConfirm =
+  | {
+      kind: "measure";
+      index: number;
+      /** Só as trilhas que perdem alguma coisa — o aviso é proporcional. */
+      losing: { name: string; hasContent: boolean; proposals: number }[];
+    }
+  | { kind: "track"; name: string; empty: boolean };
 
 export default function TrackEditor({
   songId,
@@ -54,6 +66,7 @@ export default function TrackEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
 
   // ── Afinação e andamento: estrutura musical, restrita ao dono ──
   const [tuningOpen, setTuningOpen] = useState(false);
@@ -153,17 +166,16 @@ export default function TrackEditor({
   // errado não pode virar um slot eterno no mural. Diferente das outras
   // operações estruturais, a edição pendente NÃO é salva antes — salvar o
   // conteúdo de uma trilha que está sendo apagada não faz sentido; o aviso do
-  // confirm diz que ela vai junto.
-  async function removeTrack() {
+  // modal diz que ela vai junto.
+  function askRemoveTrack() {
     if (busy || !content) return;
-    const name = content.track.name;
     // Um slot declarado e nunca preenchido só tem separadores de compasso.
     const empty = !content.alphaTex.replace(/\|/g, "").trim();
-    const warn = empty
-      ? `Remover a trilha "${name}"? Ela está vazia.`
-      : `Remover a trilha "${name}"? Tudo que foi escrito nela — inclusive o de outras pessoas e as propostas em aberto — será apagado, e não dá para desfazer.`;
-    if (!window.confirm(warn)) return;
+    setConfirm({ kind: "track", name: content.track.name, empty });
+  }
 
+  async function removeTrack(name: string) {
+    if (busy || !content) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -494,11 +506,10 @@ export default function TrackEditor({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
-      setInfo(
+      pendingInfoRef.current =
         count === 1
           ? `Compasso adicionado após o ${afterIndex + 1}.`
-          : `${count} compassos adicionados após o ${afterIndex + 1}.`,
-      );
+          : `${count} compassos adicionados após o ${afterIndex + 1}.`;
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       await loadTrack();
@@ -511,15 +522,53 @@ export default function TrackEditor({
     }
   }
 
+  /**
+   * Pergunta antes de remover — mas só quando há o que perder. Remover a coluna
+   * é inerente à grade (todas as trilhas têm o mesmo número de compassos), e
+   * avisar disso a cada clique transforma o caso mais comum (o "+" apertado sem
+   * querer, um trecho que não vai ser usado) num susto. Compasso vazio em todas
+   * as trilhas sai direto; com conteúdo, o modal diz de quem é o conteúdo.
+   */
   async function removeMeasure(index: number) {
     if (busy) return;
-    if (
-      !window.confirm(
-        `Remover o compasso ${index + 1} de TODAS as trilhas? As contribuições desse compasso serão apagadas.`,
-      )
-    ) {
-      return;
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`/api/songs/${songId}/measures?order=${index}`);
+      const occ: {
+        error?: string;
+        hasStructure?: boolean;
+        tracks?: { order: number; name: string; hasContent: boolean; proposals: number }[];
+      } = await res.json();
+      if (!res.ok) throw new Error(occ?.error ?? "Compasso não encontrado.");
+      if (occ.hasStructure) {
+        setError(
+          `O compasso ${index + 1} carrega estrutura (fórmula de compasso, andamento ou seção) e não pode ser removido por enquanto.`,
+        );
+        return;
+      }
+      // A edição ainda não salva desta trilha também conta: ela é gravada antes
+      // da remoção, então o que está na tela some junto.
+      const localBar = splitBars(text)[index]?.trim() ?? "";
+      const losing = (occ.tracks ?? [])
+        .map((t) =>
+          t.order === trackOrder && localBar ? { ...t, hasContent: true } : t,
+        )
+        .filter((t) => t.hasContent || t.proposals > 0)
+        .map(({ name, hasContent, proposals }) => ({ name, hasContent, proposals }));
+
+      if (losing.length === 0) {
+        await doRemoveMeasure(index); // nada a perder: sem pergunta
+        return;
+      }
+      setConfirm({ kind: "measure", index, losing });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro.");
     }
+  }
+
+  async function doRemoveMeasure(index: number) {
+    if (busy) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -531,7 +580,9 @@ export default function TrackEditor({
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha.");
-      setInfo(`Compasso ${index + 1} removido.`);
+      // Via pendingInfoRef: o loadTrack logo abaixo limpa as mensagens, e um
+      // setInfo direto sumiria antes de ser lido.
+      pendingInfoRef.current = `Compasso ${index + 1} removido.`;
       previewTextRef.current = null;
       setPlayerEpoch((n) => n + 1);
       await loadTrack();
@@ -626,7 +677,7 @@ export default function TrackEditor({
           <button
             type="button"
             className="add-track-btn remove-track-btn"
-            onClick={removeTrack}
+            onClick={askRemoveTrack}
             disabled={busy}
             title={`Remover a trilha "${content?.track.name ?? ""}" da música`}
           >
@@ -871,6 +922,59 @@ export default function TrackEditor({
           </div>
         )}
       </div>
+
+      {/* Confirmação destrutiva no visual do app (nada de window.confirm). Só
+          aparece quando há mesmo o que perder — ver removeMeasure. */}
+      {confirm?.kind === "measure" && (
+        <ConfirmDialog
+          title={`Remover o compasso ${confirm.index + 1}?`}
+          confirmLabel="Remover o compasso"
+          busy={busy}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            const { index } = confirm;
+            setConfirm(null);
+            doRemoveMeasure(index);
+          }}
+        >
+          O compasso {confirm.index + 1} sai da música inteira — todas as trilhas
+          andam com os mesmos compassos. Isto aqui vai junto:
+          <ul className="confirm-list">
+            {confirm.losing.map((t) => (
+              <li key={t.name}>
+                {t.name}
+                {t.hasContent ? " — o que está escrito" : ""}
+                {t.proposals > 0 && (
+                  <span className="confirm-list-prop">
+                    {t.hasContent ? " · " : " — "}
+                    {t.proposals === 1
+                      ? "1 proposta em aberto"
+                      : `${t.proposals} propostas em aberto`}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ConfirmDialog>
+      )}
+
+      {confirm?.kind === "track" && (
+        <ConfirmDialog
+          title={`Remover a trilha "${confirm.name}"?`}
+          confirmLabel="Remover a trilha"
+          busy={busy}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            const { name } = confirm;
+            setConfirm(null);
+            removeTrack(name);
+          }}
+        >
+          {confirm.empty
+            ? "Ela está vazia — nada escrito se perde."
+            : "Tudo que foi escrito nela — inclusive o de outras pessoas e as propostas em aberto — será apagado, e não dá para desfazer."}
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

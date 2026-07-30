@@ -1,8 +1,31 @@
 import { NextResponse } from "next/server";
-import { addMeasure, deleteMeasure, MAX_MEASURES_PER_ADD } from "@/lib/measures";
+import {
+  addMeasure,
+  deleteMeasure,
+  measureOccupancy,
+  MAX_MEASURES_PER_ADD,
+} from "@/lib/measures";
 import { getCurrentUser } from "@/lib/identity";
 
 type Params = { params: Promise<{ songId: string }> };
+
+// GET ?order=N — o que se perde ao remover o compasso N (trilhas com conteúdo,
+// propostas em aberto). Só leitura: alimenta o aviso proporcional da UI.
+export async function GET(request: Request, { params }: Params) {
+  const { songId } = await params;
+  const order = Number(new URL(request.url).searchParams.get("order"));
+  if (!Number.isInteger(order) || order < 0) {
+    return NextResponse.json({ error: "order inválido." }, { status: 400 });
+  }
+  try {
+    return NextResponse.json(await measureOccupancy(songId, order));
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Compasso não encontrado." },
+      { status: 404 },
+    );
+  }
+}
 
 // POST { afterOrder, count? } — insere `count` compassos vazios (padrão 1) após
 // `afterOrder`. Só o dono.
