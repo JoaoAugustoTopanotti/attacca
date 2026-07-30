@@ -37,15 +37,17 @@ export type BeatDuration = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128;
 /**
  * Efeitos de nota editáveis por toggle. Todos sem parâmetro, então o round-trip
  * é sem perda: `x` nota morta, `pm` palm mute, `nh` harmônico natural,
- * `ac`/`hac` acento, `st` staccato, `g` ghost note.
+ * `ac`/`hac` acento, `st` staccato, `g` ghost note, `t` nota ligada (tie —
+ * prolonga a anterior da mesma corda, sem novo ataque; o exporter escreve `{t}`,
+ * e o importer também aceita `-` no lugar da casa, forma que fica opaca).
  * Bend fica fora: exige pontos (`{b (0 4)}`) e tem API própria (setBend).
  */
 export type NoteEffect =
   | "h" | "p" | "sl" | "v" | "lr"
-  | "x" | "pm" | "nh" | "ac" | "hac" | "st" | "g";
+  | "x" | "pm" | "nh" | "ac" | "hac" | "st" | "g" | "t";
 
 const NOTE_EFFECTS = new Set<NoteEffect>([
-  "h", "p", "sl", "v", "lr", "x", "pm", "nh", "ac", "hac", "st", "g",
+  "h", "p", "sl", "v", "lr", "x", "pm", "nh", "ac", "hac", "st", "g", "t",
 ]);
 
 export type EditorNote = {
@@ -54,7 +56,7 @@ export type EditorNote = {
   effects: NoteEffect[];
   /**
    * Efeitos/anotações de NOTA opacos, preservados verbatim. Vêm entre
-   * `casa.corda` e `.duração` (ex.: `3.2{t}.8`). Escrevê-los depois da duração
+   * `casa.corda` e `.duração` (ex.: `3.2{lht}.8`). Escrevê-los depois da duração
    * é rejeitado pelo parser do alphaTab — viraria propriedade de beat inválida.
    */
   suffix?: string;

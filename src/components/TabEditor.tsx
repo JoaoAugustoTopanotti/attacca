@@ -57,6 +57,7 @@ const DURATIONS: Array<{ value: BeatDuration; label: string; title: string }> = 
 const EFFECTS: Array<{ value: NoteEffect; label: string; title: string }> = [
   { value: "h",  label: "H",  title: "Hammer-on (liga à próxima nota da mesma corda)" },
   { value: "p",  label: "P",  title: "Pull-off (liga à próxima nota da mesma corda)"  },
+  { value: "t",  label: "Lig", title: "Nota ligada (tie: prolonga a nota anterior da mesma corda, sem novo ataque)" },
   { value: "sl", label: "/",  title: "Slide (desliza até a próxima nota)"             },
   { value: "v",  label: "~",  title: "Vibrato"                                        },
   { value: "lr", label: "LR", title: "Let ring (deixa soar)"                          },

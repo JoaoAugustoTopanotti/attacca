@@ -75,6 +75,29 @@ test("duração inválida continua caindo no sticky (não vira lixo)", () => {
   assert.equal(model.measures[0].beats[0].duration, 4);
 });
 
+// ── Nota ligada (tie): {t} é efeito de primeira classe ────────────────────────
+
+test("{t} vira efeito editável e round-tripa", () => {
+  const model = parseTrackTex("3.2.4 3.2{t}.4 r.4 r.4");
+  const tied = model.measures[0].beats[1].notes[0];
+  assert.ok(tied.effects.includes("t"), "efeito t não reconhecido");
+  const out = serializeModel(model);
+  assert.ok(/3\.2\{[^}]*\bt\b[^}]*\}/.test(out), `{t} sumiu: ${out}`);
+});
+
+test("{t} no grupo único do exporter não engole os outros efeitos", () => {
+  const model = parseTrackTex("3.2{v t pm}.4 r.4 r.4 r.4");
+  const fx = model.measures[0].beats[0].notes[0].effects;
+  assert.deepEqual([...fx].sort(), ["pm", "t", "v"]);
+});
+
+test("'t' depois de lf é dedo (polegar), não tie", () => {
+  const model = parseTrackTex("3.2{lf t}.4 r.4 r.4 r.4");
+  const note = model.measures[0].beats[0].notes[0];
+  assert.ok(!note.effects.includes("t"), "argumento de lf virou efeito");
+  assert.ok(note.suffix?.includes("lf t"), `lf t não preservado: ${note.suffix}`);
+});
+
 // ── drum-grid: acorde + quiáltera com parênteses no grupo ─────────────────────
 
 test("parseBar aceita acorde com {tu (3 2)} (antes caía para texto)", () => {
