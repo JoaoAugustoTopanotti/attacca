@@ -625,6 +625,34 @@ O raciocínio que levou à decisão (mantido como contexto):
   reescreve também `Revision.authorName` — Histórico não congela mais nome antigo);
   `songCompleteness` em 2 `groupBy` (era 2 counts POR trilha — N+1 no mural);
   `.env.example` corrigido para o Postgres do Docker.
+- **Declaração de trilha em 2 passos + QoL do editor/player (2026-07-29)** —
+  (1) **Escolher instrumento estilo Songsterr**: primeiro o instrumento, depois as
+  características — timbre GM (limpa/overdrive/distorção/jazz; aço/náilon;
+  dedo/palheta/fretless/slap…) e nº de cordas (guitarra 6/7/8, violão 6/7 — o 7 é o
+  brasileiro com C grave —, baixo 4/5/6). `INSTRUMENT_FAMILIES` + `resolveInstrument`
+  (`DeclareSpec {family, sound?, strings?}` → programa+afinação+rótulo derivado, ex.:
+  "Guitarra 7 cordas (overdrive)") em `instrument-presets.ts`; `declareTrack` recebe a
+  spec; POST `/tracks` aceita `{family, sound?, strings?}` (+ legado `presetKey` via
+  `LEGACY_PRESET_SPECS`; GET devolve as famílias). UI = `InstrumentPicker` compartilhado
+  (CompletenessPanel + "+trilha" do TrackEditor), que importa o módulo puro direto —
+  sem fetch de presets; selects de característica só aparecem com >1 opção. A lista
+  plana `INSTRUMENT_PRESETS` continua sendo a moeda do PERFIL (`User.instruments`
+  guarda essas chaves — não mexer). Testes em `tests/instrument-presets.test.ts`.
+  (2) **Multi-bar rest no player**: `scoreLoaded` seta `score.stylesheet.
+  multiTrackMultiBarRest` + `perTrackMultiBarRest` (todas as trilhas) — compassos
+  consecutivos só de pausa viram um compasso único com o número em cima (nativo do
+  alphaTab 1.8). Só no AlphaTabPlayer; o TabEditor segue mostrando cada compasso
+  (edição/overlays são por compasso).
+  (3) **"i" em compasso cheio cria o próximo**: no TabEditor, com `canEditStructure`,
+  o "i" num compasso cheio chama `onAddMeasure(cursor)` (o mesmo fluxo do botão "+",
+  salva edição pendente antes) e `pendingCursorRef` restaura o cursor no compasso novo
+  quando o refetch chega (o effect de mudança externa zerava o cursor); sem poder
+  estrutural, mantém o aviso.
+  (4) **Nota ligada (tie)**: `t` entrou nos `NoteEffect` toggleáveis (botão "Lig" na
+  toolbar, entre P e slide) — é o token que o exporter escreve (`3.2{t}.4`) e o importer
+  aceita (`isTieDestination`; a forma `-` no lugar da casa fica opaca). ⚠️ `{lf t}` =
+  polegar da mão esquerda ("t" é ARGUMENTO de lf) — o guard `PARAM_KEYWORDS` do
+  `extractEffectsAndSuffix` já cobre; testes em alphatex-parsing (21 casos no total).
 - ⚠️ **Limites atuais**: vozes 1+ são opacas (edita-se a voz 0); percussão sem editor
   visual; add/remover compasso é só do dono (estrutural-como-proposta precisa de design
   próprio: compassos têm IDENTIDADE por id, não por índice — insert+delete ≠ edição);
