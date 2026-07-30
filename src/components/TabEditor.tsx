@@ -300,6 +300,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // Último alphaTex emitido daqui: distingue mudança externa (refetch, aceite de
   // proposta) do eco da nossa própria edição.
   const lastEmittedRef = useRef(alphaTex);
+  // Cursor a restaurar na PRÓXIMA mudança externa: "i" num compasso cheio cria
+  // um compasso novo via onAddMeasure (refetch assíncrono) e o cursor deve cair
+  // nele, não voltar a null.
+  const pendingCursorRef = useRef<{ measureIndex: number; beatIndex: number; string: number } | null>(null);
 
   useEffect(() => { modelRef.current = model; }, [model]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
@@ -347,7 +351,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       lastEmittedRef.current = alphaTex;
       const m = parseTrackTex(alphaTex);
       setModel(m);
-      setCursor(null);
+      const pending = pendingCursorRef.current;
+      pendingCursorRef.current = null;
+      setCursor(pending ? clampCursor(m, pending) : null);
       setSelAnchor(null);
       historyRef.current = { past: [], future: [] };
       apiRef.current?.tex(renderTex(m));
@@ -1062,7 +1068,19 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           const used = measureUsed64(measure);
           const remaining = cap - used;
           if (remaining <= CAP_EPS) {
-            showWarn(`Compasso cheio (${num}/${den}) — apague ou encurte um beat antes de inserir.`);
+            // Compasso cheio: para quem pode mexer na estrutura, cria o
+            // próximo compasso e o cursor segue para ele — compor do zero é
+            // compasso a compasso, e parar num aviso quebrava o fluxo.
+            if (canEditStructure && onAddMeasure) {
+              pendingCursorRef.current = {
+                measureIndex: cur.measureIndex + 1,
+                beatIndex: 0,
+                string: cur.string,
+              };
+              onAddMeasure(cur.measureIndex);
+            } else {
+              showWarn(`Compasso cheio (${num}/${den}) — apague ou encurte um beat antes de inserir.`);
+            }
             return;
           }
           // Duração do novo beat: a do beat de referência, se couber; senão a
@@ -1129,7 +1147,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     [
       applyDots, applyModel, deleteRange, disabled, doCopy, doMoveBeat,
       doMoveNoteString, doPaste, doRedo, doRepeat, doUndo, measureTs,
-      showWarn, stepDuration, trackStringCount,
+      showWarn, stepDuration, trackStringCount, canEditStructure, onAddMeasure,
     ],
   );
 
