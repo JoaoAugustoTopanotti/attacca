@@ -16,6 +16,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  // Testar no celular = abrir o dev server pelo IP da rede local. O Next 16
+  // bloqueia recursos de /_next/* vindos de origens que não estejam nesta lista,
+  // e o cliente de HMR, ao não conseguir o websocket, recarrega a página em
+  // loop — a página nunca termina de hidratar (botões mortos no celular).
+  // Só vale em desenvolvimento; em produção esta opção é ignorada.
+  allowedDevOrigins: ["192.168.1.*", "192.168.0.*"],
+
   // On the server we use alphaTab as a plain Node module (import .gp/MusicXML and
   // export canonical alphaTex). Keep it external so Next doesn't bundle its
   // worker/worklet code into the server build — it's required natively at runtime.
