@@ -50,6 +50,14 @@ type Status = "loading" | "ready" | "error";
  *  que o timbre declarado não funcionou. */
 const BACKGROUND_TRACK_VOLUME = 0.3;
 
+/** Soundfont extra com os presets de guitarra (GM 24–31), anexado por cima do
+ *  sonivox. No banco padrão do alphaTab (SONiVOX EAS, o wavetable embarcado do
+ *  Android) os programas 29 (overdrive) e 30 (distorção) apontam para os MESMOS
+ *  samples — loops de 11 kHz, sem nada acima de ~5,5 kHz, que é onde mora a
+ *  fritura que se reconhece como distorção. Limpa, overdrive e distorção soavam
+ *  iguais. Ver `public/sf/README.md` (origem, licença e como foi gerado). */
+const GUITAR_SOUNDFONT_URL = "/sf/guitars.sf2";
+
 /** Preferências aplicáveis sem re-renderizar a partitura (só áudio). */
 function applyPlaybackPrefs(api: AlphaTabApi, prefs: PlayerPrefs) {
   api.masterVolume = prefs.volume;
@@ -300,6 +308,17 @@ const AlphaTabPlayer = forwardRef<
         applyTrackEmphasis(firstIndex);
         setStatus("ready");
         setErrorMessage(null);
+      });
+
+      // `player.soundFont` carrega o sonivox com append=false; só depois que ele
+      // termina dá para anexar as guitarras, senão a carga do banco base
+      // substituiria o que foi anexado. O evento dispara a cada carga (inclusive
+      // a nossa), daí a trava de uma vez só.
+      let guitarsRequested = false;
+      api.soundFontLoaded.on(() => {
+        if (guitarsRequested || disposed) return;
+        guitarsRequested = true;
+        api?.loadSoundFont(GUITAR_SOUNDFONT_URL, true);
       });
 
       api.playerReady.on(() => {
