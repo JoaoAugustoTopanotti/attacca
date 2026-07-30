@@ -304,6 +304,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // um compasso novo via onAddMeasure (refetch assíncrono) e o cursor deve cair
   // nele, não voltar a null.
   const pendingCursorRef = useRef<{ measureIndex: number; beatIndex: number; string: number } | null>(null);
+  // Um render por vez (ver loadTex): render no ar + tex novo na fila.
+  const renderBusyRef = useRef(false);
+  const pendingTexRef = useRef<string | null>(null);
+  const renderWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { modelRef.current = model; }, [model]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
@@ -318,6 +322,38 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
   }, []);
 
+  // Único caminho para trocar o score do alphaTab: UM render por vez, com o
+  // último tex pedido vencendo a fila.
+  // ⚠️ Trocar o score enquanto um render está no ar é corrida: o render acontece
+  // no Web Worker e, ao terminar, o alphaTab remapeia os bounds no score ATUAL
+  // por índice de compasso (`BoundsLookup.fromJson`). Se o score novo tem menos
+  // compassos (remover compasso), o índice velho não existe mais e estoura
+  // "Cannot read properties of undefined (reading 'voices')" — fora do
+  // api.error, direto no handler da mensagem do worker.
+  const loadTex = useCallback((tex: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    if (renderBusyRef.current) {
+      pendingTexRef.current = tex;
+      return;
+    }
+    renderBusyRef.current = true;
+    // Rede de segurança: se um render não chegar ao postRenderFinished (erro de
+    // parse, por exemplo), a fila não pode travar o editor para sempre.
+    if (renderWatchdogRef.current) clearTimeout(renderWatchdogRef.current);
+    renderWatchdogRef.current = setTimeout(() => {
+      renderBusyRef.current = false;
+      const queued = pendingTexRef.current;
+      pendingTexRef.current = null;
+      if (queued !== null) loadTexRef.current?.(queued);
+    }, 1500);
+    api.tex(tex);
+  }, []);
+  // O handler do alphaTab é registrado uma vez na montagem e o watchdog se
+  // rechama: os dois precisam da versão atual de loadTex.
+  const loadTexRef = useRef(loadTex);
+  loadTexRef.current = loadTex;
+
   // ── Mudança estrutural vinda do pai (afinação, andamento, meta) ─────────────
   // O alphaTex das células não muda, então o effect de mudança externa não
   // dispara. Re-renderiza o alphaTab em-place, sem remontar o editor: preserva
@@ -329,11 +365,17 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       (measureMeta ?? [])
         .map((m) => `${m.tsNum}/${m.tsDen}:${m.structPrefix ?? ""}`)
         .join("|");
-    if (structSigRef.current !== null && structSigRef.current !== sig) {
-      apiRef.current?.tex(renderTex(modelRef.current));
+    // Adicionar/remover compasso muda a meta E o alphaTex no mesmo commit: quem
+    // renderiza é o effect de mudança externa, com o modelo novo. Renderizar
+    // aqui também produziria um score intermediário errado (modelo antigo + meta
+    // nova), trocado no mesmo tick — o render de sobra é justamente o que
+    // devolvia bounds de compassos que já não existem.
+    const externalPending = alphaTex !== lastEmittedRef.current;
+    if (structSigRef.current !== null && structSigRef.current !== sig && !externalPending) {
+      loadTex(renderTex(modelRef.current));
     }
     structSigRef.current = sig;
-  }, [trackHeader, measureMeta, initialTempo, renderTex]);
+  }, [alphaTex, trackHeader, measureMeta, initialTempo, renderTex, loadTex]);
 
   // Cursor de playback: o pai encaminha o tick do player headless, e definir
   // `tickPosition` move o cursor do editor sem produzir áudio.
@@ -356,17 +398,17 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       setCursor(pending ? clampCursor(m, pending) : null);
       setSelAnchor(null);
       historyRef.current = { past: [], future: [] };
-      apiRef.current?.tex(renderTex(m));
+      loadTex(renderTex(m));
     }
-  }, [alphaTex, renderTex]);
+  }, [alphaTex, renderTex, loadTex]);
 
   // ── Volta do modo texto: re-renderiza o alphaTab com o modelo atual ─────────
   useEffect(() => {
     if (!rawMode && prevRawModeRef.current && apiRef.current) {
-      apiRef.current.tex(renderTex(modelRef.current));
+      loadTex(renderTex(modelRef.current));
     }
     prevRawModeRef.current = rawMode;
-  }, [rawMode, renderTex]);
+  }, [rawMode, renderTex, loadTex]);
 
   // ── Inicialização do alphaTab (uma vez na montagem) ────────────────────────
   useEffect(() => {
@@ -410,8 +452,23 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         requestAnimationFrame(() => viewportRef.current?.focus());
       });
 
-      // Os bounds mudam a cada re-render: recalcula os overlays.
-      api.postRenderFinished.on(() => setRenderEpoch((e) => e + 1));
+      // Render que não veio do loadTex (resize do container, por exemplo) também
+      // segura a fila: trocar o score no meio dele cairia na mesma corrida.
+      api.renderStarted.on(() => { renderBusyRef.current = true; });
+
+      // Os bounds mudam a cada re-render: recalcula os overlays. Aqui também
+      // libera a fila de loadTex — o score só troca entre renders.
+      api.postRenderFinished.on(() => {
+        if (renderWatchdogRef.current) {
+          clearTimeout(renderWatchdogRef.current);
+          renderWatchdogRef.current = null;
+        }
+        renderBusyRef.current = false;
+        const queued = pendingTexRef.current;
+        pendingTexRef.current = null;
+        if (queued !== null) loadTexRef.current(queued);
+        setRenderEpoch((e) => e + 1);
+      });
 
       // Dispara em qualquer beat, com notas ou pausa: move o cursor e pede o
       // seek da música completa para o tick clicado.
@@ -486,15 +543,22 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
       api.error.on((err) => {
         console.error("[TabEditor] alphaTab error:", err);
+        // Render que falhou não chega ao postRenderFinished: libera a fila aqui,
+        // senão o editor pararia de refletir as edições seguintes.
+        renderBusyRef.current = false;
+        const queued = pendingTexRef.current;
+        pendingTexRef.current = null;
+        if (queued !== null) loadTexRef.current(queued);
       });
 
       apiRef.current = api;
-      api.tex(renderTex(modelRef.current));
+      loadTexRef.current(renderTex(modelRef.current));
     })();
 
     return () => {
       disposed = true;
       apiRef.current = null;
+      if (renderWatchdogRef.current) clearTimeout(renderWatchdogRef.current);
       api?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -509,9 +573,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       lastEmittedRef.current = tex;
       setModel(newModel);
       onChange(tex);
-      apiRef.current?.tex(renderTex(newModel));
+      // Pela fila: digitação rápida deixa de empilhar um render por tecla no
+      // worker — vale o último modelo.
+      loadTex(renderTex(newModel));
     },
-    [onChange, renderTex],
+    [onChange, renderTex, loadTex],
   );
 
   const applyModel = useCallback(
