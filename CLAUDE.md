@@ -358,6 +358,32 @@ O raciocínio que levou à decisão (mantido como contexto):
   score remontado → `ProgramChangeEvent program:29` no MIDI → preset "Overdrive Gt" existe
   no `sonivox.sf2`. ⚠️ Caveat do alphaTab: trilhas que **compartilham canal** (todas as de
   percussão usam o 9) não se distinguem no volume.
+- **Soundfont de guitarras anexado — o timbre distorcido não EXISTIA (2026-07-30)** — o
+  mascaramento acima era real, mas não era a causa raiz: relatado de novo como "a guitarra
+  com distorção não está com som de distorção, o mesmo serve para o overdrive". Desmontando
+  o `sonivox.sf2` (SONiVOX EAS, o wavetable embarcado do Android: 1,3 MB para 128
+  instrumentos), os presets **29 (Overdrive Gt) e 30 (DistortionGt) apontam para os MESMOS
+  7 samples** — diferem só nos pontos de corte de `keyRange` —, e esses samples são loops de
+  152 a 394 amostras a **11 kHz**: nada acima de ~5,5 kHz, que é exatamente onde mora a
+  fritura que o ouvido reconhece como distorção. Nenhum ajuste de código consertaria isso.
+  Reconfirmado que a cadeia do app está certa ponta a ponta (`\instrument 30` no
+  `headerFragment` → `program=30` no score remontado → `ProgramChangeEvent channel=4
+  program=30`, canais distintos por trilha). **Correção**: `public/sf/guitars.sf2` (3,3 MB) —
+  subconjunto dos programas GM **24–31** do **GeneralUser GS v2.0.3** (licença permissiva,
+  ver `public/sf/README.md` + `LICENSE-guitars.txt`), gerado por `scripts/subset-sf2.mjs`
+  (subsetter de RIFF/sf2 escrito aqui: remapeia `phdr`/`pbag`/`pgen`/`inst`/`ibag`/`igen`/
+  `shdr` e recorta o `smpl` com o padding de 46 amostras do spec). O `AlphaTabPlayer`
+  **anexa** o arquivo por cima do sonivox (`loadSoundFont(url, append: true)`), então só as
+  guitarras trocam — baixo, bateria e teclas seguem no sonivox. ⚠️ O append tem que esperar
+  o `soundFontLoaded` do banco base (a carga de `player.soundFont` usa append=false e
+  substituiria o que foi anexado); o evento dispara a cada carga, inclusive a nossa, daí a
+  trava de uma vez só. ⚠️ `public/soundfont/` é **gerado** pelo plugin webpack e gitignorado
+  — por isso o arquivo versionado mora em `public/sf/`. Uma modificação deliberada no
+  subset: a atenuação de preset do programa 30 caiu 7 dB (9 → 2 dB), porque o GeneralUser
+  calibra os 128 presets entre si e aqui eles convivem com outro banco; medido no
+  sintetizador do alphaTab, os três timbres ficaram nivelados (RMS 0,040 limpa / 0,044
+  overdrive / 0,038 distorção). Validado renderizando áudio offline com `AlphaSynth` +
+  `ISynthOutput` de captura em Node — dá para provar timbre sem ouvido humano.
 - **Histórico = só o HANDOFF entre pessoas (snapshots), revisão pós-teste** — `Revision.
   kind="snapshot"` via `snapshotGrid` (`src/lib/materialize.ts`) congela o alphaTex
   remontado, credita o autor, aparece no `RevisionList` como **"mudança"** e é **tocável**
