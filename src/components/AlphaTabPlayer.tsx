@@ -218,6 +218,13 @@ const AlphaTabPlayer = forwardRef<
             });
           });
         });
+        // Compassos consecutivos só de pausa viram um multi-bar rest (um
+        // compasso único com o número em cima, como em partitura impressa) —
+        // uma trilha que entra no compasso 20 não gasta 19 compassos vazios.
+        score.stylesheet.multiTrackMultiBarRest = true;
+        score.stylesheet.perTrackMultiBarRest = new Set(
+          score.tracks.map((t: Track) => t.index),
+        );
         const list = score.tracks.map((t: Track) => {
           const pb = t.playbackInfo;
           const isPercussion = pb?.primaryChannel === 9;
