@@ -43,6 +43,13 @@ export type AlphaTabPlayerHandle = {
 
 type Status = "loading" | "ready" | "error";
 
+/** Volume das trilhas que NÃO são a selecionada (multiplicador do mix). A
+ *  música inteira continua tocando — é o revezamento soando junto —, mas a
+ *  trilha escolhida fica à frente. Sem isso, um instrumento em uníssono com
+ *  outro (guitarra limpa × overdrive, por exemplo) some na mistura e parece
+ *  que o timbre declarado não funcionou. */
+const BACKGROUND_TRACK_VOLUME = 0.3;
+
 /** Preferências aplicáveis sem re-renderizar a partitura (só áudio). */
 function applyPlaybackPrefs(api: AlphaTabApi, prefs: PlayerPrefs) {
   api.masterVolume = prefs.volume;
@@ -117,6 +124,9 @@ const AlphaTabPlayer = forwardRef<
   // Perfil de pauta preferido, vindo das Configurações. O aplicado pode diferir
   // por trilha: ver applyStaveProfileFor.
   const prefStaveProfileRef = useRef<StaveProfile>("Tab");
+  // Trilha em destaque no mix. Em ref porque os handlers do alphaTab são
+  // registrados uma vez só e precisam do valor atual.
+  const emphasisIndexRef = useRef(0);
 
   const [apiReady, setApiReady] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
@@ -129,6 +139,20 @@ const AlphaTabPlayer = forwardRef<
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [endTimeMs, setEndTimeMs] = useState(0);
+
+  // Põe a trilha selecionada à frente no mix e abaixa as demais. O alphaTab
+  // gera o MIDI da partitura inteira e `renderTracks` só muda o que é
+  // DESENHADO: sem mexer no volume por canal, o áudio é sempre a mistura cheia.
+  function applyTrackEmphasis(index: number) {
+    const api = apiRef.current;
+    const score = scoreRef.current;
+    if (!api || !score) return;
+    emphasisIndexRef.current = index;
+    const selected = score.tracks.filter((t: Track) => t.index === index);
+    const others = score.tracks.filter((t: Track) => t.index !== index);
+    api.changeTrackVolume(others, BACKGROUND_TRACK_VOLUME);
+    api.changeTrackVolume(selected, 1);
+  }
 
   // Percussão não tem tablatura de cordas, e renderizá-la com o perfil "só tab"
   // quebra o layout do alphaTab. Trilha de bateria força um perfil com
@@ -273,11 +297,17 @@ const AlphaTabPlayer = forwardRef<
           applyStaveProfileFor(firstTrack);
           apiRef.current?.renderTracks([firstTrack]);
         }
+        applyTrackEmphasis(firstIndex);
         setStatus("ready");
         setErrorMessage(null);
       });
 
-      api.playerReady.on(() => setPlayerReady(true));
+      api.playerReady.on(() => {
+        setPlayerReady(true);
+        // O mix é do sintetizador: reaplica quando ele fica pronto, para o caso
+        // de o score ter carregado antes do áudio.
+        applyTrackEmphasis(emphasisIndexRef.current);
+      });
       api.playerStateChanged.on((e) => {
         setIsPlaying(e.state === alphaTab.synth.PlayerState.Playing);
       });
@@ -393,6 +423,7 @@ const AlphaTabPlayer = forwardRef<
       applyStaveProfileFor(track);
       api.renderTracks([track]);
     }
+    applyTrackEmphasis(index);
   }
 
   function handlePlayPause() { apiRef.current?.playPause(); }

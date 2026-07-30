@@ -346,6 +346,18 @@ O raciocínio que levou à decisão (mantido como contexto):
 - **Player mostra a verdade viva** — `SongWorkspace`: música materializada → o player
   toca o **remontado-das-células** (`/assembled`, guitarra+baixo+…), não o snapshot de
   upload. (Antes mostrava só a guitarra mesmo com baixo no grid.) Histórico toca snapshots.
+- ⚠️ **Ênfase de mix na trilha selecionada (2026-07-30)** — `renderTracks([track])` muda só
+  o que é **desenhado**; `loadMidiForScore` gera o MIDI da partitura **inteira**, então o
+  áudio sempre foi a mistura cheia. Duas trilhas em uníssono (guitarra limpa × a mesma
+  guitarra com overdrive) se mascaravam e o timbre declarado parecia não funcionar — foi
+  reportado como "o overdrive faz som normal". O `AlphaTabPlayer` agora chama
+  `changeTrackVolume`: selecionada = 1, demais = `BACKGROUND_TRACK_VOLUME` (0.3),
+  reaplicado em `scoreLoaded`, `playerReady` (o mix é do sintetizador) e `selectTrack`.
+  **Tudo continua tocando** — a música completa é a tese; a escolhida só fica à frente.
+  Provado que a cadeia do timbre estava certa: header `\instrument 29` → `program=29` no
+  score remontado → `ProgramChangeEvent program:29` no MIDI → preset "Overdrive Gt" existe
+  no `sonivox.sf2`. ⚠️ Caveat do alphaTab: trilhas que **compartilham canal** (todas as de
+  percussão usam o 9) não se distinguem no volume.
 - **Histórico = só o HANDOFF entre pessoas (snapshots), revisão pós-teste** — `Revision.
   kind="snapshot"` via `snapshotGrid` (`src/lib/materialize.ts`) congela o alphaTex
   remontado, credita o autor, aparece no `RevisionList` como **"mudança"** e é **tocável**
