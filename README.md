@@ -29,6 +29,8 @@ npm run dev          # http://localhost:4000
 ```
 
 Detalhes de stack, arquitetura e decisões: [`CLAUDE.md`](CLAUDE.md) e [`docs/adr/`](docs/adr/).
+Vocabulário do projeto (o que significa "célula", "materializar", "slot"…):
+[`docs/GLOSSARIO.md`](docs/GLOSSARIO.md).
 
 ---
 
