@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import InstrumentPicker, { defaultSpec, specLabel } from "@/components/InstrumentPicker";
+import type { DeclareSpec } from "@/lib/instrument-presets";
 
 type TrackC = {
   id: string;
@@ -16,14 +18,11 @@ type Completeness = {
   tracks: TrackC[];
   missing: string[];
 };
-type Preset = { key: string; label: string };
-
 // Menu recolhível no rodapé da aba Colaborar. Fechado, mostra só "X% completo";
 // aberto, exibe a porcentagem por instrumento e permite declarar um que falta.
 export default function CompletenessPanel({ songId }: { songId: string }) {
   const [data, setData] = useState<Completeness | null>(null);
-  const [presets, setPresets] = useState<Preset[]>([]);
-  const [presetKey, setPresetKey] = useState("");
+  const [spec, setSpec] = useState<DeclareSpec>(defaultSpec);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,24 +35,16 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
 
   useEffect(() => {
     load();
-    fetch(`/api/songs/${songId}/tracks`)
-      .then((r) => r.json())
-      .then((ps: Preset[]) => {
-        setPresets(ps);
-        setPresetKey(ps[0]?.key ?? "");
-      })
-      .catch(() => {});
-  }, [load, songId]);
+  }, [load]);
 
   async function declare() {
-    if (!presetKey) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/songs/${songId}/tracks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ presetKey, name: name.trim() || undefined }),
+        body: JSON.stringify({ ...spec, name: name.trim() || undefined }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Falha ao declarar.");
@@ -106,17 +97,13 @@ export default function CompletenessPanel({ songId }: { songId: string }) {
             </div>
             <p className="sub" style={{ fontSize: "0.74rem", margin: "0 0 8px" }}>
               {name.trim() ? (
-                <>vai aparecer como <strong>{presets.find((p) => p.key === presetKey)?.label ?? ""} — {name.trim()}</strong></>
+                <>vai aparecer como <strong>{specLabel(spec)} — {name.trim()}</strong></>
               ) : (
                 <>Cria uma trilha vazia e sem dono — o convite para alguém assumir.</>
               )}
             </p>
             <div className="completeness-declare-row">
-              <select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
-                {presets.map((p) => (
-                  <option key={p.key} value={p.key}>{p.label}</option>
-                ))}
-              </select>
+              <InstrumentPicker value={spec} onChange={setSpec} disabled={busy} />
               <input
                 type="text"
                 value={name}

@@ -261,7 +261,7 @@ async function seedSong(def: SeedSong, users: Map<string, SeedUser>) {
   for (const part of def.parts) {
     const author = users.get(part.author)!;
     const actor = { id: author.id, displayName: author.displayName };
-    const track = await declareTrack(song.id, part.preset, undefined, actor);
+    const track = await declareTrack(song.id, { family: part.preset }, undefined, actor);
 
     if (part.pending) {
       // `submitTrackContent` só gera proposta quando o ator não é o dono, e

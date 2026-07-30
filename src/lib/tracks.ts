@@ -10,11 +10,18 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { watchSong, notifySlotDeclared } from "@/lib/notifications";
 import { instrumentLabel } from "@/lib/instruments";
-import { INSTRUMENT_PRESETS, type InstrumentPreset } from "@/lib/instrument-presets";
+import {
+  INSTRUMENT_PRESETS,
+  INSTRUMENT_FAMILIES,
+  resolveInstrument,
+  type InstrumentPreset,
+  type DeclareSpec,
+  type ResolvedInstrument,
+} from "@/lib/instrument-presets";
 
 // A lista em si vive em instrument-presets.ts (módulo puro, importável de
 // client components); re-exportada aqui para os consumidores server-side.
-export { INSTRUMENT_PRESETS, type InstrumentPreset };
+export { INSTRUMENT_PRESETS, INSTRUMENT_FAMILIES, type InstrumentPreset, type DeclareSpec };
 
 /**
  * Família GM de um preset ("Baixo", "Guitarra/Violão"). O casamento entre uma
@@ -26,7 +33,7 @@ export function presetFamily(key: string): string | null {
   return preset ? instrumentLabel(preset.program, preset.isPercussion) : null;
 }
 
-function buildHeaderFragment(name: string, p: InstrumentPreset): string {
+function buildHeaderFragment(name: string, p: ResolvedInstrument): string {
   const safe = name.replace(/"/g, "");
   // Percussão exige "\instrument percussion" (canal 9, pauta de bateria):
   // "\instrument 0" criaria uma trilha de piano, onde a notação de percussão
@@ -49,12 +56,12 @@ function buildHeaderFragment(name: string, p: InstrumentPreset): string {
  */
 export async function declareTrack(
   songId: string,
-  presetKey: string,
+  spec: DeclareSpec,
   name?: string,
   actor?: { id: string; displayName: string } | null,
 ) {
-  const preset = INSTRUMENT_PRESETS.find((p) => p.key === presetKey);
-  if (!preset) throw new Error("Instrumento desconhecido.");
+  // Lança em família/som/cordas desconhecidos ("Instrumento desconhecido.").
+  const preset = resolveInstrument(spec);
 
   const measures = await prisma.measure.findMany({
     where: { songId },

@@ -875,7 +875,7 @@ label {
   max-width: 760px;
 }
 .completeness-declare-title { font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; }
-.completeness-declare-row { display: flex; gap: 8px; align-items: center; }
+.completeness-declare-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .completeness-declare-row select { flex-shrink: 0; }
 .completeness-declare-row input { flex: 2; min-width: 260px; padding: 9px 12px; }
 .completeness-declare-btn {
@@ -1432,7 +1432,9 @@ label {
   border-radius: 7px; color: var(--text); font-family: inherit; font-size: 0.82rem;
   padding: 0 9px;
 }
-.add-track-row select { flex: 1 1 100%; }
+/* O instrumento pode vir com selects de características (cordas, timbre):
+   dividem a linha e quebram quando não cabem. */
+.add-track-row select { flex: 1 1 auto; min-width: 0; max-width: 100%; }
 .add-track-row input { flex: 1; min-width: 0; }
 .add-track-row button {
   height: 32px; padding: 0 12px; font-size: 0.82rem; font-family: inherit;
