@@ -79,6 +79,10 @@ export default function TrackEditor({
   const previewTextRef = useRef<string | null>(null);
   // Sequência do loadTrack: invalida respostas de fetches antigos (corrida).
   const loadSeqRef = useRef(0);
+  // Aviso a exibir DEPOIS do próximo carregamento: o loadTrack limpa as
+  // mensagens, então quem recarrega a trilha (remover trilha, por exemplo)
+  // deixa o texto aqui em vez de setar um info que seria apagado em seguida.
+  const pendingInfoRef = useRef<string | null>(null);
 
   // Encaminha o tick do player headless para o cursor do editor visual.
   const syncEditorCursor = useCallback((tick: number) => {
@@ -145,6 +149,59 @@ export default function TrackEditor({
     }
   }
 
+  // Remove a trilha selecionada. Inverso do "+ trilha": declarar o instrumento
+  // errado não pode virar um slot eterno no mural. Diferente das outras
+  // operações estruturais, a edição pendente NÃO é salva antes — salvar o
+  // conteúdo de uma trilha que está sendo apagada não faz sentido; o aviso do
+  // confirm diz que ela vai junto.
+  async function removeTrack() {
+    if (busy || !content) return;
+    const name = content.track.name;
+    // Um slot declarado e nunca preenchido só tem separadores de compasso.
+    const empty = !content.alphaTex.replace(/\|/g, "").trim();
+    const warn = empty
+      ? `Remover a trilha "${name}"? Ela está vazia.`
+      : `Remover a trilha "${name}"? Tudo que foi escrito nela — inclusive o de outras pessoas e as propostas em aberto — será apagado, e não dá para desfazer.`;
+    if (!window.confirm(warn)) return;
+
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Falha ao remover a trilha.");
+
+      // O servidor fecha o buraco na numeração: espelha o mesmo deslizamento na
+      // lista local, senão o seletor pediria uma ordem que mudou de dono.
+      const next = trackList
+        .filter((t) => t.order !== trackOrder)
+        .map((t) => (t.order > trackOrder ? { ...t, order: t.order - 1 } : t));
+      setTrackList(next);
+      // O buffer é da trilha que deixou de existir: descarta antes de trocar,
+      // senão `dirty` compararia com um conteúdo fantasma.
+      setContent(null);
+      setText("");
+      previewTextRef.current = null;
+      setPlayerEpoch((n) => n + 1);
+      pendingInfoRef.current = `Trilha "${name}" removida.`;
+
+      // Removida a última, cai para a anterior; no meio, a seguinte assume a
+      // mesma posição — e aí o efeito de troca não dispara, então recarrega na
+      // mão (o `trackOrder` do closure já é a ordem certa).
+      const nextOrder = Math.min(trackOrder, next.length - 1);
+      if (nextOrder === trackOrder) await loadTrack();
+      else setTrackOrder(nextOrder);
+    } catch (e) {
+      pendingInfoRef.current = null;
+      setError(e instanceof Error ? e.message : "Erro.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const ownerId = content?.song.ownerId ?? null;
   const ownerName = content?.song.ownerName ?? null;
   // Sem o conteúdo carregado não há como saber o papel: não presumir dono.
@@ -156,7 +213,8 @@ export default function TrackEditor({
     // com o conteúdo de uma trilha e o order de outra ("Carregando…" eterno).
     const seq = ++loadSeqRef.current;
     setError(null);
-    setInfo(null);
+    setInfo(pendingInfoRef.current);
+    pendingInfoRef.current = null;
     try {
       const res = await fetch(`/api/songs/${songId}/tracks/${trackOrder}/content`);
       const json = await res.json().catch(() => null);
@@ -551,6 +609,20 @@ export default function TrackEditor({
             </div>
           )}
         </div>
+
+        {/* Remover a trilha selecionada — ato de dono, como as demais operações
+            estruturais. Some quando só resta uma trilha (o servidor recusaria). */}
+        {isOwner && trackList.length > 1 && (
+          <button
+            type="button"
+            className="add-track-btn remove-track-btn"
+            onClick={removeTrack}
+            disabled={busy}
+            title={`Remover a trilha "${content?.track.name ?? ""}" da música`}
+          >
+            − trilha
+          </button>
+        )}
 
         {/* Afinação da trilha, para o dono de trilhas de corda. O popover edita
             corda a corda ou por preset. */}

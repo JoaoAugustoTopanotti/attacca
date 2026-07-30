@@ -404,6 +404,18 @@ O raciocínio que levou à decisão (mantido como contexto):
   mesmo triângulo). **Métrica honesta** (`songCompleteness`): célula conta como pronta sse
   tem **contribuição aceita** (pausa transcrita conta — silêncio é música); slot vazio lê
   0%, import cheio lê 100%. Lista de presets **leve** (`INSTRUMENT_PRESETS`, não ontologia).
+  **Remover trilha (2026-07-30)** — `deleteTrack` (mesmo arquivo) é o inverso de declarar:
+  errar o instrumento não podia virar slot eterno no mural. `DELETE
+  /api/songs/[id]/tracks/[order]`, **ato de dono** (403 via `loadOwnedSong`, como
+  add/remover compasso), estrutural → **sem snapshot**. Apaga células e contribuições da
+  trilha (solta `acceptedContributionId` antes — FK NoAction) e **renumera** as trilhas
+  seguintes na mesma transação (`order` é o endereço nas rotas; um vão faria o seletor
+  pedir trilha inexistente). Guarda: a **última** trilha não sai. UI = botão "− trilha" ao
+  lado do "+ trilha" no `TrackEditor` (só dono, só com >1 trilha), `window.confirm` que
+  avisa quando há conteúdo de outras pessoas; a lista local espelha o deslizamento de
+  ordem e recarrega na mão quando a trilha seguinte assume a mesma posição (o efeito de
+  troca não dispararia). Provado contra o Postgres de dev (não-dono barrado, renumeração,
+  zero órfãos, guarda da última).
   Rotas `/api/songs/[id]/tracks` (declarar + presets) e `/completeness`. UI: **home = mural**
   (% + "falta X" por música) + painel por música (barras por trilha + declarar + materializar).
   Slot vazio **assembla válido** (só pausas) — verificado.

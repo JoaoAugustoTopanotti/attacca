@@ -10,6 +10,8 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { watchSong, notifySlotDeclared } from "@/lib/notifications";
 import { instrumentLabel } from "@/lib/instruments";
+import { loadOwnedSong } from "@/lib/authority";
+import type { Actor } from "@/lib/cells";
 import {
   INSTRUMENT_PRESETS,
   INSTRUMENT_FAMILIES,
@@ -135,6 +137,51 @@ export async function declareTrack(
   });
 
   return { id: trackId, order, name: label };
+}
+
+/**
+ * Remove uma trilha inteira (a linha da grade) com as suas células e
+ * contribuições. É o inverso de `declareTrack` — errar o instrumento ao
+ * declarar não pode virar um slot eterno no mural.
+ *
+ * Operação ESTRUTURAL e destrutiva: só o dono (música sem dono = aberta), como
+ * em add/remover compasso, e sem snapshot — apagar um slot não é passo de
+ * revezamento. Apaga o trabalho de quem contribuiu naquela trilha, por isso a
+ * UI avisa quanto está sendo destruído antes de chamar.
+ */
+export async function deleteTrack(songId: string, order: number, actor: Actor) {
+  await loadOwnedSong(songId, actor, "remove trilhas");
+  const tracks = await prisma.track.findMany({
+    where: { songId },
+    orderBy: { order: "asc" },
+  });
+  if (tracks.length <= 1) {
+    throw new Error(
+      "A música precisa de ao menos 1 trilha — para tirar esta, declare outra antes.",
+    );
+  }
+  const target = tracks.find((t) => t.order === order);
+  if (!target) throw new Error("Trilha não encontrada.");
+
+  await prisma.$transaction(async (tx) => {
+    // Solta os ponteiros de aceite antes de apagar: a FK do accepted é NoAction
+    // e o delete tropeçaria nela (mesmo motivo de deleteMeasure).
+    await tx.cell.updateMany({
+      where: { trackId: target.id },
+      data: { acceptedContributionId: null },
+    });
+    await tx.cellContribution.deleteMany({ where: { cell: { trackId: target.id } } });
+    await tx.cell.deleteMany({ where: { trackId: target.id } });
+    await tx.track.delete({ where: { id: target.id } });
+    // Fecha o buraco na numeração: `order` é o endereço da trilha nas rotas, e
+    // um vão faria o seletor pedir uma trilha inexistente. Da frente para trás,
+    // com o alvo já removido, nenhum passo viola o unique [songId, order].
+    for (const t of tracks.filter((t) => t.order > order)) {
+      await tx.track.update({ where: { id: t.id }, data: { order: t.order - 1 } });
+    }
+  });
+
+  return { removed: order, name: target.name };
 }
 
 export type TrackCompleteness = {

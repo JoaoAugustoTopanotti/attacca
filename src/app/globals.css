@@ -1419,6 +1419,14 @@ label {
 .add-track-btn:hover:not(:disabled) { border-color: var(--muted); }
 .add-track-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .add-track-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Remover trilha: discreto como o "+ trilha", vermelhão só no hover — apagar
+   trabalho de gente não pode ser o botão mais chamativo da barra. */
+.remove-track-btn { color: var(--muted); }
+.remove-track-btn:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
 .add-track-pop {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
