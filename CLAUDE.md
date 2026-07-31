@@ -420,15 +420,18 @@ O raciocínio que levou à decisão (mantido como contexto):
   nível de DOCUMENTO** (classes `.te-pop`/`.te-pop-anchor` marcam o que não fecha) — Esc no
   viewport não bastava, o foco pode estar num botão de overlay. DrumGridEditor ainda não
   herdou a casca (statusbar/painel ?) — segue com a toolbar antiga.
-- ⚠️ **Ritmo na tablatura só-tab (2026-07-30)** — o default do alphaTab
-  (`notation.rhythmMode: Automatic`) decide pelo FLAG `staff.showStandardNotation` do
-  modelo (sempre true nos nossos scores), não pelo `staveProfile` efetivo: com
-  `staveProfile: "Tab"` o ritmo sumia inteiro — sem hastes e sem o ponto de aumento
-  (reportado como "a nota pontuada não aparece na partitura"). TabEditor,
-  AlphaTabPlayer e TabSnippet agora pedem `TabRhythmMode.ShowWithBars` quando o perfil
-  é só-tab; em ScoreTab volta a Automatic (a pauta de cima já carrega o ritmo). Os
-  bounds de compasso não mudam (o ritmo vive no overflow) — cliques e overlays do
-  editor seguem calibrados; provado por render SVG em Node e screenshot do app.
+- ⚠️ **Ritmo na tablatura só-tab: NÃO mostrar (2026-07-30, decisão do João)** — fato
+  técnico: o default do alphaTab (`notation.rhythmMode: Automatic`) decide pelo FLAG
+  `staff.showStandardNotation` do modelo (sempre true nos nossos scores), não pelo
+  `staveProfile` efetivo — com `staveProfile: "Tab"` o ritmo não é desenhado: sem
+  hastes e sem o ponto de aumento (reportado como "a nota pontuada não aparece").
+  Chegamos a ligar `TabRhythmMode.ShowWithBars` no editor/player/snippet (o ponto
+  aparecia ao lado da haste, estilo Songsterr), mas o João **rejeitou o visual**
+  ("ficou muito feio com essa linha indo até embaixo") e foi revertido no mesmo dia.
+  Estado atual: rhythmMode fica no default (ritmo oculto); **pontuado não tem desenho
+  na tab** — a indicação é a toolbar (· aceso) e a barra de status (1/4·), e o tempo
+  do compasso muda (badges falta/passa). Não re-"consertar" sem combinar antes; se
+  voltar, precisa de outra forma visual (não as hastes descendo).
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.

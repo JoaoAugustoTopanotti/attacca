@@ -508,10 +508,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 [at.NotationElement.BarNumber, false],
               ])
             : new Map([[at.NotationElement.GuitarTuning, false]]),
-          // ⚠️ O default (Automatic) esconde o ritmo: ele olha o FLAG
-          // staff.showStandardNotation do modelo (true), não o staveProfile
-          // efetivo — com "Tab" o ritmo sumia inteiro (hastes e pontuado).
-          rhythmMode: at.TabRhythmMode.ShowWithBars,
+          // Sem notação de ritmo abaixo da tab (rhythmMode fica no default):
+          // as hastes descendo de cada nota ficaram feias — decisão do João
+          // (2026-07-30). Duração/pontuado ficam na toolbar e na barra de status.
         },
         player: {
           enablePlayer:          true,
