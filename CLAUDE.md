@@ -396,6 +396,15 @@ O raciocínio que levou à decisão (mantido como contexto):
   O Player "ao vivo" já sempre mostra o estado atual da grade; Histórico agora é
   puramente "quem entregou o quê pra quem", não um log de todo save. Snapshot **não** tem
   botão Reverter (a grade viva é a verdade; Reverter só nos uploads `kind="import"`).
+- ⚠️ **Ritmo na tablatura só-tab (2026-07-30)** — o default do alphaTab
+  (`notation.rhythmMode: Automatic`) decide pelo FLAG `staff.showStandardNotation` do
+  modelo (sempre true nos nossos scores), não pelo `staveProfile` efetivo: com
+  `staveProfile: "Tab"` o ritmo sumia inteiro — sem hastes e sem o ponto de aumento
+  (reportado como "a nota pontuada não aparece na partitura"). TabEditor,
+  AlphaTabPlayer e TabSnippet agora pedem `TabRhythmMode.ShowWithBars` quando o perfil
+  é só-tab; em ScoreTab volta a Automatic (a pauta de cima já carrega o ritmo). Os
+  bounds de compasso não mudam (o ritmo vive no overflow) — cliques e overlays do
+  editor seguem calibrados; provado por render SVG em Node e screenshot do app.
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.

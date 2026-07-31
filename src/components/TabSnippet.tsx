@@ -40,6 +40,13 @@ export default function TabSnippet({
           scale: 0.85,
           resources: alphaTabResources(readTheme()),
         },
+        notation: {
+          // Só tab: ritmo explícito — o Automatic olha o flag do modelo, não o
+          // staveProfile, e esconderia hastes e pontuado.
+          rhythmMode: isPercussion
+            ? alphaTab.TabRhythmMode.Automatic
+            : alphaTab.TabRhythmMode.ShowWithBars,
+        },
       });
       api = instance;
 

@@ -458,6 +458,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           // Desliga o texto "Guitar Standard Tuning": a afinação é desenhada
           // como letras por corda à esquerda do 1º compasso.
           elements: new Map([[at.NotationElement.GuitarTuning, false]]),
+          // ⚠️ O default (Automatic) esconde o ritmo: ele olha o FLAG
+          // staff.showStandardNotation do modelo (true), não o staveProfile
+          // efetivo — com "Tab" o ritmo sumia inteiro (hastes e pontuado).
+          rhythmMode: at.TabRhythmMode.ShowWithBars,
         },
         player: {
           enablePlayer:          true,

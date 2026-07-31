@@ -174,8 +174,20 @@ const AlphaTabPlayer = forwardRef<
       isPercussion || prefStaveProfileRef.current === "ScoreTab"
         ? alphaTab.StaveProfile.ScoreTab
         : alphaTab.StaveProfile.Tab;
-    if (api.settings.display.staveProfile !== wanted) {
+    // ⚠️ Só tab: o ritmo (hastes e pontuado) tem que ser pedido explícito — o
+    // Automatic olha o flag staff.showStandardNotation do modelo, não o
+    // staveProfile efetivo, e escondia o ritmo inteiro. Com pauta em cima
+    // (ScoreTab), o Automatic acerta: o ritmo já está na pauta.
+    const wantedRhythm =
+      wanted === alphaTab.StaveProfile.Tab
+        ? alphaTab.TabRhythmMode.ShowWithBars
+        : alphaTab.TabRhythmMode.Automatic;
+    if (
+      api.settings.display.staveProfile !== wanted ||
+      api.settings.notation.rhythmMode !== wantedRhythm
+    ) {
       api.settings.display.staveProfile = wanted;
+      api.settings.notation.rhythmMode = wantedRhythm;
       api.updateSettings();
     }
   }
@@ -221,6 +233,13 @@ const AlphaTabPlayer = forwardRef<
           // O alphaTab desenha em canvas próprio e não herda CSS: as cores da
           // tablatura vêm do tema lido na montagem.
           resources: alphaTabResources(readTheme()),
+        },
+        notation: {
+          // Só tab: ritmo explícito (ver applyStaveProfileFor).
+          rhythmMode:
+            prefs.staveProfile === "ScoreTab"
+              ? alphaTab.TabRhythmMode.Automatic
+              : alphaTab.TabRhythmMode.ShowWithBars,
         },
         player: {
           enablePlayer: true,
@@ -377,9 +396,18 @@ const AlphaTabPlayer = forwardRef<
         shown?.playbackInfo?.primaryChannel === 9 || prefs.staveProfile === "ScoreTab"
           ? alphaTab.StaveProfile.ScoreTab
           : alphaTab.StaveProfile.Tab;
-      if (display.scale !== prefs.scale || display.staveProfile !== wantedProfile) {
+      const wantedRhythm =
+        wantedProfile === alphaTab.StaveProfile.Tab
+          ? alphaTab.TabRhythmMode.ShowWithBars
+          : alphaTab.TabRhythmMode.Automatic;
+      if (
+        display.scale !== prefs.scale ||
+        display.staveProfile !== wantedProfile ||
+        api.settings.notation.rhythmMode !== wantedRhythm
+      ) {
         display.scale = prefs.scale;
         display.staveProfile = wantedProfile;
+        api.settings.notation.rhythmMode = wantedRhythm;
         api.updateSettings();
         api.render();
       }
