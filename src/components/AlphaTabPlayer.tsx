@@ -10,6 +10,7 @@ import {
 } from "react";
 import { instrumentLabel } from "@/lib/instruments";
 import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
+import { drawTabRhythm } from "@/lib/tab-rhythm";
 import {
   PREFS_EVENT,
   readPlayerPrefs,
@@ -118,6 +119,8 @@ const AlphaTabPlayer = forwardRef<
 ) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  // Overlay da faixa de ritmo (hastes/beams abaixo do compasso, ver tab-rhythm).
+  const rhythmOverlayRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<AlphaTabApi | null>(null);
   const alphaTabRef = useRef<AlphaTabModule | null>(null);
   const scoreRef = useRef<Score | null>(null);
@@ -331,6 +334,25 @@ const AlphaTabPlayer = forwardRef<
         setErrorMessage(null);
       });
 
+      // Faixa de ritmo abaixo dos compassos (estilo Songsterr): redesenhada a
+      // cada render, porque os bounds mudam. Com pauta em cima (ScoreTab) o
+      // ritmo já está nela e o overlay fica vazio.
+      api.postRenderFinished.on(() => {
+        const surface = surfaceRef.current;
+        const overlay = rhythmOverlayRef.current;
+        const current = apiRef.current;
+        if (!current || !surface || !overlay) return;
+        drawTabRhythm({
+          api: current,
+          surface,
+          overlay,
+          theme: readTheme(),
+          enabled:
+            !audioOnly &&
+            current.settings.display.staveProfile === alphaTab.StaveProfile.Tab,
+        });
+      });
+
       // `player.soundFont` carrega o sonivox com append=false; só depois que ele
       // termina dá para anexar as guitarras, senão a carga do banco base
       // substituiria o que foi anexado. O evento dispara a cada carga (inclusive
@@ -524,6 +546,7 @@ const AlphaTabPlayer = forwardRef<
             <div className="player-loading">Carregando…</div>
           )}
           <div ref={surfaceRef} className="player-surface" />
+          <div ref={rhythmOverlayRef} className="tab-rhythm-overlay" aria-hidden />
         </div>
         {/* Sem barra inferior: o play vem de fora, pela ref. */}
       </div>
@@ -552,6 +575,7 @@ const AlphaTabPlayer = forwardRef<
             <div className="player-loading">Carregando…</div>
           )}
           <div ref={surfaceRef} className="player-surface" />
+          <div ref={rhythmOverlayRef} className="tab-rhythm-overlay" aria-hidden />
         </div>
 
         {/* Barra inferior fixa: play/pause + seletor de trilha */}
@@ -683,6 +707,7 @@ const AlphaTabPlayer = forwardRef<
           <div className="player-loading">Carregando…</div>
         )}
         <div ref={surfaceRef} className="player-surface" />
+          <div ref={rhythmOverlayRef} className="tab-rhythm-overlay" aria-hidden />
       </div>
     </div>
   );

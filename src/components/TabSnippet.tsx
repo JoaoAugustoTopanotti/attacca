@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
+import { drawTabRhythm } from "@/lib/tab-rhythm";
 
 export default function TabSnippet({
   tex,
@@ -21,6 +22,7 @@ export default function TabSnippet({
   fallbackText?: string;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -32,7 +34,8 @@ export default function TabSnippet({
       const alphaTab = await import("@coderline/alphatab");
       if (disposed || !surfaceRef.current) return;
       const instance = new alphaTab.AlphaTabApi(surfaceRef.current, {
-        core: { fontDirectory: "/font/" },
+        // includeNoteBounds: a faixa de ritmo centra a haste pelos números.
+        core: { fontDirectory: "/font/", includeNoteBounds: true },
         display: {
           staveProfile: isPercussion
             ? alphaTab.StaveProfile.ScoreTab
@@ -64,6 +67,19 @@ export default function TabSnippet({
         );
       });
       instance.error.on(() => setFailed(true));
+      // Faixa de ritmo abaixo dos compassos (ver src/lib/tab-rhythm.ts).
+      instance.postRenderFinished.on(() => {
+        const surface = surfaceRef.current;
+        const overlay = overlayRef.current;
+        if (!surface || !overlay) return;
+        drawTabRhythm({
+          api: instance,
+          surface,
+          overlay,
+          theme: readTheme(),
+          enabled: !isPercussion,
+        });
+      });
       try {
         instance.tex(tex);
       } catch {
@@ -86,6 +102,7 @@ export default function TabSnippet({
       )}
       <div className="tab-snippet" style={failed ? { display: "none" } : undefined}>
         <div ref={surfaceRef} />
+        <div ref={overlayRef} className="tab-rhythm-overlay" aria-hidden />
       </div>
     </>
   );

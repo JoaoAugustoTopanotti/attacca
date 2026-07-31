@@ -43,24 +43,31 @@ export function applyTheme(theme: Theme): Theme {
 export const TAB_RHYTHM_HEIGHT = 12;
 
 /**
- * Rebaixa a cor das hastes/beams/flags/quiálteras do ritmo da tablatura para
- * perto da cor das linhas da pauta: a duração fica legível sem competir com os
- * números (estilo Songsterr). Chamar no `scoreLoaded`, antes do render — o
- * alphaTab não tem cor global só para o ritmo da tab, então é por beat.
- * Reaproveita `beat.style` existente (o verde do diff de proposta, por exemplo).
+ * Prepara o ritmo da tablatura para o overlay estilo Songsterr
+ * (`src/lib/tab-rhythm.ts`): haste/beam/bandeirola do alphaTab ficam com ALFA 0
+ * — invisíveis, mas o rhythmMode ligado continua reservando o espaço vertical
+ * da faixa entre os sistemas (a haste nativa desce da nota atravessando as
+ * cordas, rejeitada no teste visual). Ponto de aumento e número de quiáltera
+ * seguem do alphaTab, rebaixados para perto da cor das linhas. Chamar no
+ * `scoreLoaded`, antes do render; não há cor global só do ritmo, então é por
+ * beat — reaproveita `beat.style` existente (o verde do diff de proposta).
  */
 export function muteTabRhythm(
   at: typeof AlphaTabNS,
   score: AlphaTabNS.model.Score,
   theme: Theme,
 ): void {
-  const [r, g, b] = theme === "light" ? [184, 177, 164] : [92, 87, 77];
+  const [r, g, b] = theme === "light" ? [163, 156, 143] : [107, 102, 91];
   const dim = new at.model.Color(r, g, b, 255);
-  const parts = [
+  const invisible = new at.model.Color(0, 0, 0, 0);
+  const hidden = [
     at.model.BeatSubElement.GuitarTabStem,
     at.model.BeatSubElement.GuitarTabBeams,
     at.model.BeatSubElement.GuitarTabFlags,
+  ];
+  const dimmed = [
     at.model.BeatSubElement.GuitarTabTuplet,
+    at.model.BeatSubElement.GuitarTabEffects, // ponto de aumento (e tremolo)
   ];
   for (const track of score.tracks)
     for (const staff of track.staves)
@@ -68,7 +75,8 @@ export function muteTabRhythm(
         for (const voice of bar.voices)
           for (const beat of voice.beats) {
             const bs = beat.style ?? new at.model.BeatStyle();
-            for (const p of parts) bs.colors.set(p, dim);
+            for (const p of hidden) bs.colors.set(p, invisible);
+            for (const p of dimmed) bs.colors.set(p, dim);
             beat.style = bs;
           }
 }

@@ -37,6 +37,7 @@ import {
   toggleEffect,
 } from "@/lib/alphatex-editor";
 import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
+import { TAB_RHYTHM_BAND, drawTabRhythm } from "@/lib/tab-rhythm";
 import { splitTuningToken, tuningTokensFromHeader } from "@/lib/tuning";
 
 // ── Tipos alphaTab (importados dinamicamente) ──────────────────────────────────
@@ -365,6 +366,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const applyPendingWriteRef = useRef<((m: EditorModel) => boolean) | null>(null);
   // Módulo do alphaTab importado na montagem (enums usados em effects depois).
   const atModuleRef = useRef<AlphaTabModule | null>(null);
+  // Overlay da faixa de ritmo (hastes/beams abaixo do compasso, ver tab-rhythm).
+  const rhythmOverlayRef = useRef<HTMLDivElement>(null);
   // Um render por vez (ver loadTex): render no ar + tex novo na fila.
   const renderBusyRef = useRef(false);
   const pendingTexRef = useRef<string | null>(null);
@@ -1695,7 +1698,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       const frac = `${approx}${d64 / g}/${64 / g}`;
       flags.push({
         x: offX + barVB.x + 2,
-        y: offY + barVB.y + barVB.h + 3,
+        // Abaixo da faixa de ritmo (hastes/beams), para não cobrir os símbolos.
+        y: offY + barVB.y + barVB.h + 3 + TAB_RHYTHM_BAND,
         label: used < cap ? `falta ${frac}` : `passa ${frac}`,
         kind: used < cap ? "under" : "over",
       });
@@ -1777,6 +1781,21 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
     setTempoMarks(marks);
   }, [apiReady, raw, canEditStructure, renderEpoch, model, measureMeta, initialTempo]);
+
+  // ── Faixa de ritmo abaixo de cada compasso (estilo Songsterr) ───────────────
+  useEffect(() => {
+    const api = apiRef.current;
+    const surface = surfaceRef.current;
+    const overlay = rhythmOverlayRef.current;
+    if (!api || !surface || !overlay) return;
+    drawTabRhythm({
+      api,
+      surface,
+      overlay,
+      theme: readTheme(),
+      enabled: apiReady && !raw,
+    });
+  }, [apiReady, raw, renderEpoch]);
 
   // ── Número de compasso do alphaTab segue canEditStructure ───────────────────
   // ⚠️ canEditStructure pode chegar DEPOIS da montagem (o /api/me é assíncrono):
@@ -2121,6 +2140,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           <div className="player-loading">Carregando editor…</div>
         )}
         <div ref={surfaceRef} className="player-surface" />
+
+        {/* Faixa de ritmo (hastes/beams abaixo dos compassos) */}
+        <div ref={rhythmOverlayRef} className="tab-rhythm-overlay" aria-hidden />
 
         {/* Trecho selecionado (âncora↔cursor): um retângulo por beat */}
         {!raw &&

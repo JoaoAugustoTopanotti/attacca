@@ -420,22 +420,31 @@ O raciocínio que levou à decisão (mantido como contexto):
   nível de DOCUMENTO** (classes `.te-pop`/`.te-pop-anchor` marcam o que não fecha) — Esc no
   viewport não bastava, o foco pode estar num botão de overlay. DrumGridEditor ainda não
   herdou a casca (statusbar/painel ?) — segue com a toolbar antiga.
-- ⚠️ **Ritmo na tablatura só-tab: mostrar, mas SUTIL (2026-07-30, 3 iterações)** — fato
-  técnico: o default do alphaTab (`notation.rhythmMode: Automatic`) decide pelo FLAG
-  `staff.showStandardNotation` do modelo (sempre true nos nossos scores), não pelo
-  `staveProfile` efetivo — com `staveProfile: "Tab"` o ritmo não era desenhado: sem
-  hastes e sem o ponto de aumento (reportado como "a nota pontuada não aparece").
-  Iteração 1: `ShowWithBars` puro → João rejeitou ("muito feio, linha indo até
-  embaixo" — 25px na cor cheia das notas). Iteração 2: remoção total → "agora não
-  consigo ver qual tempo é cada nota". **Estado final (pedido: "que nem o Songsterr,
-  sutil")**: `TabRhythmMode.ShowWithBars` + `rhythmHeight: TAB_RHYTHM_HEIGHT` (12, ~metade
-  do default) + **cor rebaixada por beat** via `muteTabRhythm(at, score, theme)`
-  (`src/lib/theme.ts`, chamado no `scoreLoaded` de AlphaTabPlayer/TabEditor/TabSnippet):
-  pinta `GuitarTabStem/Beams/Flags/Tuplet` num cinza perto das linhas da pauta (não há
-  cor global só do ritmo no alphaTab — é por beat, reaproveitando o `beat.style` do
-  diff verde para não apagá-lo). Em ScoreTab o rhythmMode volta a Automatic (a pauta
-  já carrega o ritmo). Mexer na intensidade = `TAB_RHYTHM_HEIGHT` e os RGBs em
-  `muteTabRhythm`.
+- ⚠️ **Ritmo na tablatura só-tab: overlay próprio estilo Songsterr (2026-07-30, 4
+  iterações)** — fatos técnicos: (a) o default do alphaTab (`rhythmMode: Automatic`)
+  decide pelo FLAG `staff.showStandardNotation` do modelo (sempre true aqui), não pelo
+  `staveProfile` efetivo — com "Tab" o ritmo não era desenhado (nem o ponto de aumento;
+  reportado como "a nota pontuada não aparece"); (b) o ritmo nativo desce a haste DA
+  NOTA, atravessando as cordas — a classe que decide o topo (`TabBarRenderer`, interna)
+  não é exposta e o render roda num Web Worker: patch em runtime não alcança; (c) a
+  pauta "slash" (`staff.showSlash`) renderiza ACIMA da tab, não embaixo. Iterações:
+  ShowWithBars puro → "muito feio, linha indo até embaixo"; remoção → "não vejo o tempo
+  de cada nota"; ShowWithBars curto+cinza → ainda atravessava as cordas ("no Songsterr
+  os símbolos ficam embaixo"). **Estado final**: `src/lib/tab-rhythm.ts` —
+  `drawTabRhythm` desenha num overlay SVG (haste curta por beat, mínima mais curta,
+  beams agrupados por tempo — compasso composto por tempo pontuado —, níveis 16/32
+  empilhados com meia-viga, bandeirola em nota solta; voz 0). ⚠️ Direção
+  modelo→bounds (`lookup.findBeat(beat)`), nunca bounds→modelo: com worker os refs de
+  volta (`barBounds.bar`) chegam quebrados. O rhythmMode do alphaTab fica LIGADO
+  (`ShowWithBars` + `rhythmHeight: TAB_RHYTHM_HEIGHT` 12) porque é ele que RESERVA o
+  espaço vertical entre sistemas, mas `muteTabRhythm` (theme.ts) pinta
+  haste/beam/bandeirola com ALFA 0 (invisíveis) e deixa ponto de aumento + quiáltera
+  do próprio alphaTab em cinza rebaixado. Overlay redesenhado a cada
+  `postRenderFinished` em AlphaTabPlayer/TabEditor/TabSnippet (`.tab-rhythm-overlay`);
+  os badges "falta/passa" do editor desceram `TAB_RHYTHM_BAND` para não cobrir a faixa.
+  Beams provados por unit-check com api fake (pares por semínima, 16avos em 2 níveis,
+  meia-viga); visual provado por screenshot (Ode to Joy: ponto + bandeirola visíveis,
+  nada atravessando as cordas).
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.

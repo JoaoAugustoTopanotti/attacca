@@ -2582,7 +2582,17 @@ label {
 /* Compasso do conflito renderizado como tablatura (TabSnippet). O painel
    inteiro é um <button> (escolher a versão) — o snippet não captura cliques. */
 .tab-snippet {
+  position: relative; /* ancora o overlay da faixa de ritmo */
   pointer-events: none;
   overflow: hidden;
   min-height: 56px;
+}
+
+/* Faixa de ritmo abaixo dos compassos (hastes/beams desenhados por nós —
+   ver src/lib/tab-rhythm.ts). Posição/tamanho definidos pelo draw. */
+.tab-rhythm-overlay {
+  position: absolute;
+  left: 0; top: 0;
+  pointer-events: none;
+  z-index: 3;
 }
