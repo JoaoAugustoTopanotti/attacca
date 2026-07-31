@@ -5,7 +5,7 @@
 // texto cru. Leve de propósito: sem soundfont, cursor ou interação.
 
 import { useEffect, useRef, useState } from "react";
-import { alphaTabResources, readTheme } from "@/lib/theme";
+import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
 
 export default function TabSnippet({
   tex,
@@ -40,10 +40,19 @@ export default function TabSnippet({
           scale: 0.85,
           resources: alphaTabResources(readTheme()),
         },
+        notation: {
+          // Ritmo sutil abaixo da tab (ver muteTabRhythm); percussão renderiza
+          // em pauta, onde o Automatic já acerta.
+          rhythmMode: isPercussion
+            ? alphaTab.TabRhythmMode.Automatic
+            : alphaTab.TabRhythmMode.ShowWithBars,
+          rhythmHeight: TAB_RHYTHM_HEIGHT,
+        },
       });
       api = instance;
 
       instance.scoreLoaded.on((score) => {
+        muteTabRhythm(alphaTab, score, readTheme());
         // Pauta de percussão usa clave neutra (‖); o importer deixaria G2.
         score.tracks.forEach((t) =>
           t.staves.forEach((staff) => {

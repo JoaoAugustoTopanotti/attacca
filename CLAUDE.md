@@ -420,18 +420,22 @@ O raciocínio que levou à decisão (mantido como contexto):
   nível de DOCUMENTO** (classes `.te-pop`/`.te-pop-anchor` marcam o que não fecha) — Esc no
   viewport não bastava, o foco pode estar num botão de overlay. DrumGridEditor ainda não
   herdou a casca (statusbar/painel ?) — segue com a toolbar antiga.
-- ⚠️ **Ritmo na tablatura só-tab: NÃO mostrar (2026-07-30, decisão do João)** — fato
+- ⚠️ **Ritmo na tablatura só-tab: mostrar, mas SUTIL (2026-07-30, 3 iterações)** — fato
   técnico: o default do alphaTab (`notation.rhythmMode: Automatic`) decide pelo FLAG
   `staff.showStandardNotation` do modelo (sempre true nos nossos scores), não pelo
-  `staveProfile` efetivo — com `staveProfile: "Tab"` o ritmo não é desenhado: sem
+  `staveProfile` efetivo — com `staveProfile: "Tab"` o ritmo não era desenhado: sem
   hastes e sem o ponto de aumento (reportado como "a nota pontuada não aparece").
-  Chegamos a ligar `TabRhythmMode.ShowWithBars` no editor/player/snippet (o ponto
-  aparecia ao lado da haste, estilo Songsterr), mas o João **rejeitou o visual**
-  ("ficou muito feio com essa linha indo até embaixo") e foi revertido no mesmo dia.
-  Estado atual: rhythmMode fica no default (ritmo oculto); **pontuado não tem desenho
-  na tab** — a indicação é a toolbar (· aceso) e a barra de status (1/4·), e o tempo
-  do compasso muda (badges falta/passa). Não re-"consertar" sem combinar antes; se
-  voltar, precisa de outra forma visual (não as hastes descendo).
+  Iteração 1: `ShowWithBars` puro → João rejeitou ("muito feio, linha indo até
+  embaixo" — 25px na cor cheia das notas). Iteração 2: remoção total → "agora não
+  consigo ver qual tempo é cada nota". **Estado final (pedido: "que nem o Songsterr,
+  sutil")**: `TabRhythmMode.ShowWithBars` + `rhythmHeight: TAB_RHYTHM_HEIGHT` (12, ~metade
+  do default) + **cor rebaixada por beat** via `muteTabRhythm(at, score, theme)`
+  (`src/lib/theme.ts`, chamado no `scoreLoaded` de AlphaTabPlayer/TabEditor/TabSnippet):
+  pinta `GuitarTabStem/Beams/Flags/Tuplet` num cinza perto das linhas da pauta (não há
+  cor global só do ritmo no alphaTab — é por beat, reaproveitando o `beat.style` do
+  diff verde para não apagá-lo). Em ScoreTab o rhythmMode volta a Automatic (a pauta
+  já carrega o ritmo). Mexer na intensidade = `TAB_RHYTHM_HEIGHT` e os RGBs em
+  `muteTabRhythm`.
 - **Mural de incompletude (M2, item 3)** — `src/lib/tracks.ts`. **Dois tipos de
   incompletude**: (1) lacuna **dentro** da trilha (o grid já dá); (2) **trilha ausente**
   ("falta baixo"), que o grid sozinho não sabe → precisa de **instrumentação declarada**.

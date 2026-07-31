@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { instrumentLabel } from "@/lib/instruments";
-import { alphaTabResources, readTheme } from "@/lib/theme";
+import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
 import {
   PREFS_EVENT,
   readPlayerPrefs,
@@ -174,8 +174,18 @@ const AlphaTabPlayer = forwardRef<
       isPercussion || prefStaveProfileRef.current === "ScoreTab"
         ? alphaTab.StaveProfile.ScoreTab
         : alphaTab.StaveProfile.Tab;
-    if (api.settings.display.staveProfile !== wanted) {
+    // Só tab: ritmo sutil pedido explícito (o Automatic olha o flag do modelo e
+    // esconderia tudo). Com pauta em cima (ScoreTab), o ritmo já está na pauta.
+    const wantedRhythm =
+      wanted === alphaTab.StaveProfile.Tab
+        ? alphaTab.TabRhythmMode.ShowWithBars
+        : alphaTab.TabRhythmMode.Automatic;
+    if (
+      api.settings.display.staveProfile !== wanted ||
+      api.settings.notation.rhythmMode !== wantedRhythm
+    ) {
       api.settings.display.staveProfile = wanted;
+      api.settings.notation.rhythmMode = wantedRhythm;
       api.updateSettings();
     }
   }
@@ -221,6 +231,14 @@ const AlphaTabPlayer = forwardRef<
           // O alphaTab desenha em canvas próprio e não herda CSS: as cores da
           // tablatura vêm do tema lido na montagem.
           resources: alphaTabResources(readTheme()),
+        },
+        notation: {
+          // Ritmo sutil abaixo da tab (ver applyStaveProfileFor / muteTabRhythm).
+          rhythmMode:
+            prefs.staveProfile === "ScoreTab"
+              ? alphaTab.TabRhythmMode.Automatic
+              : alphaTab.TabRhythmMode.ShowWithBars,
+          rhythmHeight: TAB_RHYTHM_HEIGHT,
         },
         player: {
           enablePlayer: true,
@@ -301,6 +319,9 @@ const AlphaTabPlayer = forwardRef<
             });
           });
         }
+        // Depois do diff verde, para reaproveitar o beat.style dele: o ritmo da
+        // tab fica em cor rebaixada (sutil), sem apagar o destaque.
+        muteTabRhythm(alphaTab, score, readTheme());
         if (firstTrack) {
           applyStaveProfileFor(firstTrack);
           apiRef.current?.renderTracks([firstTrack]);
@@ -377,9 +398,18 @@ const AlphaTabPlayer = forwardRef<
         shown?.playbackInfo?.primaryChannel === 9 || prefs.staveProfile === "ScoreTab"
           ? alphaTab.StaveProfile.ScoreTab
           : alphaTab.StaveProfile.Tab;
-      if (display.scale !== prefs.scale || display.staveProfile !== wantedProfile) {
+      const wantedRhythm =
+        wantedProfile === alphaTab.StaveProfile.Tab
+          ? alphaTab.TabRhythmMode.ShowWithBars
+          : alphaTab.TabRhythmMode.Automatic;
+      if (
+        display.scale !== prefs.scale ||
+        display.staveProfile !== wantedProfile ||
+        api.settings.notation.rhythmMode !== wantedRhythm
+      ) {
         display.scale = prefs.scale;
         display.staveProfile = wantedProfile;
+        api.settings.notation.rhythmMode = wantedRhythm;
         api.updateSettings();
         api.render();
       }

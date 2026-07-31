@@ -36,7 +36,7 @@ import {
   setRest,
   toggleEffect,
 } from "@/lib/alphatex-editor";
-import { alphaTabResources, readTheme } from "@/lib/theme";
+import { TAB_RHYTHM_HEIGHT, alphaTabResources, muteTabRhythm, readTheme } from "@/lib/theme";
 import { splitTuningToken, tuningTokensFromHeader } from "@/lib/tuning";
 
 // ── Tipos alphaTab (importados dinamicamente) ──────────────────────────────────
@@ -508,9 +508,13 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 [at.NotationElement.BarNumber, false],
               ])
             : new Map([[at.NotationElement.GuitarTuning, false]]),
-          // Sem notação de ritmo abaixo da tab (rhythmMode fica no default):
-          // as hastes descendo de cada nota ficaram feias — decisão do João
-          // (2026-07-30). Duração/pontuado ficam na toolbar e na barra de status.
+          // Ritmo abaixo da tab estilo Songsterr: pedido explícito (o Automatic
+          // olha o flag do modelo e esconderia tudo — inclusive o pontuado) e
+          // SUTIL: haste curta (12px, não os 25 default) + cor rebaixada por
+          // beat no scoreLoaded (muteTabRhythm). A 1ª versão, cheia e branca,
+          // foi rejeitada ("gigante").
+          rhythmMode: at.TabRhythmMode.ShowWithBars,
+          rhythmHeight: TAB_RHYTHM_HEIGHT,
         },
         player: {
           enablePlayer:          true,
@@ -522,7 +526,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         },
       });
 
-      api.scoreLoaded.on(() => {
+      api.scoreLoaded.on((score) => {
+        muteTabRhythm(at, score, readTheme());
         setApiReady(true);
         requestAnimationFrame(() => viewportRef.current?.focus());
       });
