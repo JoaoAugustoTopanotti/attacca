@@ -1440,14 +1440,40 @@ label {
 .add-track-btn:hover:not(:disabled) { border-color: var(--muted); }
 .add-track-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .add-track-btn:disabled { opacity: .5; cursor: not-allowed; }
-/* Remover trilha: discreto como o "+ trilha", vermelhão só no hover — apagar
-   trabalho de gente não pode ser o botão mais chamativo da barra. */
-.remove-track-btn { color: var(--muted); }
-.remove-track-btn:hover:not(:disabled) {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
+
+/* Menu de trilhas + engrenagem da trilha (barra do /edit). O seletor virou um
+   menu com "+ nova trilha…" no rodapé; afinação e remover moram na engrenagem
+   — um lugar só para "coisas desta trilha". */
+.track-menu-btn { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+.track-menu-caret { font-size: 9px; color: var(--sub); }
+.track-gear-btn {
+  width: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--sub);
 }
+.track-gear-btn:hover:not(:disabled) { color: var(--text); }
+.track-menu-pop {
+  min-width: 210px; padding: 5px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.track-menu-title {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--sub); padding: 4px 8px 3px; white-space: nowrap;
+}
+.track-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  font-family: inherit; font-size: 0.82rem; text-align: left;
+  color: var(--text); background: transparent; border: 0; border-radius: 7px;
+  padding: 7px 9px; cursor: pointer; white-space: nowrap;
+}
+.track-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.track-menu-item:disabled { opacity: .45; cursor: not-allowed; }
+.track-menu-item.current { color: var(--accent); font-weight: 600; }
+.track-menu-item.danger { color: var(--danger); }
+.track-menu-item .track-menu-hint { margin-left: auto; font-size: 0.7rem; color: var(--sub); }
+.track-menu-sep { border-top: 1px solid var(--border); margin: 4px 2px; }
 .add-track-pop {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -1846,6 +1872,120 @@ label {
 .tab-editor-tempo-pop-label { font-size: 0.72rem; color: var(--sub); white-space: nowrap; }
 .tab-editor-tempo-pop-row { display: flex; gap: 6px; align-items: center; }
 
+/* Marca-fantasma "♩ = ?" no compasso 1: a música ainda não tem andamento e a
+   marca na partitura é o único controle — precisa existir antes do 1º valor. */
+.tab-editor-tempo-mark.ghost {
+  width: auto; height: auto; padding: 3px 7px;
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+  color: var(--sub);
+  border: 1px dashed var(--border);
+}
+.tab-editor-tempo-mark.ghost:hover:not(:disabled) { color: var(--accent); }
+
+/* Menus suspensos do editor (Bend ▾, mais ▾, menu do compasso) */
+.tab-editor-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  min-width: 185px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.tab-editor-menu-title {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--sub); padding: 4px 8px 3px; white-space: nowrap;
+}
+.tab-editor-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  font-family: inherit; font-size: 0.78rem; text-align: left;
+  color: var(--text); background: transparent; border: 0; border-radius: 6px;
+  padding: 5px 8px; cursor: pointer; white-space: nowrap;
+}
+.tab-editor-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.tab-editor-menu-item:disabled { opacity: .4; cursor: not-allowed; }
+.tab-editor-menu-item.on { color: var(--warn); }
+.tab-editor-menu-item.danger { color: var(--danger); }
+.tab-editor-menu-item strong { min-width: 24px; }
+.tab-editor-menu-desc { color: var(--sub); font-size: 0.72rem; }
+.tab-editor-menu-sep { border-top: 1px solid var(--border); margin: 4px 2px; }
+.tab-editor-menu-note {
+  font-size: 0.7rem; color: var(--sub); padding: 4px 8px;
+  max-width: 230px; white-space: normal;
+}
+
+/* Número de compasso clicável (dono): substitui o número desenhado pelo
+   alphaTab e abre o menu de ações do compasso ("N ▾"). */
+.tab-editor-measure-num {
+  position: absolute; z-index: 6;
+  display: inline-flex; align-items: center; gap: 2px;
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+  color: var(--sub); background: transparent;
+  border: 1px solid transparent; border-radius: 4px;
+  padding: 2px 4px; cursor: pointer;
+}
+.tab-editor-measure-num:hover {
+  color: var(--text); border-color: var(--border); background: var(--panel);
+}
+.tab-editor-measure-num.open {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--panel);
+}
+.tab-editor-measure-caret { font-size: 8px; opacity: 0; transition: opacity .12s; }
+.tab-editor-measure-num:hover .tab-editor-measure-caret,
+.tab-editor-measure-num.open .tab-editor-measure-caret { opacity: 1; }
+
+/* Botão "?" da toolbar */
+.tab-editor-help-btn {
+  border-radius: 50%;
+  min-width: 24px; width: 24px; height: 24px; padding: 0;
+}
+
+/* Barra de status: posição, fórmula e avisos — a toolbar fica só com
+   ferramentas de escrever, como nos editores profissionais. */
+.tab-editor-statusbar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 4px 14px 4px 24px;
+  border-top: 1px solid var(--border);
+  min-height: 27px;
+  font-size: 0.75rem; color: var(--sub);
+}
+.tab-editor-status-msg { font-size: 0.75rem; }
+.tab-editor-status-help {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 0.72rem; color: var(--sub);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.tab-editor-status-help:hover { color: var(--text); }
+
+/* Painel de atalhos (tecla ?) — o antigo "tutorial espalhado" mora aqui. */
+.tab-editor-shortcuts {
+  position: absolute; z-index: 40;
+  top: 76px; left: 14px; right: 14px;
+  max-height: calc(100% - 130px); overflow: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+  padding: 14px 18px;
+}
+.tab-editor-shortcuts-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 8px; font-size: 0.85rem;
+}
+.tab-editor-sc-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 26px;
+}
+.tab-editor-sc-title {
+  font-size: 0.66rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sub); margin: 6px 0 4px;
+}
+.tab-editor-sc-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: 0.75rem; color: var(--sub); padding: 1px 0;
+}
+
 /* Popover de afinação — grade de 3 colunas (rótulo / nota / oitava) para as
    linhas ficarem alinhadas independente da largura dos rótulos. */
 .tuning-grid {
@@ -1877,11 +2017,6 @@ label {
 /* Legenda de teclado — agora inline na toolbar (rola junto, não fica fixa).
    margin-left:auto empurra para a direita; quebra para a próxima linha se faltar
    espaço (a toolbar é flex-wrap). */
-.tab-editor-kbd-hints {
-  display: flex; gap: 9px; flex-wrap: wrap; align-items: center;
-  margin-left: auto;
-  font-size: 0.68rem; color: var(--sub);
-}
 .tab-editor-key {
   display: inline-block;
   background: var(--panel-2); border: 1px solid var(--border);

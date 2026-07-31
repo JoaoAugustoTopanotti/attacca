@@ -69,12 +69,27 @@ const EFFECTS: Array<{ value: NoteEffect; label: string; title: string }> = [
   { value: "g",  label: "g",  title: "Ghost note (nota fantasma, mais fraca)"         },
 ];
 
+// Efeitos frequentes ficam visíveis na toolbar; os demais moram no menu "mais ▾"
+// — na tela, só o que orienta.
+const MAIN_EFFECT_VALUES: ReadonlyArray<NoteEffect> = ["h", "p", "t", "sl", "v", "pm"];
+const EFFECTS_MAIN = EFFECTS.filter((e) => MAIN_EFFECT_VALUES.includes(e.value));
+const EFFECTS_MORE = EFFECTS.filter((e) => !MAIN_EFFECT_VALUES.includes(e.value));
+
+// Tecla → efeito, espelhando os tokens do alphaTex (aprende-se uma vez, vale
+// nos dois modos). "r" (pausa) e "i" (inserir) já existem e não colidem.
+const KEY_EFFECTS: Record<string, NoteEffect> = {
+  h: "h", p: "p", t: "t", s: "sl", v: "v", m: "pm", x: "x",
+};
+
 // Distâncias de bend oferecidas na toolbar (valor em QUARTOS de tom do alphaTab).
 const BEND_CHOICES: Array<{ quarters: number; label: string; title: string }> = [
   { quarters: 2, label: "½",  title: "Bend de meio tom" },
   { quarters: 4, label: "1",  title: "Bend de um tom (full)" },
   { quarters: 6, label: "1½", title: "Bend de um tom e meio" },
 ];
+
+// Ciclo da tecla "b": sem bend → ½ → 1 → 1½ → sem bend.
+const BEND_CYCLE = [2, 4, 6];
 
 // Nomes de cordas (string 1 = mais aguda, convenção alphaTex)
 const STRING_NAMES_6 = ["e", "B", "G", "D", "A", "E"];
@@ -102,6 +117,13 @@ function orderPos(a: BeatPos, b: BeatPos): [BeatPos, BeatPos] {
     (a.measureIndex === b.measureIndex && a.beatIndex <= b.beatIndex)
     ? [a, b]
     : [b, a];
+}
+
+/** Corda em que um efeito é aplicado: a do cursor se houver nota nela; senão,
+ *  a primeira nota do beat. */
+function targetString(beat: EditorBeat, cursorString: number): number {
+  if (beat.notes.some((n) => n.string === cursorString)) return cursorString;
+  return beat.notes[0]?.string ?? cursorString;
 }
 
 /** Prende o cursor a uma posição válida do modelo (pós undo/colar/apagar). */
@@ -180,6 +202,8 @@ type Props = {
   measureMeta?: MeasureMeta[];
   /** Andamento inicial da música (bpm) — desenha a marca ♩=N do compasso 1. */
   initialTempo?: number | null;
+  /** Espaço no editor → tocar/pausar a música completa (o player é do pai). */
+  onPlayPause?: () => void;
   /** Clique num beat → pede seek da música completa para este tick. */
   onSeek?: (tick: number) => void;
   /** Dono da música pode alterar a estrutura (adicionar/remover compassos). */
@@ -218,6 +242,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     trackHeader,
     measureMeta,
     initialTempo,
+    onPlayPause,
     onSeek,
     canEditStructure = false,
     onAddMeasure,
@@ -256,13 +281,28 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   const [addSlots, setAddSlots] = useState<{ x: number; y: number; measureIndex: number }[]>([]);
   // Letras da afinação por corda à esquerda do 1º compasso (estilo Songsterr).
   const [tuningLabels, setTuningLabels] = useState<{ x: number; y: number; label: string }[]>([]);
-  // Popover "andamento a partir deste compasso" (dono).
-  const [tempoPopOpen, setTempoPopOpen] = useState(false);
+  // Popover "andamento a partir deste compasso", ancorado na marca ♩=N ou no
+  // menu do compasso que o abriu (dono).
+  const [tempoPop, setTempoPop] = useState<
+    { measureIndex: number; x: number; y: number } | null
+  >(null);
   const [tempoPopVal, setTempoPopVal] = useState("");
   // Alvos clicáveis sobre as marcas ♩=N desenhadas na partitura (dono).
+  // bpm null = compasso 1 sem andamento: marca-fantasma "♩ = ?" para definir.
   const [tempoMarks, setTempoMarks] = useState<
-    { x: number; y: number; measureIndex: number; bpm: number }[]
+    { x: number; y: number; measureIndex: number; bpm: number | null }[]
   >([]);
+  // Números de compasso clicáveis (dono): abrem o menu de ações do compasso.
+  const [measureNums, setMeasureNums] = useState<
+    { x: number; y: number; measureIndex: number }[]
+  >([]);
+  const [measureMenu, setMeasureMenu] = useState<
+    { measureIndex: number; x: number; y: number } | null
+  >(null);
+  // Menus da toolbar (Bend ▾ / mais ▾) e o painel de atalhos.
+  const [bendPopOpen, setBendPopOpen] = useState(false);
+  const [morePopOpen, setMorePopOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // Refs para evitar closures obsoletas nos handlers do alphaTab, registrados
   // uma única vez na montagem.
@@ -323,6 +363,8 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
   // mais abaixo, onde os helpers já existem — o effect de mudança externa é
   // declarado antes deles e não pode citá-los nas dependências (TDZ).
   const applyPendingWriteRef = useRef<((m: EditorModel) => boolean) | null>(null);
+  // Módulo do alphaTab importado na montagem (enums usados em effects depois).
+  const atModuleRef = useRef<AlphaTabModule | null>(null);
   // Um render por vez (ver loadTex): render no ar + tex novo na fila.
   const renderBusyRef = useRef(false);
   const pendingTexRef = useRef<string | null>(null);
@@ -440,6 +482,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     (async () => {
       const at = await import("@coderline/alphatab");
       if (disposed || !surfaceRef.current) return;
+      atModuleRef.current = at;
 
       api = new at.AlphaTabApi(surfaceRef.current, {
         core: {
@@ -456,8 +499,15 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         },
         notation: {
           // Desliga o texto "Guitar Standard Tuning": a afinação é desenhada
-          // como letras por corda à esquerda do 1º compasso.
-          elements: new Map([[at.NotationElement.GuitarTuning, false]]),
+          // como letras por corda à esquerda do 1º compasso. Para o dono, o
+          // número de compasso do alphaTab também sai — no lugar dele entra o
+          // overlay clicável "N ▾" com o menu de ações do compasso.
+          elements: canEditStructure
+            ? new Map([
+                [at.NotationElement.GuitarTuning, false],
+                [at.NotationElement.BarNumber, false],
+              ])
+            : new Map([[at.NotationElement.GuitarTuning, false]]),
           // ⚠️ O default (Automatic) esconde o ritmo: ele olha o FLAG
           // staff.showStandardNotation do modelo (true), não o staveProfile
           // efetivo — com "Tab" o ritmo sumia inteiro (hastes e pontuado).
@@ -1058,9 +1108,82 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     [applyModel, disabled, showWarn],
   );
 
+  // ── Efeitos ────────────────────────────────────────────────────────────────
+  const handleEffectToggle = useCallback(
+    (effect: NoteEffect) => {
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
+      if (!beat || beat.notes.length === 0) return;
+      const string = targetString(beat, cur.string);
+      if (string !== cur.string) setCursor({ ...cur, string });
+      applyModel(toggleEffect(mod, cur.measureIndex, cur.beatIndex, string, effect));
+    },
+    [applyModel, disabled],
+  );
+
+  // Bend não é um toggle simples: mora no suffix da nota e carrega uma
+  // distância. Clicar numa distância aplica-a; clicar na já ativa remove.
+  const handleBendSet = useCallback(
+    (quarters: number) => {
+      if (disabled) return;
+      const cur = cursorRef.current;
+      const mod = modelRef.current;
+      if (!cur) return;
+      const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
+      if (!beat || beat.notes.length === 0) return;
+      const string = targetString(beat, cur.string);
+      if (string !== cur.string) setCursor({ ...cur, string });
+      const current = noteBendQuarters(mod, cur.measureIndex, cur.beatIndex, string);
+      applyModel(
+        setBend(
+          mod,
+          cur.measureIndex,
+          cur.beatIndex,
+          string,
+          current === quarters ? null : quarters,
+        ),
+      );
+    },
+    [applyModel, disabled],
+  );
+
+  // Tecla "b": cicla as distâncias (sem → ½ → 1 → 1½ → sem). Bend importado
+  // com curva própria ("custom") recomeça em ½ — a curva é substituída.
+  const cycleBend = useCallback(() => {
+    if (disabled) return;
+    const cur = cursorRef.current;
+    const mod = modelRef.current;
+    if (!cur) return;
+    const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
+    if (!beat || beat.notes.length === 0) return;
+    const string = targetString(beat, cur.string);
+    if (string !== cur.string) setCursor({ ...cur, string });
+    const current = noteBendQuarters(mod, cur.measureIndex, cur.beatIndex, string);
+    const idx = typeof current === "number" ? BEND_CYCLE.indexOf(current) : -1;
+    const next =
+      current === null ? BEND_CYCLE[0]
+      : idx === -1 ? BEND_CYCLE[0] // custom → substitui pela primeira distância
+      : BEND_CYCLE[idx + 1] ?? null;
+    applyModel(setBend(mod, cur.measureIndex, cur.beatIndex, string, next));
+  }, [applyModel, disabled]);
+
   // ── Handler de teclado ─────────────────────────────────────────────────────
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // Tocar/pausar e ajuda funcionam até no editor desabilitado (só leitura).
+      if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        onPlayPause?.();
+        return;
+      }
+      if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
+        return;
+      }
       if (disabled) return;
       const cur = cursorRef.current;
       const mod = modelRef.current;
@@ -1161,6 +1284,22 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         return;
       }
 
+      // Letras de efeito (h p t s v m x) e o ciclo de bend (b) — só sem
+      // modificadores, para não engolir atalhos do navegador.
+      if (!e.altKey && !e.shiftKey) {
+        const fx = KEY_EFFECTS[e.key.toLowerCase()];
+        if (fx) {
+          e.preventDefault();
+          handleEffectToggle(fx);
+          return;
+        }
+        if (e.key.toLowerCase() === "b") {
+          e.preventDefault();
+          cycleBend();
+          return;
+        }
+      }
+
       switch (e.key) {
         case "ArrowRight": {
           e.preventDefault();
@@ -1241,6 +1380,11 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         }
         case "Escape": {
           setSelAnchor(null);
+          setBendPopOpen(false);
+          setMorePopOpen(false);
+          setMeasureMenu(null);
+          setTempoPop(null);
+          setShortcutsOpen(false);
           break;
         }
         case "r": {
@@ -1337,62 +1481,12 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       }
     },
     [
-      applyDots, applyModel, deleteRange, disabled, doCopy, doMoveBeat,
-      doMoveNoteString, doPaste, doRedo, doRepeat, doUndo, measureTs,
-      showWarn, stepDuration, trackStringCount, canEditStructure, onAddMeasure,
+      applyDots, applyModel, cycleBend, deleteRange, disabled, doCopy,
+      doMoveBeat, doMoveNoteString, doPaste, doRedo, doRepeat, doUndo,
+      handleEffectToggle, measureTs, onPlayPause, showWarn, stepDuration,
+      trackStringCount, canEditStructure, onAddMeasure,
     ],
   );
-
-  // ── Seleção de corda ───────────────────────────────────────────────────────
-  function handleStringSelect(string: number) {
-    const cur = cursorRef.current;
-    if (!cur) return;
-    setCursor({ ...cur, string });
-    viewportRef.current?.focus();
-  }
-
-  // ── Efeitos ────────────────────────────────────────────────────────────────
-  // Corda em que o efeito é aplicado: a do cursor se houver nota nela; senão, a
-  // primeira nota do beat.
-  function targetString(beat: EditorModel["measures"][number]["beats"][number], cursorString: number): number {
-    if (beat.notes.some((n) => n.string === cursorString)) return cursorString;
-    return beat.notes[0]?.string ?? cursorString;
-  }
-
-  function handleEffectToggle(effect: NoteEffect) {
-    if (disabled) return;
-    const cur = cursorRef.current;
-    const mod = modelRef.current;
-    if (!cur) return;
-    const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
-    if (!beat || beat.notes.length === 0) return;
-    const string = targetString(beat, cur.string);
-    if (string !== cur.string) setCursor({ ...cur, string });
-    applyModel(toggleEffect(mod, cur.measureIndex, cur.beatIndex, string, effect));
-  }
-
-  // Bend não é um toggle simples: mora no suffix da nota e carrega uma
-  // distância. Clicar numa distância aplica-a; clicar na já ativa remove.
-  function handleBendSet(quarters: number) {
-    if (disabled) return;
-    const cur = cursorRef.current;
-    const mod = modelRef.current;
-    if (!cur) return;
-    const beat = mod.measures[cur.measureIndex]?.beats[cur.beatIndex];
-    if (!beat || beat.notes.length === 0) return;
-    const string = targetString(beat, cur.string);
-    if (string !== cur.string) setCursor({ ...cur, string });
-    const current = noteBendQuarters(mod, cur.measureIndex, cur.beatIndex, string);
-    applyModel(
-      setBend(
-        mod,
-        cur.measureIndex,
-        cur.beatIndex,
-        string,
-        current === quarters ? null : quarters,
-      ),
-    );
-  }
 
   // Beat selecionado; efeitos só fazem sentido quando ele tem notas.
   const selectedBeat = cursor
@@ -1415,6 +1509,15 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           targetString(selectedBeat, cursor.string),
         )
       : null;
+  // Rótulo do botão de bend: a distância ativa; "B*" = curva importada própria.
+  const bendLabel =
+    bendAmount === null
+      ? "Bend"
+      : bendAmount === "custom"
+        ? "B*"
+        : BEND_CHOICES.find((b) => b.quarters === bendAmount)?.label ?? "B*";
+  // O "mais ▾" acende quando algum efeito escondido nele está ativo na seleção.
+  const moreActive = EFFECTS_MORE.some((ef) => effects.includes(ef.value));
 
   // ── Duração exibida na toolbar ─────────────────────────────────────────────
   const displayDuration: BeatDuration = cursor
@@ -1422,11 +1525,12 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     : duration;
   const dotState: 0 | 1 | 2 = selectedBeat ? beatDots(selectedBeat) : 0;
 
-  // ── Andamento do compasso selecionado, lido do structPrefix ────────────────
+  // ── Andamento próprio do compasso do popover, lido do structPrefix ─────────
   // O exporter escreve `\tempo (120 hide)`; à mão, escreve-se `\tempo 120`.
-  const cursorMeasureTempo: number | null = (() => {
-    if (!cursor) return null;
-    const m = measureMeta?.[cursor.measureIndex]?.structPrefix?.match(
+  // Decide se o popover mostra "Remover" (só mudanças no meio da música).
+  const popMeasureTempo: number | null = (() => {
+    if (!tempoPop) return null;
+    const m = measureMeta?.[tempoPop.measureIndex]?.structPrefix?.match(
       /\\tempo\s*\(?\s*(\d+)/i,
     );
     return m ? Number(m[1]) : null;
@@ -1644,7 +1748,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     }
     const offX = surfaceRef.current?.offsetLeft ?? 0;
     const offY = surfaceRef.current?.offsetTop ?? 0;
-    const marks: { x: number; y: number; measureIndex: number; bpm: number }[] = [];
+    const marks: { x: number; y: number; measureIndex: number; bpm: number | null }[] = [];
     const visibleTempo = (prefix: string | null | undefined): number | null => {
       const m = prefix?.match(/\\tempo\s*(\(?)\s*(\d+)([^\n]*)/i);
       if (!m) return null;
@@ -1657,7 +1761,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
       if (bpm === null && i === 0 && initialTempo && !/\\tempo\b/i.test(measureMeta?.[0]?.structPrefix ?? "")) {
         bpm = initialTempo;
       }
-      if (bpm === null) return;
+      // Música ainda sem andamento nenhum: marca-fantasma "♩ = ?" no compasso 1
+      // — a marca na partitura é o ÚNICO controle de andamento, então precisa
+      // existir mesmo antes do primeiro valor.
+      if (bpm === null && i !== 0) return;
       const beat = bars[i]?.voices?.[0]?.beats?.[0];
       const bb = beat ? lookup.findBeat(beat) : null;
       if (!bb) return;
@@ -1666,6 +1773,83 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
     });
     setTempoMarks(marks);
   }, [apiReady, raw, canEditStructure, renderEpoch, model, measureMeta, initialTempo]);
+
+  // ── Número de compasso do alphaTab segue canEditStructure ───────────────────
+  // ⚠️ canEditStructure pode chegar DEPOIS da montagem (o /api/me é assíncrono):
+  // decidir só nas settings iniciais deixava o número do alphaTab por baixo do
+  // overlay clicável — os dois visíveis, "11 22 33".
+  useEffect(() => {
+    const api = apiRef.current;
+    const at = atModuleRef.current;
+    if (!apiReady || !api || !at) return;
+    const key = at.NotationElement.BarNumber;
+    const els = api.settings.notation.elements;
+    const hidden = els.get(key) === false;
+    if (canEditStructure === hidden) return;
+    if (canEditStructure) els.set(key, false);
+    else els.delete(key);
+    api.updateSettings();
+    api.render();
+  }, [apiReady, canEditStructure]);
+
+  // ── Números de compasso clicáveis (dono) ────────────────────────────────────
+  // O número desenhado pelo alphaTab é desligado na montagem (NotationElement.
+  // BarNumber) e substituído por este overlay, que abre o menu de ações do
+  // compasso — inserir depois, andamento a partir daqui, remover.
+  useEffect(() => {
+    if (!apiReady || raw || !canEditStructure) {
+      setMeasureNums([]);
+      return;
+    }
+    const api = apiRef.current;
+    const lookup = api?.boundsLookup;
+    const bars = api?.score?.tracks?.[0]?.staves?.[0]?.bars;
+    if (!lookup || !bars) {
+      setMeasureNums([]);
+      return;
+    }
+    const offX = surfaceRef.current?.offsetLeft ?? 0;
+    const offY = surfaceRef.current?.offsetTop ?? 0;
+    const nums: { x: number; y: number; measureIndex: number }[] = [];
+    model.measures.forEach((_, i) => {
+      const beat = bars[i]?.voices?.[0]?.beats?.[0];
+      const bb = beat ? lookup.findBeat(beat) : null;
+      if (!bb) return;
+      const barVB = bb.barBounds.visualBounds;
+      nums.push({ x: offX + barVB.x, y: offY + barVB.y - 17, measureIndex: i });
+    });
+    setMeasureNums(nums);
+  }, [apiReady, raw, canEditStructure, renderEpoch, model]);
+
+  // ── Fechar menus/popovers em clique fora ou Esc ─────────────────────────────
+  // No documento, não no viewport: o foco pode estar num botão de overlay ou no
+  // input do popover, e o Esc tem que fechar de qualquer lugar.
+  const anyPopOpen =
+    bendPopOpen || morePopOpen || measureMenu !== null || tempoPop !== null || shortcutsOpen;
+  useEffect(() => {
+    if (!anyPopOpen) return;
+    const closeAll = () => {
+      setBendPopOpen(false);
+      setMorePopOpen(false);
+      setMeasureMenu(null);
+      setTempoPop(null);
+      setShortcutsOpen(false);
+    };
+    const onDown = (ev: PointerEvent) => {
+      const el = ev.target as HTMLElement | null;
+      if (el?.closest?.(".te-pop, .te-pop-anchor")) return;
+      closeAll();
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") closeAll();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [anyPopOpen]);
 
   // ── Botão "+" ao final de cada compasso ─────────────────────────────────────
   useEffect(() => {
@@ -1707,8 +1891,6 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
           {raw ? "Tablatura da faixa (texto)" : "Editor visual"}
         </span>
         <div className="tab-editor-header-right">
-          {error && <span className="form-error" style={{ fontSize: "0.75rem" }}>{error}</span>}
-          {info  && <span className="form-ok"   style={{ fontSize: "0.75rem" }}>{info}</span>}
           <button
             type="button"
             className="tab-editor-raw-toggle"
@@ -1719,7 +1901,9 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
         </div>
       </div>
 
-      {/* ── Toolbar — visível apenas no modo visual ── */}
+      {/* ── Toolbar — só as ferramentas de ESCREVER; visível no modo visual.
+          Posição/avisos moram na barra de status; ações de compasso e andamento
+          moram na própria partitura (menu do compasso, marca ♩=N). ── */}
       {!raw && (
         <div className="tab-editor-toolbar">
           <span className="tab-editor-toolbar-label">Dur.</span>
@@ -1760,7 +1944,7 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
 
           <span className="tab-editor-toolbar-label">Efeito</span>
           <div className="tab-editor-toolbar-group">
-            {EFFECTS.map((ef) => (
+            {EFFECTS_MAIN.map((ef) => (
               <button
                 key={ef.value}
                 type="button"
@@ -1772,62 +1956,87 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
                 {ef.label}
               </button>
             ))}
-          </div>
 
-          <div className="tab-editor-toolbar-sep" />
-
-          {/* Bend com distância: ½ / 1 / 1½ tom. Bend importado com curva
-              própria aparece como "B*" (clicar substitui pela distância). */}
-          <span className="tab-editor-toolbar-label">Bend</span>
-          <div className="tab-editor-toolbar-group">
-            {BEND_CHOICES.map((b) => (
+            {/* Bend em menu: uma distância por vez, 1 botão no lugar de 3. */}
+            <span className="te-pop-anchor" style={{ position: "relative" }}>
               <button
-                key={b.quarters}
                 type="button"
-                className={`tab-editor-btn${bendAmount === b.quarters ? " effect-active" : ""}`}
-                title={`${b.title}. Clique de novo para remover.`}
-                onClick={() => handleBendSet(b.quarters)}
+                className={`tab-editor-btn${bendAmount !== null ? " effect-active" : ""}`}
+                title="Bend — a tecla b cicla ½ → 1 → 1½"
+                aria-expanded={bendPopOpen}
+                onClick={() => { setMorePopOpen(false); setBendPopOpen((o) => !o); }}
                 disabled={disabled || !cursor || !selectedHasNotes}
               >
-                {b.label}
+                {bendLabel} ▾
               </button>
-            ))}
-            {(bendAmount === "custom" ||
-              (typeof bendAmount === "number" &&
-                !BEND_CHOICES.some((b) => b.quarters === bendAmount))) && (
-              <span
-                className="tab-editor-btn effect-active"
-                title="Bend importado com curva própria — escolher uma distância substitui a curva"
-                style={{ cursor: "default" }}
-              >
-                B*
-              </span>
-            )}
-          </div>
+              {bendPopOpen && (
+                <div className="tab-editor-menu te-pop">
+                  {BEND_CHOICES.map((b) => (
+                    <button
+                      key={b.quarters}
+                      type="button"
+                      className={`tab-editor-menu-item${bendAmount === b.quarters ? " on" : ""}`}
+                      onClick={() => { setBendPopOpen(false); handleBendSet(b.quarters); }}
+                    >
+                      {b.title}
+                    </button>
+                  ))}
+                  {bendAmount === "custom" && (
+                    <div className="tab-editor-menu-note">
+                      Bend importado com curva própria — escolher uma distância
+                      substitui a curva.
+                    </div>
+                  )}
+                  {typeof bendAmount === "number" && (
+                    <>
+                      <div className="tab-editor-menu-sep" />
+                      <button
+                        type="button"
+                        className="tab-editor-menu-item"
+                        onClick={() => { setBendPopOpen(false); handleBendSet(bendAmount); }}
+                      >
+                        Remover o bend
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </span>
 
-          <div className="tab-editor-toolbar-sep" />
-
-          {/* Seletor de corda — escolha a corda, depois digite a casa (0–9). */}
-          <span className="tab-editor-toolbar-label">Corda</span>
-          <div className="tab-editor-toolbar-group">
-            {Array.from({ length: trackStringCount }, (_, i) => i + 1).map((s) => (
+            {/* Efeitos raros no menu "mais ▾" — a toolbar mostra só o frequente. */}
+            <span className="te-pop-anchor" style={{ position: "relative" }}>
               <button
-                key={s}
                 type="button"
-                className={`tab-editor-btn${cursor?.string === s ? " active" : ""}`}
-                title={`Corda ${s} (${stringName(s, trackStringCount)})`}
-                onClick={() => handleStringSelect(s)}
-                disabled={!cursor}
+                className={`tab-editor-btn${moreActive ? " effect-active" : ""}`}
+                title="Mais efeitos (nota morta, harmônico, acento…)"
+                aria-expanded={morePopOpen}
+                onClick={() => { setBendPopOpen(false); setMorePopOpen((o) => !o); }}
+                disabled={disabled || !cursor || !selectedHasNotes}
               >
-                {stringName(s, trackStringCount)}
+                mais ▾
               </button>
-            ))}
+              {morePopOpen && (
+                <div className="tab-editor-menu te-pop">
+                  {EFFECTS_MORE.map((ef) => (
+                    <button
+                      key={ef.value}
+                      type="button"
+                      className={`tab-editor-menu-item${effects.includes(ef.value) ? " on" : ""}`}
+                      title={ef.title}
+                      onClick={() => handleEffectToggle(ef.value)}
+                    >
+                      <strong>{ef.label}</strong>
+                      <span className="tab-editor-menu-desc">{ef.title.split(" (")[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </span>
           </div>
 
           <div className="tab-editor-toolbar-sep" />
 
-          {/* Trecho: copiar/colar/repetir a seleção (Shift+setas ou Shift+clique) */}
-          <span className="tab-editor-toolbar-label">Trecho</span>
+          {/* Trecho como ícones — o caminho principal é Ctrl+C/V/D. */}
           <div className="tab-editor-toolbar-group">
             <button
               type="button"
@@ -1836,7 +2045,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
               onClick={() => doCopy(false)}
               disabled={!cursor}
             >
-              Copiar
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
             </button>
             <button
               type="button"
@@ -1845,7 +2057,10 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
               onClick={doPaste}
               disabled={disabled || !cursor}
             >
-              Colar
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" />
+              </svg>
             </button>
             <button
               type="button"
@@ -1854,153 +2069,26 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
               onClick={doRepeat}
               disabled={disabled || !cursor}
             >
-              Repetir
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m17 2 4 4-4 4" />
+                <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+                <path d="m7 22-4-4 4-4" />
+                <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+              </svg>
             </button>
           </div>
 
-          {canEditStructure && (
-            <>
-              <div className="tab-editor-toolbar-sep" />
-              <span className="tab-editor-toolbar-label">Comp.</span>
-              <div className="tab-editor-toolbar-group">
-                <button
-                  type="button"
-                  className="tab-editor-btn"
-                  title="Inserir um compasso vazio DEPOIS do selecionado (todas as trilhas)"
-                  onClick={() => cursor && onAddMeasure?.(cursor.measureIndex)}
-                  disabled={disabled || !cursor}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  className="tab-editor-btn"
-                  title="Remover o compasso selecionado (todas as trilhas)"
-                  onClick={() => cursor && onDeleteMeasure?.(cursor.measureIndex)}
-                  disabled={disabled || !cursor}
-                >
-                  −
-                </button>
-                {/* Andamento a partir do compasso selecionado. No compasso 1 é o
-                    andamento inicial; nos demais, uma mudança no meio da música. */}
-                <div style={{ position: "relative", display: "inline-block" }}>
-                  <button
-                    type="button"
-                    className={`tab-editor-btn${cursorMeasureTempo !== null ? " effect-active" : ""}`}
-                    title="Andamento a partir do compasso selecionado"
-                    onClick={() => {
-                      if (!cursor) return;
-                      setTempoPopVal(
-                        cursorMeasureTempo !== null ? String(cursorMeasureTempo) : "",
-                      );
-                      setTempoPopOpen((o) => !o);
-                    }}
-                    disabled={disabled || !cursor}
-                  >
-                    ♩=
-                  </button>
-                  {tempoPopOpen && cursor && (
-                    <div className="tab-editor-tempo-pop">
-                      <span className="tab-editor-tempo-pop-label">
-                        a partir do compasso {cursor.measureIndex + 1}
-                      </span>
-                      <div className="tab-editor-tempo-pop-row">
-                        <span className="tempo-ctl">
-                          ♩=
-                          <input
-                            type="number"
-                            className="tempo-input"
-                            min={20}
-                            max={400}
-                            value={tempoPopVal}
-                            placeholder="120"
-                            autoFocus
-                            onChange={(e) => setTempoPopVal(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && tempoPopVal.trim()) {
-                                setTempoPopOpen(false);
-                                onSetMeasureTempo?.(cursor.measureIndex, Number(tempoPopVal));
-                              }
-                              if (e.key === "Escape") setTempoPopOpen(false);
-                            }}
-                            aria-label="Andamento (bpm)"
-                          />
-                          bpm
-                        </span>
-                        <button
-                          type="button"
-                          className="tab-editor-btn"
-                          disabled={!tempoPopVal.trim()}
-                          onClick={() => {
-                            setTempoPopOpen(false);
-                            onSetMeasureTempo?.(cursor.measureIndex, Number(tempoPopVal));
-                          }}
-                        >
-                          Aplicar
-                        </button>
-                        {cursorMeasureTempo !== null && cursor.measureIndex > 0 && (
-                          <button
-                            type="button"
-                            className="tab-editor-btn"
-                            title="Remover a mudança de andamento deste compasso"
-                            onClick={() => {
-                              setTempoPopOpen(false);
-                              onSetMeasureTempo?.(cursor.measureIndex, null);
-                            }}
-                          >
-                            Remover
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
+          <div style={{ flex: 1 }} />
 
-          <div className="tab-editor-toolbar-sep" />
-
-          {/* Posição do cursor + fórmula de compasso + avisos */}
-          {cursor ? (
-            <span className="tab-editor-pos">
-              Comp.{" "}<strong>{cursor.measureIndex + 1}</strong>
-              {" · "}Beat{" "}<strong>{cursor.beatIndex + 1}</strong>
-              {" · "}<strong title={DURATIONS.find((d) => d.value === displayDuration)?.title}>
-                1/{displayDuration}
-                {dotState === 1 ? "·" : dotState === 2 ? "··" : ""}
-              </strong>
-              {fill && (
-                <>
-                  {" · "}<strong>{fill.num}/{fill.den}</strong>
-                  {fill.state === "full" && <span className="tab-editor-chip full"> cheio</span>}
-                  {fill.state === "over" && <span className="tab-editor-chip over"> estourado</span>}
-                </>
-              )}
-            </span>
-          ) : (
-            <span className="tab-editor-pos">Clique numa nota da tablatura para selecionar</span>
-          )}
-
-          {warn && <span className="tab-editor-chip warn">{warn}</span>}
-          {!warn && flash && <span className="tab-editor-chip info">{flash}</span>}
-
-          <div className="tab-editor-kbd-hints">
-            <span><kbd className="tab-editor-key">0–9</kbd> casa</span>
-            <span><kbd className="tab-editor-key">← →</kbd> beat</span>
-            <span><kbd className="tab-editor-key">↑ ↓</kbd> corda</span>
-            <span><kbd className="tab-editor-key">.</kbd> pontuado</span>
-            <span><kbd className="tab-editor-key">+ −</kbd> duração</span>
-            <span><kbd className="tab-editor-key">Shift+← →</kbd> selecionar</span>
-            <span><kbd className="tab-editor-key">Ctrl+C/V</kbd> copiar/colar</span>
-            <span><kbd className="tab-editor-key">Ctrl+D</kbd> repetir</span>
-            <span><kbd className="tab-editor-key">Alt+← →</kbd> mover beat</span>
-            <span><kbd className="tab-editor-key">Shift+↑ ↓</kbd> mover nota</span>
-            <span><kbd className="tab-editor-key">r</kbd> pausa</span>
-            <span><kbd className="tab-editor-key">i</kbd> inserir</span>
-            <span><kbd className="tab-editor-key">Del</kbd> apagar</span>
-            <span><kbd className="tab-editor-key">Ctrl+Z</kbd> desfazer</span>
-          </div>
+          <button
+            type="button"
+            className="tab-editor-btn tab-editor-help-btn te-pop-anchor"
+            title="Atalhos de teclado (tecla ?)"
+            aria-expanded={shortcutsOpen}
+            onClick={() => setShortcutsOpen((o) => !o)}
+          >
+            ?
+          </button>
         </div>
       )}
 
@@ -2078,29 +2166,170 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             </span>
           ))}
 
-        {/* Marcas ♩=N clicáveis: clicar abre o popover de andamento do compasso */}
+        {/* Marcas ♩=N clicáveis — O controle de andamento (não há outro). A
+            marca-fantasma "♩ = ?" cobre música que ainda não tem andamento. */}
         {!raw &&
           tempoMarks.map((tm) => (
             <button
               key={tm.measureIndex}
               type="button"
-              className="tab-editor-tempo-mark"
-              title={`Andamento: ${tm.bpm} bpm a partir do compasso ${tm.measureIndex + 1} — clique para mudar`}
+              className={`tab-editor-tempo-mark te-pop-anchor${tm.bpm === null ? " ghost" : ""}`}
+              title={
+                tm.bpm === null
+                  ? "Definir o andamento da música"
+                  : `Andamento: ${tm.bpm} bpm a partir do compasso ${tm.measureIndex + 1} — clique para mudar`
+              }
               style={{ left: tm.x, top: tm.y }}
               disabled={disabled}
               onClick={() => {
-                const cur = cursorRef.current;
-                setCursor({
-                  measureIndex: tm.measureIndex,
-                  beatIndex: 0,
-                  string: cur?.string ?? 1,
-                });
-                setSelAnchor(null);
-                setTempoPopVal(String(tm.bpm));
-                setTempoPopOpen(true);
+                setMeasureMenu(null);
+                setTempoPopVal(tm.bpm !== null ? String(tm.bpm) : "");
+                setTempoPop({ measureIndex: tm.measureIndex, x: tm.x, y: tm.y + 24 });
               }}
-            />
+            >
+              {tm.bpm === null ? "♩ = ?" : ""}
+            </button>
           ))}
+
+        {/* Números de compasso clicáveis (dono): menu de ações do compasso */}
+        {!raw &&
+          canEditStructure &&
+          measureNums.map((mn) => (
+            <button
+              key={mn.measureIndex}
+              type="button"
+              className={`tab-editor-measure-num te-pop-anchor${
+                measureMenu?.measureIndex === mn.measureIndex ? " open" : ""
+              }`}
+              title={`Ações do compasso ${mn.measureIndex + 1}`}
+              style={{ left: mn.x, top: mn.y }}
+              onClick={() =>
+                setMeasureMenu((m) =>
+                  m?.measureIndex === mn.measureIndex
+                    ? null
+                    : { measureIndex: mn.measureIndex, x: mn.x, y: mn.y + 16 },
+                )
+              }
+            >
+              {mn.measureIndex + 1}
+              <span className="tab-editor-measure-caret">▾</span>
+            </button>
+          ))}
+
+        {/* Menu de ações do compasso — a ação acontece NO compasso que afeta */}
+        {!raw && measureMenu && (
+          <div
+            className="tab-editor-menu te-pop"
+            style={{ position: "absolute", left: measureMenu.x, top: measureMenu.y, zIndex: 30 }}
+          >
+            <div className="tab-editor-menu-title">compasso {measureMenu.measureIndex + 1}</div>
+            <button
+              type="button"
+              className="tab-editor-menu-item"
+              disabled={disabled}
+              onClick={() => {
+                const mi = measureMenu.measureIndex;
+                setMeasureMenu(null);
+                onAddMeasure?.(mi);
+              }}
+            >
+              Inserir compasso depois
+            </button>
+            <button
+              type="button"
+              className="tab-editor-menu-item"
+              disabled={disabled}
+              onClick={() => {
+                const mi = measureMenu.measureIndex;
+                const m = measureMeta?.[mi]?.structPrefix?.match(/\\tempo\s*\(?\s*(\d+)/i);
+                const own = m ? Number(m[1]) : mi === 0 ? initialTempo ?? null : null;
+                setTempoPopVal(own !== null ? String(own) : "");
+                setTempoPop({ measureIndex: mi, x: measureMenu.x, y: measureMenu.y });
+                setMeasureMenu(null);
+              }}
+            >
+              Andamento a partir daqui…
+            </button>
+            <div className="tab-editor-menu-sep" />
+            <button
+              type="button"
+              className="tab-editor-menu-item danger"
+              disabled={disabled}
+              onClick={() => {
+                const mi = measureMenu.measureIndex;
+                setMeasureMenu(null);
+                onDeleteMeasure?.(mi);
+              }}
+            >
+              Remover este compasso…
+            </button>
+          </div>
+        )}
+
+        {/* Popover de andamento, ancorado na marca ♩=N ou no menu do compasso */}
+        {!raw && tempoPop && (
+          <div
+            className="tab-editor-tempo-pop te-pop"
+            style={{ position: "absolute", left: tempoPop.x, top: tempoPop.y, zIndex: 30 }}
+          >
+            <span className="tab-editor-tempo-pop-label">
+              {tempoPop.measureIndex === 0
+                ? "andamento inicial da música"
+                : `a partir do compasso ${tempoPop.measureIndex + 1}`}
+            </span>
+            <div className="tab-editor-tempo-pop-row">
+              <span className="tempo-ctl">
+                ♩=
+                <input
+                  type="number"
+                  className="tempo-input"
+                  min={20}
+                  max={400}
+                  value={tempoPopVal}
+                  placeholder="120"
+                  autoFocus
+                  onChange={(e) => setTempoPopVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && tempoPopVal.trim()) {
+                      const mi = tempoPop.measureIndex;
+                      setTempoPop(null);
+                      onSetMeasureTempo?.(mi, Number(tempoPopVal));
+                    }
+                    if (e.key === "Escape") setTempoPop(null);
+                  }}
+                  aria-label="Andamento (bpm)"
+                />
+                bpm
+              </span>
+              <button
+                type="button"
+                className="tab-editor-btn"
+                disabled={!tempoPopVal.trim()}
+                onClick={() => {
+                  const mi = tempoPop.measureIndex;
+                  setTempoPop(null);
+                  onSetMeasureTempo?.(mi, Number(tempoPopVal));
+                }}
+              >
+                Aplicar
+              </button>
+              {popMeasureTempo !== null && tempoPop.measureIndex > 0 && (
+                <button
+                  type="button"
+                  className="tab-editor-btn"
+                  title="Remover a mudança de andamento deste compasso"
+                  onClick={() => {
+                    const mi = tempoPop.measureIndex;
+                    setTempoPop(null);
+                    onSetMeasureTempo?.(mi, null);
+                  }}
+                >
+                  Remover
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Botão "+" ao final de cada compasso — inserir um vazio logo depois */}
         {!raw &&
@@ -2119,6 +2348,103 @@ const TabEditor = forwardRef<TabEditorHandle, Props>(function TabEditor(
             </button>
           ))}
       </div>
+
+      {/* ── Barra de status: onde estou + fórmula + avisos, como em qualquer
+          editor profissional. A toolbar fica só com ferramentas. ── */}
+      {!raw && (
+        <div className="tab-editor-statusbar">
+          {cursor ? (
+            <span className="tab-editor-pos">
+              Comp. <strong>{cursor.measureIndex + 1}</strong>
+              {" · "}Beat <strong>{cursor.beatIndex + 1}</strong>
+              {" · "}corda <strong>{stringName(cursor.string, trackStringCount)}</strong>
+              {" · "}
+              <strong title={DURATIONS.find((d) => d.value === displayDuration)?.title}>
+                1/{displayDuration}
+                {dotState === 1 ? "·" : dotState === 2 ? "··" : ""}
+              </strong>
+              {fill && (
+                <>
+                  {" · "}<strong>{fill.num}/{fill.den}</strong>
+                  {fill.state === "full" && <span className="tab-editor-chip full"> cheio</span>}
+                  {fill.state === "over" && <span className="tab-editor-chip over"> estourado</span>}
+                </>
+              )}
+            </span>
+          ) : (
+            <span className="tab-editor-pos">
+              Clique numa nota da tablatura para selecionar
+            </span>
+          )}
+
+          {warn && <span className="tab-editor-chip warn">{warn}</span>}
+          {!warn && flash && <span className="tab-editor-chip info">{flash}</span>}
+          {error && <span className="form-error tab-editor-status-msg">{error}</span>}
+          {info && !error && <span className="form-ok tab-editor-status-msg">{info}</span>}
+
+          <span style={{ flex: 1 }} />
+
+          <button
+            type="button"
+            className="tab-editor-status-help te-pop-anchor"
+            onClick={() => setShortcutsOpen((o) => !o)}
+          >
+            <kbd className="tab-editor-key">?</kbd> atalhos
+          </button>
+        </div>
+      )}
+
+      {/* ── Painel de atalhos (tecla ?) — os "tutoriais" moram aqui agora ── */}
+      {!raw && shortcutsOpen && (
+        <div className="tab-editor-shortcuts te-pop" role="dialog" aria-label="Atalhos de teclado">
+          <div className="tab-editor-shortcuts-head">
+            <strong>Atalhos — a mão não sai do teclado</strong>
+            <button
+              type="button"
+              className="tab-editor-raw-toggle"
+              onClick={() => setShortcutsOpen(false)}
+            >
+              fechar (Esc)
+            </button>
+          </div>
+          <div className="tab-editor-sc-grid">
+            <div>
+              <div className="tab-editor-sc-title">escrever</div>
+              <div className="tab-editor-sc-row"><span>casa (2 dígitos rápidos = 10+)</span><span><kbd className="tab-editor-key">0–9</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>pausa</span><span><kbd className="tab-editor-key">r</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>inserir beat (cheio: cria compasso)</span><span><kbd className="tab-editor-key">i</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>apagar nota/beat/seleção</span><span><kbd className="tab-editor-key">Del</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>duração: subdividir / alongar</span><span><kbd className="tab-editor-key">+</kbd> <kbd className="tab-editor-key">−</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>pontuado / duplo pontuado</span><span><kbd className="tab-editor-key">.</kbd> <kbd className="tab-editor-key">Ctrl+.</kbd></span></div>
+            </div>
+            <div>
+              <div className="tab-editor-sc-title">efeitos</div>
+              <div className="tab-editor-sc-row"><span>hammer-on / pull-off</span><span><kbd className="tab-editor-key">h</kbd> <kbd className="tab-editor-key">p</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>ligadura / slide</span><span><kbd className="tab-editor-key">t</kbd> <kbd className="tab-editor-key">s</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>vibrato / palm mute</span><span><kbd className="tab-editor-key">v</kbd> <kbd className="tab-editor-key">m</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>nota morta</span><span><kbd className="tab-editor-key">x</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>bend (cicla ½ → 1 → 1½)</span><span><kbd className="tab-editor-key">b</kbd></span></div>
+            </div>
+            <div>
+              <div className="tab-editor-sc-title">navegar</div>
+              <div className="tab-editor-sc-row"><span>beat / corda</span><span><kbd className="tab-editor-key">← →</kbd> <kbd className="tab-editor-key">↑ ↓</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>por compasso</span><span><kbd className="tab-editor-key">Ctrl+← →</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>início / fim da música</span><span><kbd className="tab-editor-key">Ctrl+Home/End</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>tocar / pausar</span><span><kbd className="tab-editor-key">Espaço</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>selecionar trecho</span><span><kbd className="tab-editor-key">Shift+← →</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>este painel</span><span><kbd className="tab-editor-key">?</kbd></span></div>
+            </div>
+            <div>
+              <div className="tab-editor-sc-title">trecho</div>
+              <div className="tab-editor-sc-row"><span>copiar / recortar / colar</span><span><kbd className="tab-editor-key">Ctrl+C/X/V</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>repetir a seleção adiante</span><span><kbd className="tab-editor-key">Ctrl+D</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>mover beat no tempo</span><span><kbd className="tab-editor-key">Alt+← →</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>mover nota de corda</span><span><kbd className="tab-editor-key">Shift+↑ ↓</kbd></span></div>
+              <div className="tab-editor-sc-row"><span>desfazer / refazer</span><span><kbd className="tab-editor-key">Ctrl+Z/Y</kbd></span></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Overlay do modo texto, sobre o editor visual ── */}
       {raw && (

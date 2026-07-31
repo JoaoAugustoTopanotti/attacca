@@ -396,6 +396,30 @@ O raciocínio que levou à decisão (mantido como contexto):
   O Player "ao vivo" já sempre mostra o estado atual da grade; Histórico agora é
   puramente "quem entregou o quê pra quem", não um log de todo save. Snapshot **não** tem
   botão Reverter (a grade viva é a verdade; Reverter só nos uploads `kind="import"`).
+- **Editor "só o necessário na tela" (2026-07-30, redesign aprovado por mockup)** —
+  princípio: toolbar só com ferramentas de ESCREVER; o resto mora onde é usado.
+  (1) **Trilhas em menu**: o seletor virou menu com "+ nova trilha…" no rodapé; "− trilha"
+  e afinação saíram da barra para a **engrenagem ⚙ da trilha** (item Remover em vermelho).
+  (2) **Andamento SÓ na partitura**: a marca ♩=N clicável é o único controle (o widget da
+  barra e o botão ♩= da toolbar foram removidos); música sem tempo ganha marca-fantasma
+  "♩ = ?" no compasso 1 (dono); popover ancora na marca, não na toolbar.
+  (3) **Ações de compasso no compasso**: "Comp. + −" saiu da toolbar; o número do compasso
+  virou overlay clicável "N ▾" (dono) com menu Inserir depois / Andamento a partir daqui /
+  Remover; o "+" inline no fim de cada compasso continua. ⚠️ O número do alphaTab é
+  desligado via `NotationElement.BarNumber` — num effect reagindo a `canEditStructure`,
+  porque o `/api/me` chega DEPOIS da montagem (decidir só nas settings iniciais deixava os
+  dois números visíveis, "11 22 33").
+  (4) **Toolbar enxuta**: efeitos frequentes visíveis (H P Lig / ~ PM), raros em "mais ▾",
+  bend virou menu "Bend ▾" (1 botão no lugar de 3+B*); grupo **Corda removido** (clique na
+  linha / ↑↓ cobrem; a corda atual aparece na barra de status); Copiar/Colar/Repetir viraram
+  ícones. (5) **Barra de status embaixo** (posição · corda · duração · fórmula · avisos ·
+  erro/info) no lugar do bloco no meio da toolbar; hints de teclado viraram o **painel "?"**
+  (botão na toolbar/status ou tecla ?). (6) **Teclado-primeiro**: `Espaço` toca/pausa (prop
+  `onPlayPause`, funciona até com editor desabilitado), letras de efeito espelham os tokens
+  (`h p t s v m x`), `b` cicla bend ½→1→1½→sem. ⚠️ Menus fecham por clique-fora e **Esc em
+  nível de DOCUMENTO** (classes `.te-pop`/`.te-pop-anchor` marcam o que não fecha) — Esc no
+  viewport não bastava, o foco pode estar num botão de overlay. DrumGridEditor ainda não
+  herdou a casca (statusbar/painel ?) — segue com a toolbar antiga.
 - ⚠️ **Ritmo na tablatura só-tab (2026-07-30)** — o default do alphaTab
   (`notation.rhythmMode: Automatic`) decide pelo FLAG `staff.showStandardNotation` do
   modelo (sempre true nos nossos scores), não pelo `staveProfile` efetivo: com

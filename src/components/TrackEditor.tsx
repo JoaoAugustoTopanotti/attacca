@@ -68,14 +68,18 @@ export default function TrackEditor({
   const [info, setInfo] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
 
+  // ── Menus da barra: trocar de trilha e ajustes da trilha (engrenagem) ──
+  const [trackMenuOpen, setTrackMenuOpen] = useState(false);
+  const [gearOpen, setGearOpen] = useState(false);
+
   // ── Afinação e andamento: estrutura musical, restrita ao dono ──
+  // O andamento não tem widget aqui: o controle é a marca ♩=N na partitura
+  // (e o menu do compasso), dentro do TabEditor.
   const [tuningOpen, setTuningOpen] = useState(false);
   const [tuningDraft, setTuningDraft] = useState<string[]>([]);
   const [tuningBusy, setTuningBusy] = useState(false);
   const [tuningError, setTuningError] = useState<string | null>(null);
-  const [tempoDraft, setTempoDraft] = useState("");
   const [tempoBusy, setTempoBusy] = useState(false);
-  const [tempoOpen, setTempoOpen] = useState(false);
 
   // ── Controle externo do player ──
   const playerRef = useRef<AlphaTabPlayerHandle>(null);
@@ -241,9 +245,9 @@ export default function TrackEditor({
       const data = json as Content;
       setContent(data);
       setText(data.alphaTex);
-      setTempoDraft(data.song.tempo != null ? String(data.song.tempo) : "");
       setTuningOpen(false);
-      setTempoOpen(false);
+      setGearOpen(false);
+      setTrackMenuOpen(false);
     } catch {
       if (seq === loadSeqRef.current) {
         setError("Falha de rede ao carregar a trilha — tente de novo.");
@@ -386,7 +390,7 @@ export default function TrackEditor({
       }),
     );
     setTuningError(null);
-    setTuningOpen((o) => !o);
+    setTuningOpen(true);
   }
 
   async function applyTuning() {
@@ -410,6 +414,7 @@ export default function TrackEditor({
       // loadTrack traz o header novo e o TabEditor re-renderiza em-place, pela
       // assinatura estrutural, sem remontar.
       await loadTrack();
+      setTuningOpen(false);
       setInfo(`Afinação atualizada: ${tuningSummary(json.tuning)}.`);
     } catch (e) {
       setTuningError(e instanceof Error ? e.message : "Erro.");
@@ -448,7 +453,6 @@ export default function TrackEditor({
         tempo: measure === 0 && bpm !== null ? bpm : content.song.tempo,
       },
     });
-    if (measure === 0 && bpm !== null) setTempoDraft(String(bpm));
     setTempoBusy(true);
     setError(null);
     try {
@@ -471,18 +475,10 @@ export default function TrackEditor({
       );
     } catch (e) {
       setContent(prev); // reverte a atualização otimista
-      setTempoDraft(prev.song.tempo != null ? String(prev.song.tempo) : "");
       setError(e instanceof Error ? e.message : "Erro.");
     } finally {
       setTempoBusy(false);
     }
-  }
-
-  function applyTempo() {
-    const bpm = Number(tempoDraft);
-    if (!content || !tempoDraft.trim() || bpm === content.song.tempo) return;
-    setTempoOpen(false);
-    applyTempoAt(0, bpm);
   }
 
   // ── Estrutura: adicionar/remover compasso, afetando todas as trilhas ────────
@@ -617,33 +613,59 @@ export default function TrackEditor({
           )}
         </button>
 
-        <div className="track-select-wrap">
-          <select
-            className="track-select"
-            value={trackOrder}
-            onChange={(e) => switchTrack(Number(e.target.value))}
-            aria-label="Faixa a editar"
-          >
-            {trackList.map((t) => (
-              <option key={t.order} value={t.order}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Adicionar uma trilha, declarando o instrumento */}
+        {/* Seletor de trilha em MENU: as trilhas da música + "nova trilha…" no
+            rodapé (padrão dos editores profissionais). Ajustes da trilha
+            selecionada moram na engrenagem ao lado. */}
         <div className="add-track">
           <button
             type="button"
-            className="add-track-btn"
-            onClick={() => { setAdding((a) => !a); setAddError(null); }}
-            disabled={!me}
-            title={me ? "Adicionar uma trilha (bateria, teclado…)" : "Identifique-se para adicionar trilhas"}
-            aria-expanded={adding}
+            className="add-track-btn track-menu-btn"
+            onClick={() => {
+              setGearOpen(false);
+              setAdding(false);
+              setTrackMenuOpen((o) => !o);
+            }}
+            aria-expanded={trackMenuOpen}
+            title="Trocar de trilha"
           >
-            + trilha
+            {content?.track.name ??
+              trackList.find((t) => t.order === trackOrder)?.name ??
+              "…"}
+            <span className="track-menu-caret">▾</span>
           </button>
+          {trackMenuOpen && (
+            <div className="add-track-pop track-menu-pop">
+              {trackList.map((t) => (
+                <button
+                  key={t.order}
+                  type="button"
+                  className={`track-menu-item${t.order === trackOrder ? " current" : ""}`}
+                  onClick={() => {
+                    setTrackMenuOpen(false);
+                    if (t.order !== trackOrder) switchTrack(t.order);
+                  }}
+                >
+                  {t.name}
+                </button>
+              ))}
+              <div className="track-menu-sep" />
+              <button
+                type="button"
+                className="track-menu-item"
+                disabled={!me}
+                title={me ? undefined : "Identifique-se para adicionar trilhas"}
+                onClick={() => {
+                  setTrackMenuOpen(false);
+                  setAddError(null);
+                  setAdding(true);
+                }}
+              >
+                + nova trilha…
+              </button>
+            </div>
+          )}
+
+          {/* Formulário de nova trilha (instrumento + nome), aberto pelo menu */}
           {adding && (
             <div className="add-track-pop">
               <div className="add-track-row">
@@ -653,10 +675,21 @@ export default function TrackEditor({
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="nome (opcional), ex.: Fender do Mick"
-                  onKeyDown={(e) => { if (e.key === "Enter") addTrack(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addTrack();
+                    if (e.key === "Escape") setAdding(false);
+                  }}
                 />
                 <button type="button" onClick={addTrack} disabled={addBusy}>
                   {addBusy ? "…" : "Adicionar"}
+                </button>
+                <button
+                  type="button"
+                  className="add-track-btn"
+                  onClick={() => setAdding(false)}
+                  disabled={addBusy}
+                >
+                  Cancelar
                 </button>
               </div>
               <p className="add-track-hint">
@@ -671,34 +704,65 @@ export default function TrackEditor({
           )}
         </div>
 
-        {/* Remover a trilha selecionada — ato de dono, como as demais operações
-            estruturais. Some quando só resta uma trilha (o servidor recusaria). */}
-        {isOwner && trackList.length > 1 && (
-          <button
-            type="button"
-            className="add-track-btn remove-track-btn"
-            onClick={askRemoveTrack}
-            disabled={busy}
-            title={`Remover a trilha "${content?.track.name ?? ""}" da música`}
-          >
-            − trilha
-          </button>
-        )}
-
-        {/* Afinação da trilha, para o dono de trilhas de corda. O popover edita
-            corda a corda ou por preset. */}
-        {isOwner && content?.track.tuning && (
+        {/* Engrenagem: ajustes da trilha selecionada, num lugar só (dono).
+            Remover deixa de ser botão permanente — é ação rara e destrutiva. */}
+        {isOwner && content && (content.track.tuning || trackList.length > 1) && (
           <div className="add-track">
             <button
               type="button"
-              className="add-track-btn"
-              onClick={openTuning}
-              aria-expanded={tuningOpen}
-              title="Afinação das cordas desta trilha"
+              className="add-track-btn track-gear-btn"
+              onClick={() => {
+                setTrackMenuOpen(false);
+                setAdding(false);
+                setTuningOpen(false);
+                setGearOpen((o) => !o);
+              }}
+              aria-expanded={gearOpen}
+              title={`Ajustes da trilha "${content.track.name}"`}
+              aria-label={`Ajustes da trilha "${content.track.name}"`}
             >
-              afinação · {tuningSummary(content.track.tuning)}
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v3m0 16v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M1 12h3m16 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+              </svg>
             </button>
-            {tuningOpen && (
+            {gearOpen && (
+              <div className="add-track-pop track-menu-pop">
+                <div className="track-menu-title">trilha · {content.track.name}</div>
+                {content.track.tuning && (
+                  <button
+                    type="button"
+                    className="track-menu-item"
+                    onClick={() => {
+                      setGearOpen(false);
+                      openTuning();
+                    }}
+                  >
+                    Afinação
+                    <span className="track-menu-hint">
+                      {tuningSummary(content.track.tuning)}
+                    </span>
+                  </button>
+                )}
+                {trackList.length > 1 && (
+                  <>
+                    <div className="track-menu-sep" />
+                    <button
+                      type="button"
+                      className="track-menu-item danger"
+                      disabled={busy}
+                      onClick={() => {
+                        setGearOpen(false);
+                        askRemoveTrack();
+                      }}
+                    >
+                      Remover esta trilha…
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {tuningOpen && content.track.tuning && (
               <div className="add-track-pop" style={{ minWidth: 260 }}>
                 {(TUNING_PRESETS[tuningDraft.length] ?? []).length > 0 && (
                   <div className="add-track-row" style={{ marginBottom: 8 }}>
@@ -764,6 +828,14 @@ export default function TrackEditor({
                   <button type="button" onClick={applyTuning} disabled={tuningBusy}>
                     {tuningBusy ? "…" : "Aplicar afinação"}
                   </button>
+                  <button
+                    type="button"
+                    className="add-track-btn"
+                    onClick={() => setTuningOpen(false)}
+                    disabled={tuningBusy}
+                  >
+                    Fechar
+                  </button>
                 </div>
                 <p className="add-track-hint">
                   As casas escritas continuam as mesmas — a trilha passa a soar na
@@ -772,64 +844,6 @@ export default function TrackEditor({
                 {tuningError && (
                   <div className="form-error" style={{ marginTop: 4 }}>{tuningError}</div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Andamento inicial, para o dono. Mudanças no meio da música saem
-            pelas marcas ♩=N da partitura ou pelo botão ♩= da toolbar. */}
-        {isOwner && content && (
-          <div className="add-track">
-            <button
-              type="button"
-              className="add-track-btn"
-              onClick={() => {
-                setTempoDraft(
-                  content.song.tempo != null ? String(content.song.tempo) : "",
-                );
-                setTempoOpen((o) => !o);
-              }}
-              aria-expanded={tempoOpen}
-              title="Andamento inicial da música"
-            >
-              ♩ {content.song.tempo ?? "—"}
-            </button>
-            {tempoOpen && (
-              <div className="add-track-pop" style={{ minWidth: 230 }}>
-                <div className="tab-editor-tempo-pop-row">
-                  <span className="tempo-ctl">
-                    ♩=
-                    <input
-                      type="number"
-                      className="tempo-input"
-                      min={20}
-                      max={400}
-                      value={tempoDraft}
-                      placeholder="120"
-                      autoFocus
-                      onChange={(e) => setTempoDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") applyTempo();
-                        if (e.key === "Escape") setTempoOpen(false);
-                      }}
-                      aria-label="Andamento inicial (bpm)"
-                    />
-                    bpm
-                  </span>
-                  <button
-                    type="button"
-                    className="add-track-btn"
-                    onClick={applyTempo}
-                    disabled={tempoBusy || !tempoDraft.trim()}
-                  >
-                    {tempoBusy ? "…" : "Aplicar"}
-                  </button>
-                </div>
-                <p className="add-track-hint">
-                  Para mudar o andamento no meio da música, clique na marca ♩=N
-                  na partitura — ou selecione um compasso e use o ♩= da toolbar.
-                </p>
               </div>
             )}
           </div>
@@ -904,6 +918,7 @@ export default function TrackEditor({
               trackStringCount={content.track.tuning?.length ?? (/baixo|bass/i.test(content.track.name) ? 4 : 6)}
               trackHeader={content.trackHeader}
               measureMeta={content.measures}
+              onPlayPause={handlePlayClick}
               onSeek={seekPlayer}
               canEditStructure={isOwner && !!me}
               onAddMeasure={addMeasureAfter}
