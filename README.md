@@ -33,5 +33,3 @@ Vocabulário do projeto (o que significa "célula", "materializar", "slot"…):
 [`docs/GLOSSARIO.md`](docs/GLOSSARIO.md).
 
 ---
-
-*Este projeto se chamava GitSong até 2026-07-15.*
